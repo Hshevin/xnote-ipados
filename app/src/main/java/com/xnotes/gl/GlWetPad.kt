@@ -236,6 +236,8 @@ class GlWetPad(context: Context, onTop: Boolean = false) : SurfaceView(context),
      * The switch is posted rather than awaited. The handler is in order, so it has happened before
      * the first draw runs, and nothing here has to block the hand.
      */
+    var lightBlackInk: Boolean = false
+
     fun beginStroke(
         scrollX: Double,
         scrollY: Double,
@@ -249,7 +251,7 @@ class GlWetPad(context: Context, onTop: Boolean = false) : SurfaceView(context),
         // stands would land wherever the compositor stretched the layer, so this stroke takes the
         // ordinary path and the next one gets the pad back.
         if (width != surfaceW || height != surfaceH) return false
-        if (!ink.begin(scrollX, scrollY, zoom, width, height, clip)) return false
+        if (!ink.begin(scrollX, scrollY, zoom, width, height, clip, lightBlackInk)) return false
         // Read here, on the main thread, because the delay the handover needs is one of these and
         // the pad's own thread has no display.
         val hz = display?.refreshRate ?: 0f
@@ -285,7 +287,7 @@ class GlWetPad(context: Context, onTop: Boolean = false) : SurfaceView(context),
         clip: com.xnotes.core.infinite.PixelRect? = null,
     ): Boolean {
         if (!frontBuffering || !ready || covered) return false
-        if (!ink.extend(scrollX, scrollY, zoom, width, height, clip)) return false
+        if (!ink.extend(scrollX, scrollY, zoom, width, height, clip, lightBlackInk)) return false
         // Cancels a handover still waiting to wipe the pad this stroke has just taken over.
         post { releaseGen++ }
         return true

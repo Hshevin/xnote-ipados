@@ -44,6 +44,7 @@ class GlWetPadInk {
         val height: Int,
         /** Where the stroke is allowed to show, in view pixels: a page's paper, or the surface. */
         val clip: PixelRect,
+        val lightBlackInk: Boolean,
     )
 
     /** Triangles handed over, already meshed. A run is appended once; the tail replaces the last. */
@@ -147,6 +148,7 @@ class GlWetPadInk {
         width: Int,
         height: Int,
         clip: PixelRect? = null,
+        lightBlackInk: Boolean = false,
     ): Boolean {
         if (width <= 0 || height <= 0 || !zoom.isFinite() || zoom <= 0.0) return false
         val box = PixelRect(0, 0, width, height)
@@ -156,7 +158,7 @@ class GlWetPadInk {
             if (box.isEmpty) return false
         }
         frozen = null
-        session = Session(++serials, scrollX, scrollY, zoom, width, height, box)
+        session = Session(++serials, scrollX, scrollY, zoom, width, height, box, lightBlackInk)
         return true
     }
 
@@ -174,8 +176,10 @@ class GlWetPadInk {
         width: Int,
         height: Int,
         clip: PixelRect? = null,
+        lightBlackInk: Boolean = false,
     ): Boolean {
         val s = frozen ?: return false
+        if (s.lightBlackInk != lightBlackInk) return false
         if (s.width != width || s.height != height) return false
         if (s.scrollX != scrollX || s.scrollY != scrollY || s.zoom != zoom) return false
         val box = PixelRect(0, 0, width, height)
@@ -298,6 +302,7 @@ class GlWetPadInk {
             s.scrollY - camChunkY * GeometryStore.CHUNK_SIZE,
             s.zoom, dw.toDouble(), dh.toDouble(),
             damage.left.toDouble(), damage.top.toDouble(),
+            lightBlackInk = s.lightBlackInk,
         )
         drawBuffer(program, runs, runPieces)
         drawBuffer(program, tail, tailPieces)

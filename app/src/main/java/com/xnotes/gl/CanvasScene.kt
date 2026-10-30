@@ -340,6 +340,7 @@ class CanvasScene(private val store: GeometryStore = GeometryStore()) : GlScene 
             frame.scrollX - camChunkX * GeometryStore.CHUNK_SIZE,
             frame.scrollY - camChunkY * GeometryStore.CHUNK_SIZE,
             frame.zoom, frame.widthPx.toDouble(), frame.heightPx.toDouble(),
+            lightBlackInk = frame.lightBlackInk,
         )
         if (!store.bindForDraw(contextGen)) return
         store.bindAttributes(program)
@@ -950,6 +951,7 @@ class CanvasScene(private val store: GeometryStore = GeometryStore()) : GlScene 
             frame.scrollX - camChunkX * GeometryStore.CHUNK_SIZE,
             frame.scrollY - camChunkY * GeometryStore.CHUNK_SIZE,
             frame.zoom, frame.widthPx.toDouble(), frame.heightPx.toDouble(),
+            lightBlackInk = frame.lightBlackInk,
         )
         if (lift.isIdentity) return
         // The pivot goes in the camera's own chunk frame, the frame the vertices rebuild themselves
@@ -1015,7 +1017,7 @@ class CanvasScene(private val store: GeometryStore = GeometryStore()) : GlScene 
         val color = when (pass) {
             InkPass.MULTIPLY -> ItemMesher.multiplyColor(coverColor, coverAlpha)
             InkPass.SCREEN -> ItemMesher.screenColor(coverColor, coverAlpha)
-            else -> coverColor
+            else -> if (frame.lightBlackInk) com.xnotes.core.pal.NightInk.color(coverColor) else coverColor
         }
         val alpha = if (pass == InkPass.MULTIPLY || pass == InkPass.SCREEN) 1.0 else coverAlpha
         quad.draw(r[0], r[1], r[2], r[3], color, alpha)

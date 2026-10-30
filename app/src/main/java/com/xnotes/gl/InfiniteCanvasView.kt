@@ -47,6 +47,12 @@ class InfiniteCanvasView @JvmOverloads constructor(
             publish()
         }
 
+    var darkAppearance: Boolean = false
+        set(value) { field = value; publish() }
+
+    val lightBlackInk: Boolean
+        get() = com.xnotes.core.pal.NightInk.enabled(darkAppearance, paperColor)
+
     /** Content drawn over the ruling; installed by the editor once geometry exists. */
     var scene: GlScene?
         get() = glRenderer.scene
@@ -160,6 +166,7 @@ class InfiniteCanvasView @JvmOverloads constructor(
             heightPx = viewport.heightPx,
             background = background,
             paper = paperColor,
+            lightBlackInk = lightBlackInk,
             cursorX = cursorAt?.x ?: 0.0,
             cursorY = cursorAt?.y ?: 0.0,
             cursorRadius = cursorRadius,

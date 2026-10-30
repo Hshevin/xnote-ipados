@@ -35,6 +35,7 @@ data class FrameState(
     /** What a floating toolbar covers of the right and bottom edges, which the minimap keeps clear of. */
     val insetRight: Double = 0.0,
     val insetBottom: Double = 0.0,
+    val lightBlackInk: Boolean = false,
 ) {
     companion object {
         val EMPTY = FrameState(1.0, 0.0, 0.0, 0, 0, CanvasBackground(), Rgba(255, 255, 255, 255))

@@ -48,3 +48,9 @@ The replay fixture `app/src/test/resources/pro-pen-3-motion.csv` derives sequenc
 action and raw button masks from the user-provided 2026-10-30 MovinkPad capture
 (source SHA-256 `eec4edd4647d43963c41996313f535c3500c5499617643ffa75ebc6ab023f79a`).
 It contains 3907 stylus events and 12/11/6 rising edges for buttons 1/2/3.
+
+## Night ink display (2026-10-31)
+
+Black handwriting on black paper in dark mode is displayed as white in blank note
+pages and the infinite canvas. Stored ink colours remain unchanged and PDF-backed
+pages are excluded. See `docs/movinkpad/night-ink-2026-10-31.md` for scope and validation.

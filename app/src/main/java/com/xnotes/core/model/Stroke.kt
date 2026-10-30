@@ -356,7 +356,7 @@ class Stroke(
 
     override fun paint(r: Renderer) {
         val g = geometry()
-        val color = renderColor
+        val color = r.inkColor(renderColor)
         when {
             // The dashed pen draws its (uniform-width) centreline as a dashed, round-capped
             // line rather than a solid ribbon; the full ribbon geometry is still used for
@@ -409,7 +409,7 @@ class Stroke(
      */
     fun paintRun(r: Renderer, ribbon: WetRibbon, from: Int, count: Int, dashPhase: Double) {
         if (count <= 0) return
-        val color = renderColor
+        val color = r.inkColor(renderColor)
         val centers = ribbon.centerlineArray()
         if (tool == Tool.DASHED && ribbon.pointCount >= 2) {
             r.strokePolyline(

@@ -41,8 +41,10 @@ class InkShader(contextGen: Int) {
         viewportH: Double,
         originX: Double = 0.0,
         originY: Double = 0.0,
+        lightBlackInk: Boolean = false,
     ) {
         program.use()
+        program.set("uLightBlackInk", if (lightBlackInk) 1f else 0f)
         program.set("uOrigin", originX.toFloat(), originY.toFloat())
         program.set("uCamChunk", camChunkX.toFloat(), camChunkY.toFloat())
         program.set("uChunkSize", GeometryStore.CHUNK_SIZE.toFloat())
@@ -145,6 +147,7 @@ class InkShader(contextGen: Int) {
             uniform float uLifted;
             uniform vec4 uOverride;
             uniform float uOverrideMix;
+            uniform float uLightBlackInk;
 
             out vec4 vColor;
 
@@ -197,6 +200,9 @@ class InkShader(contextGen: Int) {
                     1.0 - device.y / uViewport.y * 2.0,
                     0.0, 1.0);
                 vec4 base = mix(aColor, uOverride, uOverrideMix);
+                if (uLightBlackInk > 0.5 && all(equal(base.rgb, vec3(0.0)))) {
+                    base.rgb = vec3(1.0);
+                }
                 vColor = vec4(base.rgb, base.a * fade);
             }
         """.trimIndent()

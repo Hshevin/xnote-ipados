@@ -1210,8 +1210,16 @@ class CanvasState(
     @Volatile
     var fade: InkFade? = null
 
+    fun lightBlackInk(page: Page): Boolean = com.xnotes.core.pal.NightInk.enabled(
+        palette.isDark, paperColor(page), pdf = page.pdfPage != null,
+    )
+
+    fun inkRenderer(page: Page?, renderer: Renderer): Renderer =
+        if (page != null && lightBlackInk(page)) com.xnotes.core.pal.NightInkRenderer(renderer) else renderer
+
     /** Paint one item, faint if the playback fades it. */
-    fun paintItem(item: CanvasItem, r: Renderer) {
+    fun paintItem(item: CanvasItem, target: Renderer, page: Page) {
+        val r = inkRenderer(page, target)
         val f = fade
         if (f == null || !f.fades(item)) return item.paint(r)
         r.saveLayerAlpha(item.paintBounds(), InkFade.ALPHA)
@@ -1240,7 +1248,7 @@ class CanvasState(
         val h = ceil(cover.h * res).toInt().coerceAtLeast(1)
         val surface = surfaceFactory.create(w, h, 1.0)
         surface.fill(TRANSPARENT)
-        val r = surface.renderer()
+        val r = inkRenderer(page, surface.renderer())
         r.scale(res, res)
         r.translate(-cover.left, -cover.top) // the surface covers the margins, so page space starts inset
         val f = fade
@@ -1450,7 +1458,7 @@ class CanvasState(
         val r = existing.surface.renderer()
         r.scale(res, res)
         r.translate(-cover.left, -cover.top)
-        paintItem(item, r)
+        paintItem(item, r, page)
     }
 
     /**
@@ -1486,7 +1494,8 @@ class CanvasState(
     }
 
     /** Repaint [page]'s cached ink where it meets [region]: the fills under its typed text, the text, then the rest. */
-    private fun paintInk(page: Page, r: Renderer, region: Rect) {
+    private fun paintInk(page: Page, target: Renderer, region: Rect) {
+        val r = inkRenderer(page, target)
         val n = PageLayers.underText(page.items)
         val f = fade
         if (!flowLifted) {
@@ -1502,7 +1511,8 @@ class CanvasState(
      * Paint the fills under [page]'s typed text that its ink cache leaves out, beneath the cache: all
      * of them while the flow is lifted (lifted ones go through [paintLiftedUnderText] instead).
      */
-    fun paintUnderText(page: Page, r: Renderer, region: Rect) {
+    fun paintUnderText(page: Page, target: Renderer, region: Rect) {
+        val r = inkRenderer(page, target)
         if (!flowLifted) return
         val n = PageLayers.underText(page.items)
         InkFade.paint(page.items.subList(0, n), r, fade, { !isLiftedItem(it) && it.paintBounds().intersects(region) }) { it.paint(r) }
@@ -1591,7 +1601,8 @@ class CanvasState(
      * could ask for a buffer many times the screen it is drawn on, and past that cap redrawing the
      * ribbon is the cheaper of the two.
      */
-    fun paintLiveStroke(r: Renderer, stroke: Stroke) {
+    fun paintLiveStroke(target: Renderer, stroke: Stroke, page: Page? = null) {
+        val r = inkRenderer(page, target)
         val res = (zoom * renderScale).coerceAtLeast(0.01)
         val cap = 2L * max(viewportW, 1) * max(viewportH, 1)
         if (!wetInk.paint(r, stroke, res, cap)) stroke.paint(r)
@@ -1924,11 +1935,12 @@ class CanvasState(
             ri.translate(d.pr.left, d.pr.top)
             applyPageTransform(ri, d.page)
             val f = fade
-            InkFade.paint(d.items.under, ri, f) { it.paint(ri) }
+            val inkPainter = inkRenderer(d.page, ri)
+            InkFade.paint(d.items.under, inkPainter, f) { it.paint(inkPainter) }
             if (withFlow && d.region.w > 0.0 && d.region.h > 0.0) {
                 paintFlow?.invoke(d.page, ri, d.region)
             }
-            InkFade.paint(d.items.over, ri, f) { it.paint(ri) }
+            InkFade.paint(d.items.over, inkPainter, f) { it.paint(inkPainter) }
             ri.restore()
         }
     }
@@ -1946,7 +1958,7 @@ class CanvasState(
         r.clipRect(pr)
         r.translate(pr.left, pr.top)
         applyPageTransform(r, page)
-        paintItem(item, r)
+        paintItem(item, r, page)
         r.restore()
     }
 

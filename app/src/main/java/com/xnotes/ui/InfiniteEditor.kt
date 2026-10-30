@@ -1390,6 +1390,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
      * a pen and a pencil are.
      */
     private fun decideFrontInk(stroke: Stroke, parts: List<MeshPart>) {
+        pad.lightBlackInk = view.lightBlackInk
         frontDecided = true
         // Turned off for this device, so there is no pad to consult and nothing to time against it.
         if (!pad.frontBuffering) return
@@ -2209,6 +2210,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     /** Adopt the chrome's palette, so the paper and the selection accent match the rest of the app. */
     fun applyPalette(palette: Palette) {
         this.palette = palette
+        view.darkAppearance = palette.isDark
         view.paperColor = document.background.paperColor ?: palette.paper
         view.accent = palette.accent
         // The pills are meshed in the accent, so a new one means new triangles for each.

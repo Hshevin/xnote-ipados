@@ -205,6 +205,7 @@ class FrontInk(
         // A rotated view is a rotation, and the ink shader has room for a scroll and a zoom.
         if (state.rotationDeg != 0) return
         val page = state.document.pages.getOrNull(pageIndex) ?: return
+        pad.lightBlackInk = state.lightBlackInk(page)
         val rect = state.pageRects.getOrNull(pageIndex) ?: return
         val zoom = state.zoom
         if (zoom <= 0.0 || !zoom.isFinite()) return

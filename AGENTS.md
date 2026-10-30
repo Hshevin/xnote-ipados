@@ -16,3 +16,5 @@
 - Preserve raw button masks and axes. Compare buttonState transitions on MOVE/HOVER_MOVE and deduplicate independent button events; distinguish stylus, finger and cancellation.
 - Use JDK 21, Gradle wrapper 8.13, AGP 8.12.3, SDK/Build Tools 36/36.0.0, NDK 27.0.12077973 and CMake 3.22.1. Do not import the diagnostic project's AGP 8.12.0 setting.
 - Preserve user changes; no commit, push, remote or Git configuration changes unless requested. Temporary files belong in ignored `tmp/`, not source or permanent documentation.
+
+- 用户于 2026-10-31 要求：不在本机编译；最终构建由用户在 Linux 服务器完成。后续变更按用户授权提交／推送并交付服务器验证命令，不自行启动本地 Gradle 构建。

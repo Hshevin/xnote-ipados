@@ -83,6 +83,9 @@ sealed class Mark {
  * points the way ink and shapes are.
  */
 interface Renderer {
+    /** Screen-only ink adaptation; export renderers keep the stored colour. */
+    fun inkColor(color: Rgba): Rgba = color
+
     // --- transform / clip stack ---
     fun save()
     fun restore()

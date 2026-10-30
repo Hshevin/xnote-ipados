@@ -552,7 +552,7 @@ class InteractionController(
                 r.withSave {
                     r.translate(moveOffset.x, moveOffset.y)
                     state.applyPageTransform(r, page)
-                    state.paintItem(sel.item, r)
+                    state.paintItem(sel.item, r, state.document.pages[sel.pageIndex])
                 }
             }
         }
@@ -4446,7 +4446,7 @@ class InteractionController(
                 r.withSave {
                     r.translate(pr.left + moveOffset.x, pr.top + moveOffset.y)
                     state.applyPageTransform(r, state.document.pages[sel.pageIndex])
-                    state.paintItem(sel.item, r)
+                    state.paintItem(sel.item, r, state.document.pages[sel.pageIndex])
                 }
             }
 
@@ -4456,7 +4456,7 @@ class InteractionController(
                 r.withSave {
                     r.translate(pr.left, pr.top)
                     state.applyPageTransform(r, state.document.pages[pi])
-                    for (item in f.items) state.paintItem(item, r)
+                    for (item in f.items) state.paintItem(item, r, state.document.pages[pi])
                 }
             }
 
@@ -4475,7 +4475,10 @@ class InteractionController(
             // Live in-progress stroke / shape preview, clipped to its page. The stroke goes through
             // the wet cache, which blits whatever has stopped moving instead of refilling it.
             if (frontInk?.live != true) {
-                liveStroke?.let { stroke -> paintClippedToPage(r, strokePageIndex) { state.paintLiveStroke(r, stroke) } }
+                liveStroke?.let { stroke ->
+                    val page = strokePageIndex?.let { state.document.pages.getOrNull(it) }
+                    paintClippedToPage(r, strokePageIndex) { state.paintLiveStroke(r, stroke, page) }
+                }
             }
             pendingShape?.let { shape -> paintClippedToPage(r, shapePageIndex) { shape.paint(r) } }
             pendingTape?.let { tape -> paintClippedToPage(r, tapePageIndex) { tape.paint(r) } }
@@ -4488,7 +4491,7 @@ class InteractionController(
                 if (frontInk?.holding(fs.stroke) == true) continue
                 paintClippedToPage(r, fs.pageIndex) {
                     r.saveLayerBlended(fs.stroke.paintBounds(), fadeAlpha, fs.stroke.blendMode)
-                    fs.stroke.paint(r)
+                    fs.stroke.paint(state.inkRenderer(state.document.pages.getOrNull(fs.pageIndex), r))
                     r.restore()
                 }
             }

@@ -47,6 +47,8 @@ class WetInkCache(private val surfaceFactory: SurfaceFactory) {
 
     /** The stroke the surface holds, by identity; a different one starts over. */
     private var owner: Stroke? = null
+    private var inkMapper: (Rgba) -> Rgba = { it }
+    private var displayColor: Rgba? = null
 
     /** Ribbon points already in the surface. */
     private var baked = 0
@@ -65,7 +67,10 @@ class WetInkCache(private val surfaceFactory: SurfaceFactory) {
     fun paint(r: Renderer, stroke: Stroke, res: Double, maxPixels: Long): Boolean {
         val ribbon = stroke.wetRibbon ?: return false
         if (!stroke.wetCacheable) return false
-        if (owner !== stroke || abs(this.res - res) > 1e-9) {
+        val color = r.inkColor(stroke.renderColor)
+        if (owner !== stroke || abs(this.res - res) > 1e-9 || displayColor != color) {
+            displayColor = color
+            inkMapper = r::inkColor
             owner = stroke
             this.res = res
             baked = 0
@@ -154,7 +159,10 @@ class WetInkCache(private val surfaceFactory: SurfaceFactory) {
      */
     private fun bake(stroke: Stroke, ribbon: WetRibbon, settled: Int) {
         if (settled <= baked) return
-        val r = into ?: return
+        val target = into ?: return
+        val r = object : Renderer by target {
+            override fun inkColor(color: Rgba): Rgba = inkMapper(color)
+        }
         // From one point back, so the segment bridging the last baked point to the next one is
         // drawn; its disc is simply laid down again, which opaque ink does not notice.
         val from = max(baked - 1, 0)
