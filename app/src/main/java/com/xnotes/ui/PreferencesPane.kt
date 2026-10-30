@@ -229,25 +229,6 @@ fun PreferencesPane(
                 Chip(stringResource(R.string.theme_light), prefs.uiAppearance == "light") { update(prefs.copy(uiAppearance = "light")) }
                 Chip(stringResource(R.string.theme_oled), prefs.uiAppearance == "oled") { update(prefs.copy(uiAppearance = "oled")) }
             }
-            val systemColours = prefs.materialMode == MaterialColourMode.SYSTEM
-            FieldLabel(stringResource(R.string.material_tone))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Chip(stringResource(R.string.material_system_colours), systemColours) {
-                    update(prefs.copy(materialMode = MaterialColourMode.SYSTEM))
-                }
-                Chip(stringResource(R.string.material_single_tone), prefs.materialMode == MaterialColourMode.SINGLE) {
-                    update(prefs.copy(materialMode = MaterialColourMode.SINGLE))
-                }
-                Chip(stringResource(R.string.material_dual_tone), prefs.materialMode == MaterialColourMode.DUAL) {
-                    update(prefs.copy(materialMode = MaterialColourMode.DUAL))
-                }
-            }
-            if (!systemColours) {
-                key(prefs.materialMode) { MaterialColourPicker(prefs, ::update) }
-                CustomMaterialControls(prefs, ::update)
-            } else if (Build.VERSION.SDK_INT < 31) {
-                Text(stringResource(R.string.material_system_fallback), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
-            }
             FieldLabel(stringResource(R.string.pref_corners))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for ((style, label) in listOf(CornerStyle.SHARP to R.string.corners_sharp, CornerStyle.ROUNDED to R.string.corners_rounded, CornerStyle.SOFT to R.string.corners_soft)) {
@@ -269,19 +250,8 @@ fun PreferencesPane(
                 Chip(stringResource(R.string.pan_none), prefs.zoomLockPan == "none") { update(prefs.copy(zoomLockPan = "none")) }
             }
             CheckRow(stringResource(R.string.pref_detect_shapes), prefs.detectShapes) { update(prefs.copy(detectShapes = it)) }
-            FieldLabel(stringResource(R.string.pref_pen_button_hold))
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                penButtonOptions.forEach { (id, label) ->
-                    Chip(stringResource(label), prefs.penButtonTool == id) { update(prefs.copy(penButtonTool = id)) }
-                }
-            }
-            if (prefs.penButtonTool == "eraser" || prefs.penButtonTool == "pan") {
-                CheckRow(stringResource(R.string.pref_pen_button_hover), prefs.penButtonHover) {
-                    update(prefs.copy(penButtonHover = it))
-                }
+            ProPenSettings(prefs.proPenBindings) {
+                if (editor.setProPenBindings(it)) prefs = editor.preferences
             }
             val tapOptions = tapGestureOptions.map { (id, res) -> id to stringResource(res) }
             FieldLabel(stringResource(R.string.pref_two_finger_tap))

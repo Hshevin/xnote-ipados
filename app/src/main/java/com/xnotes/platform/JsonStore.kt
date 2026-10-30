@@ -7,9 +7,29 @@ import java.io.File
 /**
  * Reads and atomically writes a single UTF-8 JSON file (PAL §11). Failure
  * tolerant: a missing/corrupt file yields an empty object; a failed write is
- * swallowed (settings are a convenience and must never crash the app).
+ * ignored by legacy callers; writeChecked reports failures to new settings UI.
  */
 class JsonStore(private val file: File) {
+
+    /** Checked settings update: a failed replacement must leave the previous file intact. */
+    fun writeChecked(obj: JSONObject): Boolean {
+        val tmp = File(file.parentFile, "${file.name}.pending")
+        return try {
+            file.parentFile?.mkdirs()
+            java.io.FileOutputStream(tmp).use { stream ->
+                stream.write(obj.toString().toByteArray(Charsets.UTF_8))
+                stream.fd.sync()
+            }
+            java.nio.file.Files.move(tmp.toPath(), file.toPath(),
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            true
+        } catch (_: Exception) {
+            false
+        } finally {
+            tmp.delete()
+        }
+    }
 
     fun read(): JSONObject = try {
         if (file.exists()) JSONObject(file.readText(Charsets.UTF_8)) else JSONObject()
@@ -17,19 +37,7 @@ class JsonStore(private val file: File) {
         JSONObject()
     }
 
-    fun write(obj: JSONObject) {
-        try {
-            file.parentFile?.mkdirs()
-            val tmp = File(file.parentFile, "${file.name}.tmp")
-            tmp.writeText(obj.toString(), Charsets.UTF_8)
-            if (!tmp.renameTo(file)) {
-                file.delete()
-                tmp.renameTo(file)
-            }
-        } catch (_: Exception) {
-            // ignore — settings persistence is best-effort
-        }
-    }
+    fun write(obj: JSONObject) { writeChecked(obj) }
 
     companion object {
         /** The app's per-user settings file under the private config directory. */

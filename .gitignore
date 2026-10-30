@@ -27,3 +27,13 @@ keystore.properties
 # --- Misc ---
 .DS_Store
 *.log
+
+# Local developer data
+.kotlin/
+tmp/
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+docs/evidence/

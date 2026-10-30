@@ -255,7 +255,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (!hasFocus) StylusButtonLatch.releaseKey() // a held pen key's key-up may not come back to this window
+        if (!hasFocus) {
+            editor?.openPanes?.forEach { it.resetPenButtons() }
+            StylusButtonLatch.releaseKey()
+        } // a held pen key's key-up may not come back to this window
         if (hasFocus && editor?.fullscreen == true) applyFullscreen(true) // re-hide transient bars after they swipe in
     }
 

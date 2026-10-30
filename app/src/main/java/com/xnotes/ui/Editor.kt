@@ -708,6 +708,15 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     var canvasOpen by mutableStateOf(false)
         private set
 
+    private val proPenInput by lazy {
+        com.xnotes.pen.ProPenInput({ preferences.proPenBindings }, { tool }, ::selectTool, ::dispatchTapGesture)
+    }
+
+    fun resetPenButtons() {
+        proPenInput.reset()
+        infiniteOrNull?.resetPenButtons()
+    }
+
     private var infiniteOrNull: InfiniteEditor? = null
 
     /** The infinite canvas's orchestrator, built on first use. It hangs off this editor rather
@@ -716,6 +725,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     val infinite: InfiniteEditor
         get() = infiniteOrNull ?: InfiniteEditor(appContext).also {
             infiniteOrNull = it
+            it.proPenBindings = { preferences.proPenBindings }
             it.applyPalette(palette)
             // Both editors write inserted images into the same purged-on-launch temp dir.
             it.imageDir = imageDir
@@ -950,6 +960,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         onFitWidthReleased = { hideZoomLockHint() },
         onSelectionChanged = { selected -> hasSelection = selected; refreshTextBar() },
         onToolChanged = { t ->
+            proPenInput.selected(t)
             tool = t
             if (t != Tool.TEXT) {
                 endTableEdit()
@@ -1615,12 +1626,13 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
                     settlePdfTextMenu()
                 }
             }
-            controller.onTouch(ev)
+            proPenInput.touch(ev) { controller.onTouch(ev) }
         }
         view.onTwoFingerTap = { dispatchTapGesture(preferences.twoFingerTap) }
         view.onThreeFingerTap = { dispatchTapGesture(preferences.threeFingerTap) }
-        view.hover = { controller.onHover(it) }
-        view.genericMotion = { controller.onGenericMotion(it) }
+        view.onInputLost = { resetPenButtons() }
+        view.hover = { proPenInput.motion(it); controller.onHover(it) }
+        view.genericMotion = { proPenInput.motion(it); controller.onGenericMotion(it) }
         view.drawOverlay = { renderer, _ -> controller.drawOverlay(renderer) }
         controller.frontInk = com.xnotes.canvas.FrontInk(state, view, pad)
         pad.onSurfaceLost = { controller.frontInk?.surfaceLost() }
@@ -2641,6 +2653,19 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     val preferences: Preferences get() = settings.prefs
 
+    fun setProPenBindings(bindings: Map<Int, com.xnotes.pen.PenBinding>): Boolean {
+        val next = settings.copy(prefs = preferences.copy(proPenBindings = bindings))
+        if (!settingsRepo.saveChecked(next)) {
+            say(appContext.getString(R.string.pro_pen_save_failed))
+            return false
+        }
+        resetPenButtons()
+        sibling?.resetPenButtons()
+        settings = next
+        prefsVersion++
+        return true
+    }
+
     /**
      * First-run only: a device with no stylus/pen cannot draw at all under the default
      * finger-pans behaviour, so turn finger-draw on automatically. Runs once per install
@@ -2681,18 +2706,9 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     private fun resolvedAppearance(p: Preferences): String =
         if (p.uiAppearance == "system") (if (systemInDarkMode) "dark" else "light") else p.uiAppearance
 
-    /** The chrome palette for [p]: the system scheme (default-seeded below Android 12) or a custom seed. */
-    private fun buildPalette(p: Preferences): Palette {
-        val appearance = resolvedAppearance(p)
-        val dark = appearance != "light"
-        val m = when (p.materialMode) {
-            MaterialColourMode.DUAL -> MaterialColors.seeded(p.materialDualSeed, dark, p.materialStyle, p.materialSurfaceSeed, p.materialContrast)
-            MaterialColourMode.SINGLE -> MaterialColors.seeded(p.materialSingleSeed, dark, p.materialStyle, contrast = p.materialContrast)
-            MaterialColourMode.SYSTEM -> dynamicMaterialColors(appContext, dark = dark)
-                ?: MaterialColors.seeded(Preferences.DEFAULT_ACCENT, dark = dark)
-        }
-        return Palette.material(appearance, m)
-    }
+    /** Pure black/white chrome; system appearance only chooses light or dark. */
+    private fun buildPalette(p: Preferences): Palette =
+        com.xnotes.ui.theme.monochromePalette(resolvedAppearance(p) != "light")
 
     /** The OS dark/light state flipped (uiMode arrives via onConfigurationChanged, no activity
      *  recreation): under the "system" appearance, rebuild the chrome and themed content live. */
@@ -2718,7 +2734,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         infiniteOrNull?.applyPalette(palette)
         infiniteOrNull?.applyInputPrefs(
             p.fingerDraws,
-            if (p.penButtonTool == "none") null else (Tool.fromId(p.penButtonTool) ?: Tool.ERASER),
+            null, // Pro Pen 3 has three independent mappings; disable the legacy combined latch.
             p.zoomLockPan,
             p.detectShapes,
         )
@@ -2741,8 +2757,8 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         flowText.markdownInput = p.markdownInput
         flowText.slashCommands = p.slashCommands
         flowText.highlight = { toolbarInk() }
-        controller.penButtonTool = if (p.penButtonTool == "none") null else (Tool.fromId(p.penButtonTool) ?: Tool.ERASER)
-        controller.penButtonHover = p.penButtonHover
+        controller.penButtonTool = null
+        controller.penButtonHover = false
         state.sideMargin = p.sideMargin
         state.pageBorders = !p.hidePageBorders
         state.maxCachePx = p.maxCacheResolution.toDouble()
@@ -2863,6 +2879,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     /** Snapshot live state into settings and save (call on pause/stop). */
     fun persist() {
+        resetPenButtons()
         // A style tuned on the canvas is the same style, so whichever surface was last used wins.
         val fromCanvas = infiniteOrNull
         if (fromCanvas != null && canvasOpen) {
@@ -6219,6 +6236,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     // --- tools & colour ---
 
     fun selectTool(t: Tool) {
+        proPenInput.selected(t)
         // The markup tool marks a PDF's text: a note without one gets Pan, and the next with one gets it back.
         markupResting = t == Tool.MARKUP && !hasPdf
         val armed = if (markupResting) Tool.PAN else t
@@ -8949,6 +8967,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     }
 
     fun newNote() {
+        resetPenButtons()
         AudioRecording.stopFor(this) // closing the note places its recording
         AudioPlayback.closeFor(this)
         saveViewState()
@@ -9060,6 +9079,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     /** Pop back to backstage: detach the current note (flush autosave, drop the binding) and clear
      *  [noteOpen] so the editor is removed from the stack. The document stays as an inert buffer. */
     fun goHome() {
+        resetPenButtons()
         if (!noteOpen) return
         // Closing the note places a recording still going, before the note is saved.
         AudioRecording.stopFor(this)

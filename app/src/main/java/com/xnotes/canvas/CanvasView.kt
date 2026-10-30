@@ -373,7 +373,10 @@ class CanvasView @JvmOverloads constructor(
         startDebugTick() // resume the HUD ticker if it was left enabled across a detach/reattach
     }
 
+    var onInputLost: (() -> Unit)? = null
+
     override fun onDetachedFromWindow() {
+        onInputLost?.invoke()
         cacheExecutor?.shutdown()
         mainHandler.removeCallbacks(debugTick)
         mainHandler.removeCallbacks(sharpDebounce)

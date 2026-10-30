@@ -1,3 +1,16 @@
+# XNotes MovinkPad fork
+
+This fork targets Wacom MovinkPad Pro 14 and Pro Pen 3. Three-button mappings and a black/white UI palette are implemented in the preview; target-device acceptance is pending. The upstream features below are not a claim of verified MovinkPad compatibility.
+
+- [Preview scope and existing validation](MOVINKPAD.md)
+- [Project brief](docs/movinkpad/project-brief.md)
+- [Linux build and repository structure](docs/movinkpad/server-build.md)
+- [Planned PDF and cursor work](tasks/plan.md)
+
+Build this fork with **JDK 21**. The original upstream README below is retained for attribution and context; its JDK 17 and upstream clone instructions do not override this fork's build instructions.
+
+---
+
 <p align="center">
   <img src="docs/readme-banner.png" width="100%" alt="xnotes: a handwriting-first notebook for Android" />
 </p>

@@ -223,7 +223,10 @@ class InfiniteCanvasView @JvmOverloads constructor(
         glRenderer.displayHz = (display?.refreshRate ?: 60f).toDouble()
     }
 
+    var onInputLost: (() -> Unit)? = null
+
     override fun onDetachedFromWindow() {
+        onInputLost?.invoke()
         removeCallbacks(idleRunnable)
         super.onDetachedFromWindow()
     }

@@ -25,10 +25,12 @@ android {
         applicationId = "com.xnotes"
         minSdk = 26
         targetSdk = 36
+        testInstrumentationRunner = "com.xnotes.pen.PenTestRunner"
         versionCode = 67
         versionName = "0.9.6"
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            // This preview targets the ARM64 MovinkPad and ARM64 test emulator.
+            abiFilters += listOf("arm64-v8a")
         }
         externalNativeBuild {
             cmake {
@@ -71,8 +73,8 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix = ".debug"
-            versionNameSuffix = "-debug"
+            applicationIdSuffix = ".movinkpad"
+            versionNameSuffix = "-movinkpad-preview1"
         }
         release {
             if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
@@ -138,6 +140,7 @@ dependencies {
     implementation(libs.bundles.commonmark)
     debugImplementation(libs.androidx.ui.tooling)
 
+    androidTestImplementation(libs.junit)
     testImplementation(libs.junit)
     testImplementation(libs.json)
 }

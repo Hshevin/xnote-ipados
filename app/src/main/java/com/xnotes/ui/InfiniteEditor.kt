@@ -290,9 +290,10 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     }
 
     init {
-        view.input = { interaction.onTouch(it) }
-        view.genericMotion = { interaction.onGenericMotion(it) }
-        view.hover = { interaction.onHover(it) }
+        view.input = { event -> proPenInput.touch(event) { interaction.onTouch(event) } }
+        view.genericMotion = { proPenInput.motion(it); interaction.onGenericMotion(it) }
+        view.onInputLost = { resetPenButtons() }
+        view.hover = { proPenInput.motion(it); interaction.onHover(it) }
         view.afterLayout = { applyInitialView() }
         view.onContextReady = { renderFailure = view.failure }
         pad.onSurfaceLost = { endFrontInk(); settleHeld() }
@@ -409,7 +410,14 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
 
     // --- tools ---
 
-    /** The single tool armed before this one, for the tap-gesture toggles; null until a switch. */
+    /** Shared preferences supplied by the owning paged editor. */
+    var proPenBindings: () -> Map<Int, com.xnotes.pen.PenBinding> = { emptyMap() }
+    private val proPenInput by lazy {
+        com.xnotes.pen.ProPenInput({ proPenBindings() }, { tool }, ::armTool, ::dispatchTapGesture)
+    }
+    fun resetPenButtons() = proPenInput.reset()
+
+    /** The single tool armed before this one, for tap-gesture toggles. */
     private var previousTool: Tool? = null
 
     /** The tools the eraser and the select tool replaced, for their "switch back" options. */
@@ -417,6 +425,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     private var toolBeforeSelect: Tool? = null
 
     fun armTool(next: Tool) {
+        proPenInput.selected(next)
         commitText()
         // Leaving the selection tools drops the selection, so its chrome cannot linger over ink.
         if (tool != next && (tool == Tool.SELECT || tool == Tool.LASSO)) interaction.clearSelection()
@@ -466,6 +475,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
 
     /** Show a tool the gesture layer armed by itself: a long-press grab, and its release. */
     private fun adoptTool(next: Tool) {
+        proPenInput.selected(next)
         val marked = interaction.connecting
         tool = next
         interaction.tool = next
