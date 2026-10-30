@@ -1243,6 +1243,9 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     /** The toolbar's swatches and recents, handed over by the host so both surfaces share them. */
     var toolbarColors by mutableStateOf(InkPalette.presets)
     var activeColorIndex by mutableStateOf(0)
+    /** Observable preview policy; raw toolbar colours remain the saved drawing colours. */
+    var toolbarLightBlackInk by mutableStateOf(false)
+        private set
     var recentColors by mutableStateOf<List<Rgba>>(emptyList())
     var toolbarColorCount by mutableStateOf(5)
 
@@ -2212,6 +2215,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
         this.palette = palette
         view.darkAppearance = palette.isDark
         view.paperColor = document.background.paperColor ?: palette.paper
+        toolbarLightBlackInk = view.lightBlackInk
         view.accent = palette.accent
         // The pills are meshed in the accent, so a new one means new triangles for each.
         val look = com.xnotes.core.model.AudioLook.current
@@ -2250,6 +2254,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
         interaction.resetGestureState()
         view.background = next.background
         view.paperColor = next.background.paperColor ?: view.paperColor
+        toolbarLightBlackInk = view.lightBlackInk
         rebuildScene()
         appliedInitialView = false
         applyInitialView()
@@ -2346,6 +2351,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
         document.background = background
         view.background = background
         view.paperColor = background.paperColor ?: view.paperColor
+        toolbarLightBlackInk = view.lightBlackInk
         markDirty()
     }
 

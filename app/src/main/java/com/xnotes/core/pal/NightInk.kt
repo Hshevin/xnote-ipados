@@ -7,6 +7,9 @@ object NightInk {
     fun enabled(dark: Boolean, paper: Rgba, pdf: Boolean = false): Boolean =
         dark && !pdf && paper.r == 0 && paper.g == 0 && paper.b == 0
 
+    /** The swatch previews the ink without changing the stored colour or its selection identity. */
+    fun displayColor(color: Rgba, enabled: Boolean): Rgba = if (enabled) NightInk.color(color) else color
+
     fun color(color: Rgba): Rgba =
         if (color.r == 0 && color.g == 0 && color.b == 0) Rgba(255, 255, 255, color.a) else color
 }

@@ -20,6 +20,18 @@ class NightInkTest {
         assertFalse(NightInk.enabled(true, black, pdf = true))
     }
 
+    @Test fun toolbarSwatchTracksDisplayWithoutReplacingStoredColors() {
+        val stored = listOf(black, white, Rgba(0, 80, 200), black.copy(a = 83))
+        val night = stored.map { NightInk.displayColor(it, enabled = true) }
+        assertEquals(listOf(white, white, stored[2], white.copy(a = 83)), night)
+        assertEquals(listOf(black, white, stored[2], black.copy(a = 83)), stored)
+        val day = stored.map { NightInk.displayColor(it, enabled = false) }
+        assertEquals(stored, day)
+        assertEquals(white, day[1]) // A separately chosen white is still white.
+        assertEquals(black, NightInk.displayColor(black, NightInk.enabled(true, black, pdf = true)))
+        assertEquals(black, NightInk.displayColor(black, NightInk.enabled(true, white)))
+    }
+
     @Test fun onlyExactBlackChangesAndAlphaSurvives() {
         assertEquals(white, NightInk.color(black))
         assertEquals(white.copy(a = 83), NightInk.color(black.copy(a = 83)))

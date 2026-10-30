@@ -270,16 +270,22 @@ private fun ToolbarItemView(
 
         ToolbarItem.FULLSCREEN -> ToolbarIcon(XnotesIcons.fullscreen, stringResource(R.string.toolbar_fullscreen), shortcut = Keys.FULLSCREEN) { onToggleFullscreen() }
 
-        ToolbarItem.COLORS -> editor.toolbarColors.take(editor.toolbarColorCount).forEachIndexed { i, color ->
-            Box {
-                Swatch(
-                    color = color.toComposeColor(),
-                    active = i == editor.activeColorIndex,
-                    drag = editor,
-                    ink = color,
-                    onClick = { if (i == editor.activeColorIndex) setSwitcherIndex(i) else editor.pickColor(i) },
-                )
-                if (switcherIndex == i) ColorSwitcherPopup(editor, i) { setSwitcherIndex(null) }
+        ToolbarItem.COLORS -> {
+            // Observe page/style/theme changes even when the stored palette stays identical.
+            val lightBlackInk = remember(editor.pageIndex, editor.contentVersion, editor.prefsVersion, LocalPalette.current) {
+                editor.state.document.pages.getOrNull(editor.pageIndex)?.let(editor.state::lightBlackInk) ?: false
+            }
+            editor.toolbarColors.take(editor.toolbarColorCount).forEachIndexed { i, color ->
+                Box {
+                    Swatch(
+                        color = com.xnotes.core.pal.NightInk.displayColor(color, lightBlackInk).toComposeColor(),
+                        active = i == editor.activeColorIndex,
+                        drag = editor,
+                        ink = color,
+                        onClick = { if (i == editor.activeColorIndex) setSwitcherIndex(i) else editor.pickColor(i) },
+                    )
+                    if (switcherIndex == i) ColorSwitcherPopup(editor, i) { setSwitcherIndex(null) }
+                }
             }
         }
     }
