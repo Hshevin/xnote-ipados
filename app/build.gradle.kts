@@ -30,7 +30,7 @@ android {
         minSdk = 26
         targetSdk = 36
         testInstrumentationRunner = "com.xnotes.pen.PenTestRunner"
-        versionCode = if (splitPreview) 76 else 68
+        versionCode = if (splitPreview) 79 else 79
         versionName = "0.9.7"
         ndk {
             // This preview targets the ARM64 MovinkPad and ARM64 test emulator.
@@ -77,10 +77,10 @@ android {
 
     buildTypes {
         debug {
-            versionNameSuffix = if (splitPreview) "-split-preview9" else "-movinkpad-preview1"
+            versionNameSuffix = if (splitPreview) "-split-preview11" else "-movinkpad-preview1"
         }
         release {
-            versionNameSuffix = "-movinkpad-rc1"
+            versionNameSuffix = "-movinkpad"
             isDebuggable = false
             signingConfig = when {
                 previewUpgradeSigning -> signingConfigs.getByName("debug")

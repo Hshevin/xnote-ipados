@@ -631,7 +631,27 @@ private fun BackstageMain(
                     Text(stringResource(R.string.split_workspace), color = palette.text.toComposeColor(), fontSize = 24.sp, modifier = Modifier.padding(16.dp))
                     Command(XnotesIcons.split, stringResource(R.string.split_choose_pair)) { calls.chooseSplitPair() }
                     if (editor.hasSavedSplit || editor.inSplit) Command(XnotesIcons.clock, stringResource(R.string.split_restore_recent)) { calls.restoreSplit() }
-                    val files by produceState<List<java.io.File>?>(null, editor, editor.savingNote) {
+                    val splitScope = rememberCoroutineScope()
+                    val splitContext = LocalContext.current
+                    var revision by remember { mutableStateOf(0) }
+                    var deleting by remember { mutableStateOf<java.io.File?>(null) }
+                    var busy by remember { mutableStateOf(false) }
+                    deleting?.let { file ->
+                        AlertDialog(onDismissRequest = { if (!busy) deleting = null },
+                            title = { Text(file.nameWithoutExtension) },
+                            text = { Text(stringResource(R.string.split_delete_confirm)) },
+                            confirmButton = { TextButton(enabled = !busy, onClick = {
+                                busy = true
+                                splitScope.launch {
+                                    if (editor.deleteSplitFile(android.net.Uri.fromFile(file).toString())) revision++
+                                    else editor.message = splitContext.getString(R.string.err_delete_some)
+                                    busy = false
+                                    deleting = null
+                                }
+                            }) { Text(stringResource(R.string.delete)) } },
+                            dismissButton = { TextButton(enabled = !busy, onClick = { deleting = null }) { Text(stringResource(R.string.cancel)) } })
+                    }
+                    val files by produceState<List<java.io.File>?>(null, editor, editor.savingNote, revision) {
                         value = withContext(Dispatchers.IO) { editor.storedSplitFiles() }
                     }
                     HorizontalDivider(Modifier.padding(vertical = 12.dp), color = palette.border.toComposeColor())
@@ -641,8 +661,15 @@ private fun BackstageMain(
                             color = palette.textDim.toComposeColor(), modifier = Modifier.padding(16.dp))
                     } else listed.forEach { file ->
                         key(file.name) {
-                            Command(XnotesIcons.split, file.nameWithoutExtension) {
-                                calls.openSplitFile(android.net.Uri.fromFile(file).toString())
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.weight(1f)) {
+                                    Command(XnotesIcons.split, file.nameWithoutExtension) {
+                                        calls.openSplitFile(android.net.Uri.fromFile(file).toString())
+                                    }
+                                }
+                                IconButton(onClick = { deleting = file }) {
+                                    Icon(XnotesIcons.trash, stringResource(R.string.delete), tint = palette.text.toComposeColor())
+                                }
                             }
                         }
                     }

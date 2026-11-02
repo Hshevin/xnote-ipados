@@ -25,6 +25,25 @@ class SplitEditorTest {
         error?.let { throw it }
     }
 
+    @Test fun freshSplitPositionIgnoresPreviousOrderForEitherSurvivingPane() = onMain { a ->
+        val original = a.preferences
+        try {
+            for (position in listOf("left", "right", "top", "bottom")) {
+                a.applyPreferences(original.copy(newSplitPosition = position))
+                for (current in Pane.entries) {
+                    for (previous in listOf(false, true)) {
+                        a.splitReversed = previous
+                        a.startFreshSplit(current)
+                        val first = if (a.splitReversed) Pane.SECONDARY else Pane.PRIMARY
+                        assertEquals(position == "right" || position == "bottom", first == current)
+                        assertEquals(position == "left" || position == "right", a.splitSideBySide)
+                        assertEquals(0.5f, a.splitRatio, 0.001f)
+                    }
+                }
+            }
+        } finally { a.applyPreferences(original) }
+    }
+
     @Test fun sharedInsertSpaceRelayoutsBothViewsAndSurvivesUndoRedo() = onMain { a ->
         val b = a.secondaryPane()
         b.openSharedView(a)
@@ -561,9 +580,13 @@ class SplitEditorTest {
                     assertFalse("external split files are not opened", a.openSplitFile(android.net.Uri.fromFile(external).toString()))
                     assertTrue(a.inSplit)
                 } finally { external.delete() }
+                a.message = null
+                a.splitReversed = false
+                a.state.zoom = 2.0
                 assertTrue(a.saveCurrentSplit())
+                assertNull("duplicate save must be silent", a.message)
                 savedFiles.addAll(a.storedSplitFiles().filter { it !in before && it != file })
-                assertEquals(2, savedFiles.size)
+                assertEquals(1, savedFiles.size)
                 assertTrue("saving again preserves the existing arrangement", bytes.contentEquals(file.readBytes()))
                 val splitUri = android.net.Uri.fromFile(file).toString()
                 assertTrue("replace an already open split without a late close callback", a.openSplitFile(splitUri))
@@ -598,7 +621,28 @@ class SplitEditorTest {
                     assertTrue("explicit Discard must not write existing files", originalBytes.contentEquals(externalNote.readBytes()))
                 } finally { outside.goHomeAll(); externalNote.delete() }
 
+                assertFalse(restored.openSingleFromHome("file:///missing-home-test.xnote", "missing.xnote"))
+                assertTrue("failed selection keeps the parked split", restored.inSplit)
+                assertTrue(restored.openSingleFromHome(files[0].toString(), "note.xnote"))
+                assertFalse("main Home must open one document", restored.inSplit)
+                assertNull(restored.secondary)
+                assertEquals(files[0].toString(), restored.visibleDocumentUri)
+                kotlinx.coroutines.delay(250)
+                assertTrue("no late close callback closes the selected note", restored.noteOpen)
+                assertTrue(restored.openSplitFile(splitUri))
+                assertTrue("explicit split restore still works", restored.inSplit)
+                assertTrue(restored.openSingleFromHome(files[1].toString(), "canvas.xcanvas"))
+                assertTrue(restored.canvasOpen)
+                assertFalse(restored.inSplit)
                 restored.goHomeAll()
+                assertTrue(a.deleteSplitFile(splitUri))
+                assertFalse(file.exists())
+                assertFalse(a.deleteSplitFile(splitUri))
+                assertFalse(a.deleteSplitFile(files[0].toString()))
+                files.forEach { uri -> assertNotNull(context.contentResolver.openInputStream(uri)?.use { it.read() }) }
+                assertTrue(a.saveCurrentSplit())
+                savedFiles.addAll(a.storedSplitFiles().filter { it !in before })
+                Unit
             } finally {
                 a.goHomeAll()
                 files.forEach { android.provider.DocumentsContract.deleteDocument(context.contentResolver, it) }

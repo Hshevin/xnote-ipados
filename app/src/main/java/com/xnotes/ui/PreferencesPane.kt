@@ -229,6 +229,13 @@ fun PreferencesPane(
                 Chip(stringResource(R.string.theme_light), prefs.uiAppearance == "light") { update(prefs.copy(uiAppearance = "light")) }
                 Chip(stringResource(R.string.theme_oled), prefs.uiAppearance == "oled") { update(prefs.copy(uiAppearance = "oled")) }
             }
+            FieldLabel(stringResource(R.string.pref_new_split_position))
+            OptionDropdown(listOf("left" to stringResource(R.string.split_position_left),
+                "right" to stringResource(R.string.split_position_right),
+                "top" to stringResource(R.string.split_position_top),
+                "bottom" to stringResource(R.string.split_position_bottom)), prefs.newSplitPosition) {
+                update(prefs.copy(newSplitPosition = it))
+            }
             FieldLabel(stringResource(R.string.pref_corners))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for ((style, label) in listOf(CornerStyle.SHARP to R.string.corners_sharp, CornerStyle.ROUNDED to R.string.corners_rounded, CornerStyle.SOFT to R.string.corners_soft)) {

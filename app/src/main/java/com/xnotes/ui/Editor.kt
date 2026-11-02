@@ -9392,6 +9392,17 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         }
         savingNote = true
         try {
+            val paths = openPanes.map { it.visibleDocumentUri!! }.sorted()
+            val alreadySaved = withContext(Dispatchers.IO) {
+                storedSplitFiles().any { file ->
+                    runCatching {
+                        val stored = org.json.JSONObject(file.readText())
+                        stored.optString("format") == "xnotes-split" &&
+                            listOf(stored.optString("primaryPath"), stored.optString("secondPath")).sorted() == paths
+                    }.getOrDefault(false)
+                }
+            }
+            if (alreadySaved) return true
             commitSplitEdits()
             for (ed in openPanes.map { it.documentOwner }.distinct()) {
                 val ok = ed.flushSplitDocument()
@@ -9425,6 +9436,19 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             say(appContext.getString(if (ok) R.string.split_saved else R.string.err_save_note))
             return ok
         } finally { savingNote = false }
+    }
+
+    /** Only fresh single-document splits use the preference; restoring never calls this. */
+    fun startFreshSplit(current: Pane) {
+        val position = preferences.newSplitPosition
+        splitSideBySide = position == "left" || position == "right"
+        val currentFirst = position == "right" || position == "bottom"
+        splitReversed = (current == Pane.PRIMARY) != currentFirst
+        splitRatio = 0.5f
+    }
+
+    suspend fun deleteSplitFile(uri: String): Boolean = withContext(Dispatchers.IO) {
+        runCatching { managedSplitFile(uri).let { it.isFile && it.delete() } }.getOrDefault(false)
     }
 
     private val splitDirectory get() = java.io.File(appContext.filesDir, "splits")
@@ -9489,6 +9513,30 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             }.getOrNull()
         }
         if (json == null) { say(appContext.getString(R.string.split_invalid_file)); return false }
+        if (!detachWorkspaceForOpen(explicitlyDiscarded)) return false
+        return openSavedSplit(json).also { if (it) persist() }
+    }
+
+    /** Main-menu file selection starts a single document, even when a split is parked behind Home. */
+    suspend fun openSingleFromHome(uri: String, name: String?, explicitlyDiscarded: Set<Editor> = emptySet()): Boolean {
+        if (openPanes.any { it.stylusInContact }) return false
+        val canvas = DocumentKind.ofName(name ?: "") == DocumentKind.CANVAS
+        val valid = withContext(Dispatchers.IO) {
+            runCatching {
+                if (canvas) peekFile(uri, { canvasCodec.peek(it) }, { canvasCodec.peek(it) }) != null
+                else peekFile(uri, { codec.peek(it) }, { codec.peek(it) }) != null
+            }.getOrDefault(false)
+        }
+        if (!valid) { say(appContext.getString(R.string.err_read_file)); return false }
+        if (!detachWorkspaceForOpen(explicitlyDiscarded)) return false
+        abandonSecondary()
+        focusedPane = Pane.PRIMARY
+        if (canvas) openCanvasAsync(uri, name) else openAsync(uri, name)
+        return (noteOpen && visibleDocumentUri == uri).also { if (it) persist() }
+    }
+
+    /** Await all writes before detaching; no asynchronous close may run on the replacement. */
+    private suspend fun detachWorkspaceForOpen(explicitlyDiscarded: Set<Editor>): Boolean {
         commitSplitEdits()
         for (ed in openPanes.map { it.documentOwner }.distinct()) {
             // Exact document identity, authorized by this operation's explicit Discard click.
@@ -9511,7 +9559,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             ed.canvasOpen = false
             ed.noteOpen = false
         }
-        return openSavedSplit(json).also { if (it) persist() }
+        return true
     }
 
     /** Called from the main menu when no documents are open; failed files never replace live edits. */

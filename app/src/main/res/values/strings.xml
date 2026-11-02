@@ -1160,4 +1160,10 @@
     <string name="toolbar_size_regular">Regular</string>
     <string name="toolbar_size_comfortable">Comfortable</string>
     <string name="split_drop_swap">Release to swap</string>
+    <string name="pref_new_split_position">New split home position</string>
+    <string name="split_position_left">Left</string>
+    <string name="split_position_right">Right</string>
+    <string name="split_position_top">Top</string>
+    <string name="split_position_bottom">Bottom</string>
+    <string name="split_delete_confirm">Delete this split file? The documents it contains will be kept.</string>
 </resources>

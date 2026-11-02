@@ -38,6 +38,7 @@ data class Preferences(
     val fingerDraws: Boolean = false,
     /** Panning allowed while zoom is locked: "single" (default) | "double" | "none". */
     val zoomLockPan: String = "single",
+    val newSplitPosition: String = "right", // new home: left | right | top | bottom
     /** Whether holding a freehand ink stroke still snaps it to a recognized shape. */
     val detectShapes: Boolean = true,
     /** Tool the stylus side button activates while held; "none" disables it. */
@@ -140,6 +141,7 @@ data class Preferences(
         .put("custom_page_height_mm", customPageHeightMm)
         .put("finger_draws", fingerDraws)
         .put("zoom_lock_pan", zoomLockPan)
+        .put("new_split_position", newSplitPosition)
         .put("detect_shapes", detectShapes)
         .put("pro_pen_bindings", com.xnotes.pen.PenBindingsJson.write(proPenBindings))
         .put("pen_button_tool", penButtonTool)
@@ -263,6 +265,7 @@ data class Preferences(
                     .coerceIn(PageSize.CUSTOM_MIN_MM, PageSize.CUSTOM_MAX_MM),
                 fingerDraws = o.optBoolean("finger_draws", false),
                 zoomLockPan = zoomLockPan,
+                newSplitPosition = o.optString("new_split_position", "right").takeIf { it in listOf("left", "right", "top", "bottom") } ?: "right",
                 detectShapes = o.optBoolean("detect_shapes", true),
                 penButtonTool = o.optString("pen_button_tool", "eraser").ifEmpty { "eraser" },
                 penButtonHover = o.optBoolean("pen_button_hover", false),

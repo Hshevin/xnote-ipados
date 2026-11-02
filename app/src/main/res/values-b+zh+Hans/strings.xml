@@ -958,4 +958,10 @@
     <string name="pref_show_extensions">显示文件扩展名（.xnote、.xcanvas）</string>
     <string name="pref_dates">日期</string>
     <string name="split_drop_swap">松手交换位置</string>
+    <string name="pref_new_split_position">新分屏首页的位置</string>
+    <string name="split_position_left">左边</string>
+    <string name="split_position_right">右边</string>
+    <string name="split_position_top">上方</string>
+    <string name="split_position_bottom">下方</string>
+    <string name="split_delete_confirm">删除这个分屏文件？其中的笔记、PDF 和画布会保留。</string>
 </resources>

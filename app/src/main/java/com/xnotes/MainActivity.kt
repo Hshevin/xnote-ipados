@@ -778,7 +778,7 @@ private fun EditorScreen(
             val kind = com.xnotes.core.util.DocumentKind.ofName(displayNameOf(resolver, Uri.parse(uriStr)) ?: "")
             if (kind == com.xnotes.core.util.DocumentKind.SPLIT) {
                 if (editor.openSplitFile(uriStr, explicitlyDiscarded)) { paneHomes = emptyMap(); mainMenu = false }
-            } else if (openInto(editor, uriStr) != null) { paneHomes = emptyMap(); mainMenu = false }
+            } else if (editor.openSingleFromHome(uriStr, displayNameOf(resolver, Uri.parse(uriStr)), explicitlyDiscarded)) { paneHomes = emptyMap(); homeFocus = null; mainMenu = false }
         }
     }
 
@@ -1157,7 +1157,7 @@ private fun EditorScreen(
                         editor.secondaryPane()
                         paneHomes = paneHomes + (slot to pane.visibleDocumentUri)
                         homeFocus = slot
-                        editor.splitRatio = 0.5f
+                        editor.startFreshSplit(pane.pane)
                     }
                 },
                 onInsertImage = { pane, at ->

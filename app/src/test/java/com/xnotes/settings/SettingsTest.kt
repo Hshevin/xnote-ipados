@@ -13,6 +13,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SettingsTest {
+    @Test fun newSplitPositionRoundTripsAndFallsBack() {
+        for (position in listOf("left", "right", "top", "bottom")) {
+            assertEquals(position, Preferences.fromJson(Preferences(newSplitPosition = position).toJson()).newSplitPosition)
+        }
+        assertEquals("right", Preferences.fromJson(JSONObject()).newSplitPosition)
+        assertEquals("right", Preferences.fromJson(JSONObject().put("new_split_position", "invalid")).newSplitPosition)
+    }
+
 
     @Test fun emptyJsonYieldsDefaults() {
         val s = Settings.fromJson(JSONObject())
