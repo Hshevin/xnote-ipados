@@ -46,7 +46,7 @@ import com.xnotes.core.tools.ToolConfig
 import kotlin.math.exp
 
 /** What the current gesture is doing. */
-enum class CanvasPointerMode { IDLE, PAN, PINCH, DRAW, ERASE, SHAPE, BAND, LASSO, MOVE, RESIZE, ROTATE, VERTEX, POLYGON, CONNECT, JOINT, SLIDE, TAPE }
+enum class CanvasPointerMode { IDLE, PAN, PINCH, DRAW, ERASE, SHAPE, BAND, LASSO, MOVE, RESIZE, ROTATE, VERTEX, POLYGON, CONNECT, JOINT, SLIDE, TAPE, TEXT_BOX, SCREENSHOT }
 
 /**
  * Gestures on the infinite canvas.
@@ -127,6 +127,8 @@ class InfiniteInteraction(
     private val onPeelTape: (TapeItem) -> Unit = {},
     /** The view was panned or pinched by hand, as distinct from moved by the app. */
     private val onUserMovedView: () -> Unit = {},
+    private val onTextBox: (Rect) -> Unit = {},
+    private val onScreenshot: (Rect?) -> Unit = {},
 ) {
 
     private val choreographer = Choreographer.getInstance()
@@ -148,11 +150,35 @@ class InfiniteInteraction(
         const val MAX_MARKS = 4000
     }
 
+    internal val rulerController = CanvasRuler()
+    var captureRect: Rect? = null
+        private set
+    private var captureStart = Pt.ZERO
+    fun clearCapture() { captureRect = null; onScreenshot(null); requestRender() }
+    private fun beginCapture(at: Pt, text: Boolean) {
+        clearCapture()
+        captureStart = at
+        captureRect = Rect.fromPoints(at, at)
+        mode = if (text) CanvasPointerMode.TEXT_BOX else CanvasPointerMode.SCREENSHOT
+        requestRender()
+    }
+    private fun finishCapture() {
+        val rect = captureRect ?: return
+        if (mode == CanvasPointerMode.TEXT_BOX) {
+            val box = if (rect.w * viewport.zoom < 12 || rect.h * viewport.zoom < 12)
+                Rect(captureStart.x, captureStart.y, 220 * devicePxPerDp() / viewport.zoom, 90 * devicePxPerDp() / viewport.zoom) else rect
+            clearCapture()
+            onTextBox(box)
+        } else if (rect.w * viewport.zoom >= 8 && rect.h * viewport.zoom >= 8) onScreenshot(viewport.contentToViewport(rect))
+        else clearCapture()
+    }
+
     /** The armed tool. */
     var tool: Tool = Tool.PEN
         set(value) {
             // Leaving the shape tool ends a polygon placed corner by corner, keeping what is down.
             if (value != field && value != Tool.SHAPE) finishPolygonDraft()
+            if (value != field) clearCapture()
             field = value
         }
 
@@ -319,6 +345,9 @@ class InfiniteInteraction(
     private var touchTakenBack = false
 
     fun onTouch(e: MotionEvent): Boolean {
+        if (rulerController.touch(e, viewport.widthPx, viewport.heightPx, devicePxPerDp())) {
+            stopFling(); cancelLongPress(); requestRender(); return true
+        }
         if (touchTakenBack && e.actionMasked != MotionEvent.ACTION_DOWN) return true
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -413,7 +442,7 @@ class InfiniteInteraction(
      */
     fun labelTargetAt(vp: Pt, toolType: Int, selectedBefore: Set<CanvasItem>): Labelled? {
         val fingerPans = toolType == MotionEvent.TOOL_TYPE_FINGER && !fingerDraws && tool.fingerPansWhenOff
-        if (tool != Tool.SHAPE && tool != Tool.SELECT && !fingerPans) return null
+        if (tool != Tool.SHAPE && tool != Tool.SELECT && tool != Tool.TEXT_BOX && tool != Tool.TEXT && !fingerPans) return null
         if (tool == Tool.SHAPE && shapeConfig().placesCorners) return null
         val at = viewport.viewportToContent(vp)
         val reach = InteractionController.OUTLINE_GRAB / viewport.zoom
@@ -441,6 +470,8 @@ class InfiniteInteraction(
 
     /** Drop any in-flight gesture and stop a glide, so a document swap cannot bleed into the next. */
     fun resetGestureState() {
+        rulerController.reset()
+        clearCapture()
         stopFling()
         cancelLongPress()
         longPressPrevTool = null
@@ -542,6 +573,8 @@ class InfiniteInteraction(
             effective == Tool.SELECT -> beginSelect(vx, vy)
             effective == Tool.LASSO -> beginLasso(vx, vy)
             effective == Tool.TAPE -> beginTape(vx, vy)
+            effective == Tool.TEXT_BOX || effective == Tool.TEXT -> beginCapture(at, true)
+            effective == Tool.SCREENSHOT -> beginCapture(at, false)
             else -> beginPan(vx, vy, fromPenButton = buttonHeld && penButtonTool == Tool.PAN)
         }
     }
@@ -595,6 +628,7 @@ class InfiniteInteraction(
         // The gesture underway is only ever a pan or a stroke that has not moved; drop it so what
         // follows is not fighting a drag, and stop the press from also dismissing the selection.
         if (mode == CanvasPointerMode.DRAW) abandonStroke()
+        if (mode == CanvasPointerMode.TEXT_BOX || mode == CanvasPointerMode.SCREENSHOT) clearCapture()
         if (mode == CanvasPointerMode.SHAPE) abandonShape()
         if (mode == CanvasPointerMode.TAPE) abandonTape()
         if (mode == CanvasPointerMode.CONNECT) abandonConnector()
@@ -635,6 +669,10 @@ class InfiniteInteraction(
         if (mode == CanvasPointerMode.ERASE && drawingIsStylus) return
         if (mode == CanvasPointerMode.TAPE && drawingIsStylus) return
         if (e.pointerCount >= 2) {
+            if (mode == CanvasPointerMode.TEXT_BOX || mode == CanvasPointerMode.SCREENSHOT) {
+                if (drawingIsStylus) return
+                clearCapture()
+            }
             if (mode == CanvasPointerMode.DRAW) abandonStroke()
             if (mode == CanvasPointerMode.TAPE) abandonTape()
             // A finger erase yields to a pinch: commit what it already removed rather than lose it.
@@ -666,6 +704,10 @@ class InfiniteInteraction(
             CanvasPointerMode.ROTATE -> extendRotate(e.getX(0).toDouble(), e.getY(0).toDouble())
             CanvasPointerMode.VERTEX -> extendVertex(e.getX(0).toDouble(), e.getY(0).toDouble())
             CanvasPointerMode.POLYGON -> showPolygonDraft(viewport.viewportToContent(Pt(e.getX(0).toDouble(), e.getY(0).toDouble())))
+            CanvasPointerMode.TEXT_BOX, CanvasPointerMode.SCREENSHOT -> {
+                captureRect = Rect.fromPoints(captureStart, viewport.viewportToContent(Pt(e.x.toDouble(), e.y.toDouble())))
+                requestRender()
+            }
             CanvasPointerMode.IDLE -> Unit
         }
     }
@@ -706,6 +748,7 @@ class InfiniteInteraction(
             endErase()
             onEraseLifted()
         }
+        if (mode == CanvasPointerMode.TEXT_BOX || mode == CanvasPointerMode.SCREENSHOT) finishCapture()
         if (mode == CanvasPointerMode.SHAPE) endShape()
         if (mode == CanvasPointerMode.TAPE) endTape()
         if (mode == CanvasPointerMode.CONNECT) endConnector()
@@ -736,6 +779,7 @@ class InfiniteInteraction(
 
     private fun abortGesture() {
         cancelLongPress()
+        if (mode == CanvasPointerMode.TEXT_BOX || mode == CanvasPointerMode.SCREENSHOT) clearCapture()
         if (mode == CanvasPointerMode.DRAW) abandonStroke()
         if (mode == CanvasPointerMode.ERASE) endErase()
         if (mode == CanvasPointerMode.SHAPE) abandonShape()
@@ -770,6 +814,7 @@ class InfiniteInteraction(
     // --- drawing ---
 
     private fun beginDraw(vx: Double, vy: Double, drawTool: Tool, e: MotionEvent) {
+        rulerController.beginStroke()
         val base = configFor(drawTool)
         // SCALE off: divide the width by the draw-time zoom so the stroke keeps a constant
         // on-screen thickness whatever zoom it was drawn at. Baked in, so it is ordinary ink after.
@@ -797,13 +842,13 @@ class InfiniteInteraction(
         // left running keeps the buffer queue full and puts a frame of lag under the pen.
         setInteractive(false, false)
         strokeStartTimeMs = e.eventTime
-        val p = viewport.viewportToContent(Pt(vx, vy))
+        val p = viewport.viewportToContent(rulerController.magnetize(Pt(vx, vy), devicePxPerDp()))
         stroke.addSample(Sample(p.x, p.y, pressureOf(e, 0)))
         liveStroke = stroke
         mode = CanvasPointerMode.DRAW
         // Only solid pens arm the snap: a highlighter or a straight-line drag never becomes a shape.
         dwellEligible = detectShapes() && drawTool.isStroke && drawTool != Tool.HIGHLIGHTER &&
-            !straight && !wandEnabled
+            !straight && !wandEnabled && !rulerController.ruler.visible
         if (dwellEligible) armDwell(Pt(vx, vy))
         onWetStroke(stroke)
         requestRender()
@@ -839,7 +884,7 @@ class InfiniteInteraction(
 
     private fun addStrokePoint(vx: Double, vy: Double, pressure: Double, timeMs: Long, force: Boolean) {
         val stroke = liveStroke ?: return
-        val p = viewport.viewportToContent(Pt(vx, vy))
+        val p = viewport.viewportToContent(rulerController.magnetize(Pt(vx, vy), devicePxPerDp()))
         val t = (timeMs - strokeStartTimeMs).toDouble()
         if (stroke.straight) {
             stroke.setStraightEnd(Sample(p.x, p.y, pressure.coerceIn(0.0, 1.0), t))
@@ -1702,14 +1747,23 @@ class InfiniteInteraction(
     }
 
     /** A hovering pen lights the connection point under it while a connector is armed. */
+    fun clearHover() {
+        onEraserCursor(null, 0.0)
+        if (connectHot.isNotEmpty()) { connectHot = emptyList(); onSelectionChanged() }
+    }
+
     fun onHover(e: MotionEvent): Boolean {
+        val erasing = tool == Tool.ERASER || e.getToolType(0) == MotionEvent.TOOL_TYPE_ERASER
+        val showCursor = erasing && e.actionMasked != MotionEvent.ACTION_HOVER_EXIT
+        onEraserCursor(if (showCursor) Pt(e.x.toDouble(), e.y.toDouble()) else null,
+            if (showCursor) eraserRadius() * viewport.zoom else 0.0)
         val hovering = connecting && mode == CanvasPointerMode.IDLE && e.actionMasked != MotionEvent.ACTION_HOVER_EXIT
         val hot = if (hovering) listOfNotNull(glueHitAt(viewport.viewportToContent(Pt(e.x.toDouble(), e.y.toDouble())))?.point?.at) else emptyList()
         if (hot != connectHot) {
             connectHot = hot
             onSelectionChanged()
         }
-        return hovering
+        return hovering || erasing
     }
 
     /** A press with a connector chip: the connector sets off, glued to the point under the pen if there is one. */

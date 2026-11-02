@@ -123,6 +123,9 @@ internal fun ColumnScope.ToolbarAround(
     }
 }
 
+internal val LocalEmbeddedToolbar = compositionLocalOf { false }
+internal val LocalWorkspaceToolbarLayout = compositionLocalOf<com.xnotes.core.tools.ToolbarLayout?> { null }
+
 /**
  * The strip both toolbars are laid out in: a row along the top or bottom, a column down either
  * side. [content] runs along it and scrolls when it runs long, [trailing] stays pinned at the end,
@@ -132,8 +135,10 @@ internal fun ColumnScope.ToolbarAround(
 internal fun ToolbarFrame(
     armed: Any?,
     trailing: (@Composable () -> Unit)? = null,
+    leading: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
+    if (LocalEmbeddedToolbar.current) { content(); return }
     val look = LocalToolbarLook.current
     val bar = barMetrics(look.size).copy(vertical = look.position.vertical)
     val glide = remember { ToolGlide() }
@@ -169,6 +174,7 @@ internal fun ToolbarFrame(
                 stretch.width(bar.thickness).then(surface),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                leading?.invoke()
                 Column(
                     Modifier
                         .weight(1f, fill = !look.floating)
@@ -184,6 +190,7 @@ internal fun ToolbarFrame(
                 stretch.height(bar.thickness).then(surface),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                leading?.invoke()
                 Row(
                     Modifier
                         .weight(1f, fill = !look.floating)

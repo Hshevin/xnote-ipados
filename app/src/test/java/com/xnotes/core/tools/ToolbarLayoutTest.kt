@@ -199,7 +199,10 @@ class ToolbarLayoutTest {
         assertTrue(ToolbarItem.WAYPOINTS !in ToolbarLayout.NOTE_ITEMS)
         assertTrue(ToolbarItem.MINIMAP !in ToolbarLayout.NOTE_ITEMS)
         assertTrue(ToolbarItem.PAGE_NAV !in ToolbarLayout.CANVAS_ITEMS)
-        assertTrue(ToolbarItem.TEXT !in ToolbarLayout.CANVAS_ITEMS)
+        assertTrue(ToolbarItem.TEXT in ToolbarLayout.CANVAS_ITEMS)
+        assertTrue(ToolbarItem.TEXT_BOX in ToolbarLayout.CANVAS_ITEMS)
+        assertTrue(ToolbarItem.RULER in ToolbarLayout.CANVAS_ITEMS)
+        assertTrue(ToolbarItem.SCREENSHOT in ToolbarLayout.CANVAS_ITEMS)
     }
 
     @Test fun theCanvasDefaultRoundTripsThroughRaw() {

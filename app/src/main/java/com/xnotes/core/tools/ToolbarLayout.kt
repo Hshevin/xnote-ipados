@@ -168,7 +168,7 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
             ToolbarItem.PEN, ToolbarItem.DASHED, ToolbarItem.CALLIGRAPHY, ToolbarItem.SPEED,
             ToolbarItem.TAPER, ToolbarItem.HIGHLIGHTER, ToolbarItem.ERASER,
             ToolbarItem.PAN, ToolbarItem.SELECT, ToolbarItem.LASSO, ToolbarItem.WAND,
-            ToolbarItem.TAPE, ToolbarItem.SHAPE,
+            ToolbarItem.TAPE, ToolbarItem.SHAPE, ToolbarItem.TEXT, ToolbarItem.TEXT_BOX, ToolbarItem.RULER, ToolbarItem.SCREENSHOT,
             ToolbarItem.IMAGE, ToolbarItem.COLORS, ToolbarItem.UNDO, ToolbarItem.REDO,
             ToolbarItem.STYLES, ToolbarItem.WAYPOINTS, ToolbarItem.MINIMAP,
             ToolbarItem.ZOOM, ToolbarItem.FIT, ToolbarItem.ZOOM_LOCK,
@@ -204,7 +204,7 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
                 ToolbarItem.TAPER, ToolbarItem.HIGHLIGHTER, ToolbarItem.ERASER,
             ),
             listOf(ToolbarItem.PAN, ToolbarItem.SELECT, ToolbarItem.LASSO),
-            listOf(ToolbarItem.WAND, ToolbarItem.TAPE, ToolbarItem.SHAPE),
+            listOf(ToolbarItem.WAND, ToolbarItem.TAPE, ToolbarItem.SHAPE, ToolbarItem.TEXT, ToolbarItem.TEXT_BOX, ToolbarItem.RULER, ToolbarItem.SCREENSHOT),
             listOf(ToolbarItem.IMAGE),
             listOf(ToolbarItem.COLORS),
             listOf(ToolbarItem.UNDO, ToolbarItem.REDO),
@@ -243,3 +243,26 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
         }
     }
 }
+
+/** One stable layout for a split; canvas-only extras follow the paged arrangement. */
+fun workspaceToolbarLayout(paged: ToolbarLayout, canvas: ToolbarLayout): ToolbarLayout {
+    val present = paged.visibleSections.flatMap { it.visibleEntries }.map { it.item }.toSet()
+    val extra = canvas.visibleSections.flatMap { it.visibleEntries }.filter { it.item !in present }.distinctBy { it.item }
+    return ToolbarLayout(paged.visibleSections + if (extra.isEmpty()) emptyList() else listOf(ToolbarSection(extra)))
+}
+
+val documentToolbarItems = setOf(ToolbarItem.SIDEBAR, ToolbarItem.MARKUP, ToolbarItem.PAGE_NAV,
+    ToolbarItem.ZOOM, ToolbarItem.FIT, ToolbarItem.ZOOM_LOCK,
+    ToolbarItem.STYLES, ToolbarItem.MARGINS, ToolbarItem.VIEW, ToolbarItem.WAYPOINTS, ToolbarItem.MINIMAP)
+fun ToolbarLayout.forDocumentControls(document: Boolean): ToolbarLayout = ToolbarLayout(sections.map {
+    ToolbarSection(it.visibleEntries.filter { entry -> (entry.item in documentToolbarItems) == document })
+}.filter { it.hasVisible })
+
+fun documentToolbarLayout(layout: ToolbarLayout, canvas: Boolean, pdf: Boolean): ToolbarLayout =
+    ToolbarLayout(layout.forDocumentControls(true).sections.map { section ->
+        ToolbarSection(section.visibleEntries.filter {
+            if (canvas) it.item in setOf(ToolbarItem.STYLES, ToolbarItem.WAYPOINTS, ToolbarItem.MINIMAP,
+                ToolbarItem.ZOOM, ToolbarItem.FIT, ToolbarItem.ZOOM_LOCK)
+            else it.item !in setOf(ToolbarItem.WAYPOINTS, ToolbarItem.MINIMAP) && (it.item != ToolbarItem.MARKUP || pdf)
+        })
+    }.filter { it.hasVisible })

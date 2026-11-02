@@ -12,8 +12,19 @@ package com.xnotes.core.history
  * fails. The redo stack needs no cap of its own: it only ever holds what undo popped.
  */
 class History(private val limit: Int = DEFAULT_LIMIT) {
-    private val undoStack = ArrayDeque<Command>()
-    private val redoStack = ArrayDeque<Command>()
+    private class Timeline(val limit: Int) {
+        val undo = ArrayDeque<Command>()
+        val redo = ArrayDeque<Command>()
+    }
+    private var timeline = Timeline(limit)
+    private val undoStack get() = timeline.undo
+    private val redoStack get() = timeline.redo
+
+    /** Two views of one document keep a single timeline, but their edit callbacks stay local. */
+    fun shareWith(other: History) { timeline = other.timeline }
+
+    /** Leaving a document must not clear the timeline still used by another view. */
+    fun detach() { timeline = Timeline(limit) }
 
     val canUndo: Boolean get() = undoStack.isNotEmpty()
     val canRedo: Boolean get() = redoStack.isNotEmpty()
@@ -30,7 +41,7 @@ class History(private val limit: Int = DEFAULT_LIMIT) {
     fun push(command: Command) {
         onPush?.invoke(command)
         undoStack.addLast(command)
-        while (undoStack.size > limit) undoStack.removeFirst() // the oldest edit becomes unreachable
+        while (undoStack.size > timeline.limit) undoStack.removeFirst() // the oldest edit becomes unreachable
         redoStack.clear()
     }
 

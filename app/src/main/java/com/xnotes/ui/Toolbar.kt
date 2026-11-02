@@ -94,6 +94,9 @@ fun Toolbar(
     onInsertImage: () -> Unit,
     onAddStickers: () -> Unit,
     onClosePane: (() -> Unit)? = null,
+    shared: Boolean = false,
+    onSplitDocument: (() -> Unit)? = null,
+    onToggleSplitDirection: (() -> Unit)? = null,
     onImportTemplate: () -> Unit = {},
     onInsertAudio: () -> Unit = {},
     onRecordAudio: () -> Unit = {},
@@ -119,16 +122,24 @@ fun Toolbar(
         Tool.MARKUP to XnotesIcons.markup,
         Tool.TAPE to XnotesIcons.tape,
     )
-    var configForTool by remember { mutableStateOf<Tool?>(null) }
-    var switcherIndex by remember { mutableStateOf<Int?>(null) }
-    var renaming by remember { mutableStateOf(false) }
+    var configForTool by remember(editor) { mutableStateOf<Tool?>(null) }
+    var switcherIndex by remember(editor) { mutableStateOf<Int?>(null) }
+    var renaming by remember(editor) { mutableStateOf(false) }
     // Pinned outside the scrolling strip so closing a split pane is always one tap away.
-    ToolbarFrame(armed = editor.tool, trailing = onClosePane?.let { { ClosePaneButton(it) } }) {
+    ToolbarFrame(armed = editor.tool, trailing = {
+        onSplitDocument?.let { action ->
+            ToolbarIcon(XnotesIcons.split, stringResource(R.string.split_current_document), onClick = action)
+        }
+        onToggleSplitDirection?.let { action ->
+            ToolbarIcon(XnotesIcons.split, stringResource(R.string.split_change_direction), onClick = action)
+        }
+        onClosePane?.let { ClosePaneButton(it) }
+    }) {
         // The bar is driven by the user-customisable layout; separators sit between non-empty
         // sections, and each item dispatches to its renderer (see ToolbarItemView).
-        editor.toolbarLayout.visibleSections.forEachIndexed { si, section ->
+        (LocalWorkspaceToolbarLayout.current ?: editor.toolbarLayout).visibleSections.forEachIndexed { si, section ->
             if (si > 0) Separator()
-            section.visibleEntries.forEach { entry ->
+            section.visibleEntries.filterNot { shared && it.item in setOf(ToolbarItem.HOME, ToolbarItem.TITLE) }.forEach { entry ->
                 ToolbarItemView(
                     editor = editor,
                     item = entry.item,
@@ -186,7 +197,7 @@ private fun ToolbarItemView(
 ) {
     when (item) {
         // Canvas-only items; a stored paged layout can never hold one, so nothing is drawn.
-        ToolbarItem.WAYPOINTS, ToolbarItem.MINIMAP -> Unit
+        ToolbarItem.WAYPOINTS, ToolbarItem.MINIMAP -> DisabledToolbarItem(item)
 
         ToolbarItem.HOME -> ToolbarIcon(XnotesIcons.prev, stringResource(R.string.toolbar_home)) { onOpenBackstage() }
         // A name has no room down a side rail.
@@ -212,7 +223,7 @@ private fun ToolbarItemView(
 
         // Marks a PDF's text, so a note without a PDF has no use for it.
         ToolbarItem.MARKUP ->
-            if (editor.hasPdf) ToolButton(editor, Tool.MARKUP, toolIcons[Tool.MARKUP], configForTool, setConfigForTool)
+            if (editor.hasPdf) ToolButton(editor, Tool.MARKUP, toolIcons[Tool.MARKUP], configForTool, setConfigForTool) else DisabledToolbarItem(item)
 
         ToolbarItem.WAND ->
             ToolbarIcon(XnotesIcons.magicWand, stringResource(R.string.tool_wand), active = editor.wandEnabled) { editor.toggleWand() }
@@ -231,7 +242,7 @@ private fun ToolbarItemView(
                 Tooltip(stringResource(R.string.title_go_to_page)) {
                     Label(
                         stringResource(R.string.number_current, editor.pageIndex + 1, editor.pageCount, editor.pageNumbering.label(editor.pageIndex)),
-                        Modifier
+                        Modifier.width(100.dp)
                             .clip(MaterialTheme.shapes.extraSmall)
                             .clickable { jumpOpen = true },
                     )
@@ -251,7 +262,7 @@ private fun ToolbarItemView(
                 Tooltip(stringResource(R.string.title_zoom)) {
                     Label(
                         "${editor.zoomPercent}%",
-                        modifier = Modifier
+                        modifier = Modifier.width(72.dp)
                             .clip(MaterialTheme.shapes.extraSmall)
                             .clickable { zoomMenuOpen = true },
                     )
@@ -729,3 +740,13 @@ private fun FitMenu(editor: Editor) {
     }
 }
 
+
+/** Preserve the exact slot of a document-specific control when it is unavailable. */
+@Composable
+internal fun DisabledToolbarItem(item: ToolbarItem) {
+    if (item == ToolbarItem.PAGE_NAV) {
+        ToolbarIcon(XnotesIcons.prev, stringResource(R.string.previous_page), enabled = false) {}
+        Label("—", Modifier.width(100.dp))
+        ToolbarIcon(XnotesIcons.next, stringResource(R.string.next_page), enabled = false) {}
+    } else ToolbarIcon(itemIcon(item), stringResource(item.labelRes), enabled = false) {}
+}

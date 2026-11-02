@@ -101,16 +101,20 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
      * The two surfaces, in order. They are siblings rather than one view because the canvas needs a
      * multisampled config and the front buffer cannot have one.
      */
+    val toolOverlay = object : android.view.View(appContext) {
+        override fun onDraw(canvas: android.graphics.Canvas) { drawToolOverlay(canvas) }
+    }
     val surfaces = android.widget.FrameLayout(appContext).apply {
         addView(view, android.widget.FrameLayout.LayoutParams(-1, -1))
         addView(pad, android.widget.FrameLayout.LayoutParams(-1, -1))
+        addView(toolOverlay, android.widget.FrameLayout.LayoutParams(-1, -1))
     }
 
     val viewport: CanvasViewport get() = view.viewport
 
     val interaction = InfiniteInteraction(
         viewport = view.viewport,
-        requestRender = { view.publish() },
+        requestRender = { view.publish(); toolOverlay.invalidate() },
         onViewChanged = { onViewChanged() },
         setInteractive = { active, linger -> view.setInteractive(active, linger) },
         configFor = { configFor(it) },
@@ -142,6 +146,8 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
         onAudioTap = { tapAudio(it) },
         onPeelTape = { peelTape(it) },
         onUserMovedView = { AudioPlayback.userMoved(this) },
+        onTextBox = { insertTextBox(it) },
+        onScreenshot = { screenshotMenu = it },
     )
 
     private val devicePxPerDp = appContext.resources.displayMetrics.density.toDouble()
@@ -291,9 +297,10 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
 
     init {
         view.input = { event -> proPenInput.touch(event) { interaction.onTouch(event) } }
+        view.crossPaneTouchGate.shouldBlock = { otherPenInContact() }
         view.genericMotion = { proPenInput.motion(it); interaction.onGenericMotion(it) }
         view.onInputLost = { resetPenButtons() }
-        view.hover = { proPenInput.motion(it); interaction.onHover(it) }
+        view.hover = { proPenInput.motion(it, beforeHover(it)); interaction.onHover(it) }
         view.afterLayout = { applyInitialView() }
         view.onContextReady = { renderFailure = view.failure }
         pad.onSurfaceLost = { endFrontInk(); settleHeld() }
@@ -415,6 +422,11 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     private val proPenInput by lazy {
         com.xnotes.pen.ProPenInput({ proPenBindings() }, { tool }, ::armTool, ::dispatchTapGesture)
     }
+    var otherPenInContact: () -> Boolean = { false }
+    val stylusInContact: Boolean get() = proPenInput.stylusInContact
+    var beforeHover: (android.view.MotionEvent) -> Int? = { null }
+    val hoverButtons: Int get() = proPenInput.lastButtons
+    fun clearHover() = interaction.clearHover()
     fun resetPenButtons() = proPenInput.reset()
 
     /** The single tool armed before this one, for tap-gesture toggles. */
@@ -691,6 +703,58 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
         }
     }
 
+    var rulerVisible by mutableStateOf(false)
+        private set
+    fun toggleRuler() {
+        val ruler = interaction.rulerController.ruler
+        ruler.visible = !ruler.visible
+        if (ruler.visible && !ruler.initialized) ruler.placeDefault(viewport.widthPx.toDouble(), viewport.heightPx.toDouble(), devicePxPerDp)
+        rulerVisible = ruler.visible
+        toolOverlay.invalidate()
+    }
+
+    private var draftTextBox: ShapeItem? = null
+    var screenshotMenu by mutableStateOf<Rect?>(null)
+        private set
+
+    /** Borderless labelled rectangles use the existing editable, persisted canvas text geometry. */
+    fun insertTextBox(bounds: Rect) {
+        commitText()
+        document.items.asReversed().filterIsInstance<ShapeItem>().firstOrNull {
+            it.label != null && it.strokeRgba.a == 0 && it.box.contains(bounds.topLeft) && !it.locked
+        }?.let { startLabelEdit(it); return }
+        val shape = ShapeItem(com.xnotes.core.shapes.ShapeKind.RECTANGLE, bounds.topLeft,
+            Pt(bounds.right, bounds.bottom), Rgba(0, 0, 0, 0), 0.0)
+        shape.label = ShapeLabel("", TextStyle(inkColor, textPointSize, textFace), textMeasurer)
+        draftTextBox = shape
+        startLabelEdit(shape)
+    }
+
+    private fun drawToolOverlay(canvas: android.graphics.Canvas) {
+        interaction.rulerController.draw(canvas, devicePxPerDp, viewport.zoom, document.dpi.toDouble(), view.darkAppearance)
+        val rect = interaction.captureRect?.let { viewport.contentToViewport(it) } ?: return
+        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = if (view.darkAppearance) android.graphics.Color.WHITE else android.graphics.Color.BLACK
+            style = android.graphics.Paint.Style.STROKE
+            strokeWidth = (2 * devicePxPerDp).toFloat()
+        }
+        canvas.drawRect(rect.left.toFloat(), rect.top.toFloat(), rect.right.toFloat(), rect.bottom.toFloat(), p)
+    }
+
+    fun copyScreenshotAsImage() {
+        val bmp = interaction.captureRect?.let { renderRegionBitmap(it, document.items.filter { item -> item.paintBounds().intersects(it) }.forExport()) }
+        val ok = bmp != null && com.xnotes.platform.SystemClipboard.putImage(appContext, bmp, "xnotes capture")
+        onMessage?.invoke(appContext.getString(if (ok) R.string.image_copied else R.string.err_copy_image), null)
+        if (ok) interaction.clearCapture()
+    }
+    fun screenshotImageForShare(): java.io.File? {
+        val file = interaction.captureRect?.let { renderRegionBitmap(it, document.items.filter { item -> item.paintBounds().intersects(it) }.forExport()) }
+            ?.let { com.xnotes.platform.ShareFiles.png(appContext, it, document.title) }
+        if (file != null) interaction.clearCapture()
+        else onMessage?.invoke(appContext.getString(R.string.err_share_image), null)
+        return file
+    }
+
     override fun copySelectionAsImage() {
         val bmp = renderSelectionBitmap()
         val ok = bmp != null && com.xnotes.platform.SystemClipboard.putImage(appContext, bmp, "xnotes selection")
@@ -712,9 +776,13 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
         val picked = HashSet(selection.items)
         val items = document.items.filter { it in picked }.forExport()
         val bounds = items.map { it.paintBounds() }.reduceOrNull { a, b -> a.union(b) } ?: return null
+        return renderRegionBitmap(bounds, items)
+    }
+
+    private fun renderRegionBitmap(bounds: Rect, items: List<CanvasItem>): android.graphics.Bitmap? {
         if (bounds.w <= 0.0 || bounds.h <= 0.0) return null
         val maxDim = 4096.0
-        val res = minOf(2.0, maxDim / bounds.w, maxDim / bounds.h).coerceAtLeast(0.05)
+        val res = minOf(2.0, maxDim / bounds.w, maxDim / bounds.h)
         val surface = com.xnotes.platform.AndroidRasterSurface.create(
             kotlin.math.ceil(bounds.w * res).toInt().coerceIn(1, maxDim.toInt()),
             kotlin.math.ceil(bounds.h * res).toInt().coerceIn(1, maxDim.toInt()),
@@ -939,6 +1007,11 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
         labelBefore = null
         editingField = null
         textBar = null
+        if (draftTextBox === shape) {
+            draftTextBox = null
+            if (after != null) commitItem(shape) else { scene.remove(shape); view.publish() }
+            return
+        }
         document.itemChanged(shape)
         val changed = if (after == null) before != null else !after.sameAs(before)
         if (changed) {
@@ -1029,6 +1102,12 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
         markDirty()
         refresh()
         publishOverlay()
+    }
+
+    /** Focus transfer updates drawing defaults without restyling an existing selected label. */
+    fun useWorkspaceInk(index: Int, color: Rgba) {
+        activeColorIndex = index
+        inkColor = color
     }
 
     fun armInkColor(color: Rgba) {
@@ -2379,6 +2458,8 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     }
 
     private fun onViewChanged() {
+        if (screenshotMenu != null) screenshotMenu = interaction.captureRect?.let { viewport.contentToViewport(it) }
+        toolOverlay.invalidate()
         if (editingLabel != null) refreshField()
         // The connection marks are sized for the screen and only cover what is on it.
         if (interaction.marking) publishOverlay()

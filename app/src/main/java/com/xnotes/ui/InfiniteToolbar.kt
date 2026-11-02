@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +35,9 @@ private val CANVAS_TOOL_OF: Map<ToolbarItem, Tool> = mapOf(
     ToolbarItem.LASSO to Tool.LASSO,
     ToolbarItem.SHAPE to Tool.SHAPE,
     ToolbarItem.TAPE to Tool.TAPE,
+    ToolbarItem.TEXT_BOX to Tool.TEXT_BOX,
+    ToolbarItem.TEXT to Tool.TEXT,
+    ToolbarItem.SCREENSHOT to Tool.SCREENSHOT,
 )
 
 /**
@@ -52,6 +56,10 @@ fun InfiniteToolbar(
     onRename: (String) -> Unit,
     onInsertImage: () -> Unit = {},
     onClosePane: (() -> Unit)? = null,
+    onToggleFullscreen: () -> Unit = {},
+    shared: Boolean = false,
+    onSplitDocument: (() -> Unit)? = null,
+    onToggleSplitDirection: (() -> Unit)? = null,
     onInsertAudio: () -> Unit = {},
     onRecordAudio: () -> Unit = {},
     onTakePhoto: () -> Unit = {},
@@ -71,6 +79,9 @@ fun InfiniteToolbar(
         Tool.SELECT to XnotesIcons.select,
         Tool.LASSO to XnotesIcons.lasso,
         Tool.TAPE to XnotesIcons.tape,
+        Tool.TEXT to XnotesIcons.text,
+        Tool.TEXT_BOX to XnotesIcons.textBox,
+        Tool.SCREENSHOT to XnotesIcons.scissors,
     )
     var renaming by remember(editor) { mutableStateOf(false) }
     if (renaming) {
@@ -91,12 +102,18 @@ fun InfiniteToolbar(
     var switcherIndex by remember { mutableStateOf<Int?>(null) }
 
     // Pinned outside the scrolling strip so closing a split pane is always one tap away.
-    ToolbarFrame(armed = editor.tool, trailing = onClosePane?.let { { ClosePaneButton(it) } }) {
-        val sections = editor.toolbarLayout.visibleSections
+    ToolbarFrame(armed = editor.tool, trailing = {
+        onSplitDocument?.let { ToolbarIcon(XnotesIcons.split, stringResource(R.string.split_current_document), onClick = it) }
+        onToggleSplitDirection?.let { ToolbarIcon(XnotesIcons.split, stringResource(R.string.split_change_direction), onClick = it) }
+        onClosePane?.let { ClosePaneButton(it) }
+    }) {
+        val sections = (LocalWorkspaceToolbarLayout.current ?: editor.toolbarLayout).visibleSections
         sections.forEachIndexed { index, section ->
             if (index > 0) Separator()
             for (entry in section.visibleEntries) {
+                if (shared && entry.item in setOf(ToolbarItem.HOME, ToolbarItem.TITLE)) continue
                 when (val item = entry.item) {
+                    ToolbarItem.RULER -> ToolbarIcon(XnotesIcons.ruler, stringResource(R.string.tool_ruler), active = editor.rulerVisible) { editor.toggleRuler() }
                     ToolbarItem.HOME -> ToolbarIcon(XnotesIcons.prev, stringResource(R.string.toolbar_home)) { onOpenBackstage() }
                     // A name has no room down a side rail.
                     ToolbarItem.TITLE -> if (!LocalBar.current.vertical) Label(if (editor.document.displayName == null && editor.document.path == null) stringResource(R.string.untitled) else editor.title, Modifier.clickable { renaming = true }.padding(end = 4.dp))
@@ -192,13 +209,15 @@ fun InfiniteToolbar(
                         ToolbarIcon(XnotesIcons.zoomOut, stringResource(R.string.zoom_out), enabled = !editor.zoomLocked, shortcut = Keys.ZOOM_OUT) {
                             editor.zoomBy(1.0 / InfiniteEditor.ZOOM_STEP)
                         }
-                        Label("${editor.zoomPercent}%")
+                        Label("${editor.zoomPercent}%", Modifier.width(72.dp))
                         ToolbarIcon(XnotesIcons.zoomIn, stringResource(R.string.zoom_in), enabled = !editor.zoomLocked, shortcut = Keys.ZOOM_IN) {
                             editor.zoomBy(InfiniteEditor.ZOOM_STEP)
                         }
                     }
                     ToolbarItem.FIT ->
                         ToolbarIcon(XnotesIcons.fit, stringResource(R.string.fit_all), enabled = !editor.zoomLocked, shortcut = Keys.FIT_ALL) { editor.zoomToFit() }
+
+                    ToolbarItem.FULLSCREEN -> ToolbarIcon(XnotesIcons.fullscreen, stringResource(R.string.toolbar_fullscreen), onClick = onToggleFullscreen)
 
                     ToolbarItem.ZOOM_LOCK -> ToolbarIcon(
                         if (editor.zoomLocked) XnotesIcons.lock else XnotesIcons.unlock,
@@ -207,7 +226,7 @@ fun InfiniteToolbar(
                     ) { editor.toggleZoomLock() }
 
                     // Everything else belongs to the paged bar; a canvas layout never holds one.
-                    else -> Unit
+                    else -> DisabledToolbarItem(item)
                 }
             }
         }

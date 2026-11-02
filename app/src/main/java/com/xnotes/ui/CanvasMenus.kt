@@ -564,12 +564,58 @@ fun ScreenshotMenu(editor: Editor, onShare: (java.io.File) -> Unit) {
     val barWidthPx = with(density) { 216.dp.toPx() }
     val gap = with(density) { 10.dp.toPx() }
     val centerX = ((rect.left + rect.right) / 2.0).toFloat()
-    val xPx = (centerX - barWidthPx / 2f).coerceAtLeast(with(density) { 8.dp.toPx() })
-    val yPx = if (rect.top.toFloat() - barHeightPx - gap > 0f) {
+    val xPx = (centerX - barWidthPx / 2f).coerceIn(0f, (editor.state.viewportW - barWidthPx).coerceAtLeast(0f))
+    val yPx = (if (rect.top.toFloat() - barHeightPx - gap > 0f) {
         rect.top.toFloat() - barHeightPx - gap
     } else {
         rect.bottom.toFloat() + gap
+    }).coerceIn(0f, (editor.state.viewportH - barHeightPx).coerceAtLeast(0f))
+    Row(
+        modifier = Modifier
+            .offset(with(density) { xPx.toDp() }, with(density) { yPx.toDp() })
+            .clip(MaterialTheme.shapes.medium)
+            .background(palette.menuBg.toComposeColor())
+            .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.medium),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            Modifier.clickable { editor.copyScreenshotAsImage() }.padding(horizontal = 14.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                XnotesIcons.copy,
+                contentDescription = stringResource(R.string.copy_as_image),
+                tint = palette.text.toComposeColor(),
+                modifier = Modifier.size(20.dp),
+            )
+            Text(
+                stringResource(R.string.copy_as_image),
+                color = palette.text.toComposeColor(),
+                fontSize = 14.sp,
+                modifier = Modifier.padding(start = 8.dp),
+            )
+        }
+        Box(Modifier.width(1.dp).height(24.dp).background(palette.border.toComposeColor()))
+        ActionIcon(XnotesIcons.share, stringResource(R.string.share)) { editor.screenshotImageForShare()?.let(onShare) }
     }
+}
+
+@Composable
+fun ScreenshotMenu(editor: InfiniteEditor, onShare: (java.io.File) -> Unit) {
+    val rect = editor.screenshotMenu ?: return
+    val palette = LocalPalette.current
+    val density = LocalDensity.current
+
+    val barHeightPx = with(density) { 44.dp.toPx() }
+    val barWidthPx = with(density) { 216.dp.toPx() }
+    val gap = with(density) { 10.dp.toPx() }
+    val centerX = ((rect.left + rect.right) / 2.0).toFloat()
+    val xPx = (centerX - barWidthPx / 2f).coerceIn(0f, (editor.viewport.widthPx - barWidthPx).coerceAtLeast(0f))
+    val yPx = (if (rect.top.toFloat() - barHeightPx - gap > 0f) {
+        rect.top.toFloat() - barHeightPx - gap
+    } else {
+        rect.bottom.toFloat() + gap
+    }).coerceIn(0f, (editor.viewport.heightPx - barHeightPx).coerceAtLeast(0f))
     Row(
         modifier = Modifier
             .offset(with(density) { xPx.toDp() }, with(density) { yPx.toDp() })

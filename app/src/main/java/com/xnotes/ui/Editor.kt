@@ -459,6 +459,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     private val viewStates = com.xnotes.platform.ViewStateStore(com.xnotes.platform.JsonStore.viewStates(appContext))
     private var lastSessionContentVersion = -1
     private var sessionLoaded = false
+    private var restoredPagedSession = false
 
     // The disk cache is shared by both panes and remembers which theme produced its pixels.
     private val thumbCache = com.xnotes.platform.NoteThumbnailCache(java.io.File(appContext.filesDir, "note_thumbs"))
@@ -493,8 +494,10 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     private val rootNameCache = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     /** When non-null, the current note lives in the granted folder and autosaves to this URI. */
-    var autosaveUri: String? = null
-        private set
+    private var ownAutosaveUri: String? = null
+    var autosaveUri: String?
+        get() = sharedOwner?.autosaveUri ?: ownAutosaveUri
+        private set(value) { ownAutosaveUri = value }
     private val autosaveScope = kotlinx.coroutines.MainScope()
 
     /** The note autosave's debounce timer. Cancelled freely: nothing has been written yet. */
@@ -712,6 +715,8 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         com.xnotes.pen.ProPenInput({ preferences.proPenBindings }, { tool }, ::selectTool, ::dispatchTapGesture)
     }
 
+    val stylusInContact: Boolean get() = if (canvasOpen) infinite.stylusInContact else proPenInput.stylusInContact
+
     fun resetPenButtons() {
         proPenInput.reset()
         infiniteOrNull?.resetPenButtons()
@@ -726,6 +731,8 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         get() = infiniteOrNull ?: InfiniteEditor(appContext).also {
             infiniteOrNull = it
             it.proPenBindings = { preferences.proPenBindings }
+            it.otherPenInContact = { sibling?.stylusInContact == true }
+            it.beforeHover = ::focusForPenHover
             it.applyPalette(palette)
             // Both editors write inserted images into the same purged-on-launch temp dir.
             it.imageDir = imageDir
@@ -786,6 +793,25 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
      * Read the `.xcanvas` at [uri] and push its editor on top of backstage. IO, so call it off the
      * main thread; the model swap itself hops back to the main thread.
      */
+    suspend fun saveCanvasBeforeReplacement(): Boolean {
+        if (!canvasOpen) return true
+        infinite.commitText()
+        canvasDebounceJob?.cancel()
+        canvasWriteJob?.join()
+        val doc = infinite.document
+        val uri = canvasAutosaveUri ?: doc.path
+        if (uri == null) {
+            if (doc.dirty) message = appContext.getString(R.string.split_save_before_replace)
+            return !doc.dirty
+        }
+        if (doc.dirty) {
+            startCanvasWrite(uri, doc, doc.displayName ?: doc.title)
+            canvasWriteJob?.join()
+        }
+        if (doc.dirty) message = appContext.getString(R.string.err_save_note)
+        return !doc.dirty
+    }
+
     suspend fun openCanvasAsync(uri: String, name: String?): Boolean {
         val doc = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             runCatching {
@@ -794,6 +820,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
                 }?.also { it.created = settleCreated(uri, it.created) }
             }.getOrNull()
         } ?: return false
+        if (!saveCanvasBeforeReplacement()) return false
         openCanvasDocument(doc, uri, name)
         rememberOpened(uri, name)
         return true
@@ -805,6 +832,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         displayName: String?,
         fromSession: Boolean = false,
     ) {
+        leaveSharedDocument()
         flushAutosave() // a paged note may be open underneath; do not leave its edits unwritten
         doc.path = uri
         doc.displayName = displayName
@@ -816,7 +844,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         canvas.onContentChanged = { scheduleCanvasAutosave() }
         // Only a canvas living under the granted folder autosaves; anything else is left alone,
         // matching how a note opened from outside the root behaves.
-        canvasAutosaveUri = if (uri != null && browseRoot?.let { isUnderTree(uri, it) } == true) uri else null
+        canvasAutosaveUri = if (uri != null && documentStorageRoot(uri) != null) uri else null
         canvasAutosaveUri?.let { rememberStamp(it) }
         canvasOpen = true
         noteOpen = true
@@ -945,6 +973,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     /** The current document's storage location (a SAF content URI string), or null. */
     val currentUri: String? get() = state.document.path
+    val visibleDocumentUri: String? get() = if (canvasOpen) infinite.document.path else currentUri
 
     /** The bookmarks in page order; ones on the same page keep the order they were made in. */
     val bookmarks: List<Bookmark> get() = state.document.bookmarks.sortedBy { it.page }
@@ -1634,10 +1663,11 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             }
             proPenInput.touch(ev) { controller.onTouch(ev) }
         }
+        view.crossPaneTouchGate.shouldBlock = { sibling?.stylusInContact == true }
         view.onTwoFingerTap = { dispatchTapGesture(preferences.twoFingerTap) }
         view.onThreeFingerTap = { dispatchTapGesture(preferences.threeFingerTap) }
         view.onInputLost = { resetPenButtons() }
-        view.hover = { proPenInput.motion(it); controller.onHover(it) }
+        view.hover = { proPenInput.motion(it, focusForPenHover(it)); controller.onHover(it) }
         view.genericMotion = { proPenInput.motion(it); controller.onGenericMotion(it) }
         view.drawOverlay = { renderer, _ -> controller.drawOverlay(renderer) }
         controller.frontInk = com.xnotes.canvas.FrontInk(state, view, pad)
@@ -1655,7 +1685,10 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         controller.onAudioTap = { pageIndex, local -> tapAudio(pageIndex, local) }
         controller.onUserMovedView = { AudioPlayback.userMoved(this) }
         // Whatever is added while this note records takes the recording's moment.
-        history.onPush = { command -> AudioRecording.stamp(this, command.added()) }
+        history.onPush = { command ->
+            AudioRecording.stamp(this, command.added())
+            sharedInkRegions = if (command is com.xnotes.core.history.AddItem || command is com.xnotes.core.history.AddItems) touchedRegions(command) else null
+        }
         controller.onLinkTap = onLinkTap@{ pageIndex, pageLocal ->
             flowLinkAt(pageIndex, pageLocal)?.let {
                 openUrl(it)
@@ -2162,7 +2195,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         // that write out rather than pulling the source out from under it.
         val pending = noteWriteJob
         openPdfTemp?.let { old ->
-            if (old != keep) autosaveScope.launch { pending?.join(); old.delete() }
+            if (old != keep && sibling?.openPdfTemp != old) autosaveScope.launch { pending?.join(); old.delete() }
         }
         openPdfTemp = keep
     }
@@ -2715,6 +2748,10 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         sibling?.resetPenButtons()
         settings = next
         prefsVersion++
+        sibling?.let { other ->
+            other.settings = other.settings.copy(prefs = other.preferences.copy(proPenBindings = bindings))
+            other.prefsVersion++
+        }
         return true
     }
 
@@ -2931,6 +2968,10 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     /** Snapshot live state into settings and save (call on pause/stop). */
     fun persist() {
+        if (pane == Pane.PRIMARY && active !== this) {
+            active.resetPenButtons()
+            copyToolSettingsFrom(active)
+        }
         resetPenButtons()
         // A style tuned on the canvas is the same style, so whichever surface was last used wins.
         val fromCanvas = infiniteOrNull
@@ -2965,6 +3006,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         saveSession()
         saveCanvasSession()
         secondary?.persist() // the other pane's note has to be flushed on pause too
+        if (pane == Pane.PRIMARY) saveSplitWorkspace()
     }
 
     /** Persist the open canvas, or clear the stored one when a canvas is not what is open. */
@@ -2980,6 +3022,8 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     /** Persist the working session (open document + zoom/scroll) so the next launch
      *  reopens this note where the user left off, unsaved edits included. */
     private fun saveSession() {
+        if (pane == Pane.SECONDARY && isSharedView) return // primary stores the shared recovery snapshot
+
         if (!sessionLoaded) return // don't overwrite the saved note before restore has applied
         if (!noteOpen || canvasOpen) { session.clear(); return } // nothing paged on top: wipe any stale session
         val contentChanged = contentVersion != lastSessionContentVersion
@@ -3016,6 +3060,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         }
         val snap = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { session.load() }
         if (snap != null) {
+            restoredPagedSession = true
             state.document = snap.document
             rebuildPdfSource()
             adoptOpenPdf(snap.document) // track the restored note's temp PDF for later cleanup
@@ -3300,7 +3345,12 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         return com.xnotes.core.geometry.Rect(-i.left, -i.top, i.left + page.width + i.right, i.top + page.height + i.bottom)
     }
 
-    private fun refreshContent() {
+    private var publishedBackgroundRevision = 0L
+    private var sharedInkRegions: List<Pair<Page, Rect>>? = null
+    private var sharedLayout: List<Triple<Page, Rect, Int>> = emptyList()
+    private fun sharedLayoutSnapshot() = state.document.pages.map { Triple(it, state.footprint(it), it.pdfTurn) }
+
+    private fun refreshContent(notifySharedView: Boolean = true) {
         republishFlowIfStale()
         canUndo = history.canUndo
         canRedo = history.canRedo
@@ -3312,6 +3362,30 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         refreshView()
         refreshSearch()
         if (autosaveUri != null && state.document.dirty) scheduleAutosave()
+        if (notifySharedView) sharedPeer()?.let { peer ->
+            if (peer.pdfSource?.file != state.document.pdfFile) {
+                peer.rebuildPdfSource()
+                peer.adoptOpenPdf(state.document)
+            }
+            peer.bookmarkVersion++
+            // Keep displayed surfaces until replacement ink is ready. Clearing them made the
+            // other pane flash blank on every stroke, including its unchanged PDF background.
+            val regions = sharedInkRegions
+            if (regions == null) peer.state.refreshAllInk() else peer.state.repairInkRegions(regions)
+            if (publishedBackgroundRevision != state.backgroundRevision) {
+                peer.state.document.pages.forEach { peer.state.rebakeBackground(it, emptyList()) }
+            }
+            publishedBackgroundRevision = state.backgroundRevision
+            peer.publishedBackgroundRevision = peer.state.backgroundRevision
+            val layout = peer.sharedLayoutSnapshot()
+            if (layout != peer.sharedLayout) {
+                peer.state.relayout()
+                peer.sharedLayout = layout
+            }
+            peer.refreshContent(notifySharedView = false)
+            peer.view.requestRender()
+        }
+        sharedInkRegions = null
     }
 
     // --- side panel ---
@@ -3672,6 +3746,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             doc.path = uri
             doc.displayName = name
             doc.dirty = false
+            if (!saveCanvasBeforeReplacement()) return
             replaceDocument(doc)
             state.openFileBytes = fileBytes
             state.lastSaveBytes = fileBytes // the on-disk size, until the first autosave rewrites it
@@ -3695,6 +3770,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     fun cancelOpenInProgress() { openCancelled.set(true) }
 
     fun save(output: OutputStream, uri: String, name: String? = null) {
+        sharedOwner?.let { it.save(output, uri, name); return }
         try {
             synchronized(saveLock) { codec.write(state.document, output) }
             state.document.path = uri
@@ -3719,6 +3795,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
      * a cloud provider is an untimed binder call into that provider's process.
      */
     fun saveToThen(uri: String, onDone: (Boolean) -> Unit) {
+        sharedOwner?.let { it.saveToThen(uri, onDone); return }
         noteDebounceJob?.cancel() // this write supersedes a pending debounce
         val doc = state.document
         val startNs = System.nanoTime()
@@ -4698,6 +4775,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
      * a quick provider call. Returns false on a blank name or a failed file rename.
      */
     fun renameCurrentDocument(rawName: String): Boolean {
+        sharedOwner?.let { return it.renameCurrentDocument(rawName) }
         val name = rawName.trim()
         if (name.isEmpty()) return false
         val fileName = if (name.endsWith(".xnote", ignoreCase = true)) name else "$name.xnote"
@@ -4706,7 +4784,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             renameDocument(uri, fileName)
         } else {
             state.document.displayName = fileName
-            title = state.document.title
+            refreshContent()
             true
         }
     }
@@ -4966,8 +5044,12 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         if (f.authority != t.authority) return false
         val treeId = android.provider.DocumentsContract.getTreeDocumentId(t)
         val fileId = android.provider.DocumentsContract.getDocumentId(f)
-        fileId == treeId || fileId.startsWith("$treeId/")
+        fileId == treeId || fileId.startsWith(if (treeId.endsWith(':')) treeId else "$treeId/")
     }.getOrDefault(false)
+
+    /** Storage follows the opened document, independently of the explorer's selected workspace. */
+    private fun documentStorageRoot(uri: String): String? =
+        workspaceRoots().filter { isUnderTree(uri, it) }.maxByOrNull { browseRootDocId(it).length }
 
     // --- divergence guard (something else rewrote the file underneath the open editor) ---
 
@@ -5027,7 +5109,9 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         val id = runCatching {
             android.provider.DocumentsContract.getDocumentId(android.net.Uri.parse(uri))
         }.getOrNull() ?: return null
-        return id.substringBeforeLast('/', "").ifEmpty { null }
+        return id.substringBeforeLast('/', "").ifEmpty {
+            if (':' in id && !id.endsWith(':')) id.substringBefore(':') + ":" else null
+        }
     }
 
     /** The name a fork numbered from [title] takes, de-duplicated the usual way (`title_1`, `title_2`, ...). */
@@ -5039,7 +5123,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
      * Both versions survive and both sync onward; nothing is merged and nothing is overwritten.
      */
     private fun forkNote(uri: String, doc: Document, title: String): Fork? {
-        val root = browseRoot ?: return null
+        val root = documentStorageRoot(uri) ?: return null
         val parentId = parentDocIdOf(uri) ?: return null
         val name = forkName(root, parentId, title, com.xnotes.core.util.DocumentKind.NOTE)
         val forked = createNoteFile(root, parentId, name) { codec.write(doc, it) } ?: return null
@@ -5049,7 +5133,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     /** The canvas sibling of [forkNote]. */
     private fun forkCanvas(uri: String, doc: com.xnotes.core.infinite.InfiniteDocument, title: String): Fork? {
-        val root = browseRoot ?: return null
+        val root = documentStorageRoot(uri) ?: return null
         val parentId = parentDocIdOf(uri) ?: return null
         val name = forkName(root, parentId, title, com.xnotes.core.util.DocumentKind.CANVAS)
         val forked = createNoteFile(root, parentId, name) { canvasCodec.write(doc, it) } ?: return null
@@ -5108,7 +5192,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     }
 
     private fun maybeBindAutosave(uri: String?) {
-        autosaveUri = if (uri != null && browseRoot?.let { isUnderTree(uri, it) } == true) uri else null
+        autosaveUri = if (uri != null && documentStorageRoot(uri) != null) uri else null
         autosaveUri?.let { rememberStamp(it) }
     }
 
@@ -5240,6 +5324,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     }.getOrDefault(-1L)
 
     private fun scheduleAutosave() {
+        sharedOwner?.let { it.scheduleAutosave(); return }
         val uri = autosaveUri ?: return
         noteDebounceJob?.cancel()
         state.autosaveStatus = "pending" // debounce running; drives the debug overlay
@@ -5266,7 +5351,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         snapshot: Document,
         title: String,
         startNs: Long,
-        onDone: (() -> Unit)? = null,
+        onDone: ((Boolean) -> Unit)? = null,
     ) {
         val doc = state.document
         // Clean from here, not once the bytes land: [snapshot] already holds these edits, so an edit
@@ -5276,7 +5361,9 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         doc.dirty = false
         dirty = false
         state.autosaveStatus = "in progress"
+        val pending = noteWriteJob
         noteWriteJob = autosaveScope.launch {
+            pending?.join()
             val res = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 saveNoteGuarded(uri, snapshot, title, doc)
             }
@@ -5299,7 +5386,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
                     " + saf ${state.lastSaveCopyMs}" +
                     ", ${state.lastSaveBytes} bytes, ${res != null}",
             )
-            onDone?.invoke()
+            onDone?.invoke(res != null)
         }
     }
 
@@ -5313,6 +5400,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
      * before the earlier one has finished with the file.
      */
     fun flushAutosave() {
+        sharedOwner?.let { it.flushAutosave(); return }
         noteDebounceJob?.cancel() // only the debounce; a write already going out is left to finish
         val uri = autosaveUri ?: return
         if (!state.document.dirty) return
@@ -5329,9 +5417,10 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
      * Off-threading the write is what stops a large note from freezing the UI (ANR) on close/pause.
      */
     private fun flushThen(showOverlay: Boolean, onDone: () -> Unit) {
+        sharedOwner?.let { it.flushThen(showOverlay, onDone); return }
         noteDebounceJob?.cancel()
         val uri = autosaveUri
-        if (uri == null || !state.document.dirty) { onDone(); return }
+        if (uri == null) { onDone(); return }
         if (showOverlay) savingNote = true
         autosaveScope.launch {
             noteWriteJob?.join() // a write already going out finishes first; it may be all there was
@@ -5339,9 +5428,9 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             val startNs = System.nanoTime()
             val snapshot = state.document.snapshot() // main thread: its own page lists over the live items
             state.lastSaveSnapshotMs = msSince(startNs)
-            startNoteWrite(uri, snapshot, state.document.displayName ?: state.document.title, startNs) {
+            startNoteWrite(uri, snapshot, state.document.displayName ?: state.document.title, startNs) { ok ->
                 savingNote = false
-                onDone()
+                if (ok) onDone() else message = appContext.getString(R.string.err_save_note)
             }
         }
     }
@@ -5354,12 +5443,13 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
      */
     private fun viewKey(uri: String?): String? {
         val u = uri ?: return null
-        val root = browseRoot ?: return null
-        return if (isUnderTree(u, root)) documentKey(u) else null
+        return if (documentStorageRoot(u) != null) documentKey(u) else null
     }
 
     /** Remember the current note's view (zoom + scroll); a no-op unless it's a laid-out folder note. */
     private fun saveViewState() {
+        if (sharedOwner != null) return // split positions are saved separately, never over the owner
+
         if (!state.didInitialFit || state.viewportW <= 0) return // nothing meaningful established yet
         val key = viewKey(currentUri) ?: return
         viewStates.put(key, state.zoom, state.scrollX, state.scrollY, viewOverrides)
@@ -5828,7 +5918,9 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         val kind = DocumentKind.ofName(entry.name) ?: return null
         val key = documentKey(entry.documentUri)
         docMeta.get(key, entry.modified)?.let { return it }
-        val meta = if (kind == DocumentKind.CANVAS) {
+        val meta = if (kind == DocumentKind.SPLIT) {
+            com.xnotes.platform.DocMetaStore.Meta(0, false, entry.modified)
+        } else if (kind == DocumentKind.CANVAS) {
             val peek = peekFile(entry.documentUri, { canvasCodec.peek(it) }, { canvasCodec.peek(it) }) ?: return null
             peek.created?.let { createdStore.put(key, it) }
             // A canvas has no pages or PDF; the entry just marks it read at this modified time.
@@ -6310,6 +6402,15 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     }
 
     private fun replaceDocument(doc: Document) {
+        if (canvasOpen) {
+            infinite.commitText()
+            AudioRecording.stopFor(infinite)
+            AudioPlayback.closeFor(infinite)
+            flushCanvasAutosave()
+            canvasAutosaveUri = null
+            canvasOpen = false
+        }
+        leaveSharedDocument()
         AudioRecording.stopFor(this) // closing the note places its recording
         AudioPlayback.closeFor(this)
         saveViewState() // remember the outgoing folder note's view before switching away
@@ -6637,6 +6738,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         if (flowText.active) flowInput.reconcile() // undone/redone text must reach the IME mirror
         state.document.dirty = true
         state.clampScroll()
+        sharedInkRegions = regions
         refreshContent()
         view.requestRender()
     }
@@ -9070,6 +9172,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     }
 
     fun newNote() {
+        leaveSharedDocument()
         resetPenButtons()
         AudioRecording.stopFor(this) // closing the note places its recording
         AudioPlayback.closeFor(this)
@@ -9089,6 +9192,350 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         refreshContent()
         view.requestRender()
         noteOpen = true // push the editor on top of backstage
+    }
+
+    /** A second view borrows the owner's model/history; only the owner may write the file. */
+    private var sharedOwner: Editor? = null
+    val documentOwner: Editor get() = sharedOwner ?: this
+    val isSharedView: Boolean get() = sharedOwner != null || sharedPeer() != null
+    var splitSideBySide by mutableStateOf<Boolean?>(null)
+    var splitReversed by mutableStateOf(false)
+
+    data class ReadingPosition(val zoom: Double, val x: Double, val y: Double, val overrides: com.xnotes.canvas.ViewOverrides)
+    fun readingPosition() = ReadingPosition(state.zoom, state.scrollX, state.scrollY, viewOverrides)
+    fun restoreReadingPosition(position: ReadingPosition) {
+        installViewOverrides(position.overrides)
+        state.pendingInitialView = InitialView.Restore(position.zoom, position.x, position.y)
+        state.didInitialFit = false
+        view.requestRender()
+    }
+
+    private fun sharedPeer(): Editor? = sibling?.takeIf {
+        it.noteOpen && noteOpen && !it.canvasOpen && !canvasOpen &&
+            it.state.document === state.document && (sharedOwner === it || it.sharedOwner === this)
+    }
+
+    /** The receiving pane must be empty or guarded by the caller before replacing its document. */
+    fun openSharedView(source: Editor) {
+        val owner = source.documentOwner
+        require(owner !== this && !owner.canvasOpen && owner.noteOpen)
+        leaveSharedDocument()
+        commitText()
+        flowText.endSession()
+        flushAutosave()
+        flushCanvasAutosave()
+        ownAutosaveUri = null
+        owner.commitText()
+        owner.flowText.endSession()
+        controller.clearSelection()
+        controller.resetGestureState()
+        clearPageSelection()
+        state.document = owner.state.document
+        sharedOwner = owner
+        history.shareWith(owner.history)
+        canvasOpen = false
+        rebuildPdfSource()
+        adoptOpenPdf(state.document)
+        installViewOverrides(source.viewOverrides)
+        state.relayout()
+        state.pendingInitialView = InitialView.Restore(source.state.zoom, source.state.scrollX, source.state.scrollY)
+        state.didInitialFit = false
+        copyToolSettingsFrom(source)
+        noteOpen = true
+        sibling?.takeIf { it.secondary === this }?.secondaryStarted = true
+        sessionLoaded = true
+        sharedLayout = sharedLayoutSnapshot()
+        owner.sharedLayout = owner.sharedLayoutSnapshot()
+        publishedBackgroundRevision = state.backgroundRevision
+        owner.publishedBackgroundRevision = owner.state.backgroundRevision
+        refreshContent()
+        view.requestRender()
+    }
+
+    /** Release a borrowed view without clearing its owner's history or deleting the shared PDF. */
+    private fun leaveSharedDocument() {
+        sharedOwner?.let {
+            commitText()
+            flowText.endSession()
+            it.flushAutosave()
+            sharedOwner = null
+            ownAutosaveUri = null
+            history.detach()
+            openPdfTemp = null // the owner retains and eventually deletes this asset
+            return
+        }
+        sibling?.takeIf { it.sharedOwner === this }?.let {
+            it.commitText()
+            it.flowText.endSession()
+            it.leaveSharedDocument()
+            it.noteOpen = false
+        }
+    }
+
+    private val splitWorkspace by lazy {
+        com.xnotes.platform.JsonStore(java.io.File(appContext.filesDir, "split-workspace.json"))
+    }
+
+    private fun splitSnapshot(): org.json.JSONObject {
+        val second = secondary
+        val json = org.json.JSONObject().put("format", "xnotes-split").put("version", 1).put("secondOpen", second?.noteOpen == true)
+            .put("primaryOpen", noteOpen).put("ratio", splitRatio.toDouble())
+            .put("focused", focusedPane.name).put("reversed", splitReversed)
+        splitSideBySide?.let { json.put("sideBySide", it) }
+        if (second?.noteOpen == true) {
+            json.put("shared", isSharedView)
+            json.put("primaryPath", visibleDocumentUri ?: "")
+            json.put("secondPath", second.visibleDocumentUri ?: "")
+            json.put("zoom", second.state.zoom).put("x", second.state.scrollX).put("y", second.state.scrollY)
+            json.put("primaryZoom", state.zoom).put("primaryX", state.scrollX).put("primaryY", state.scrollY)
+            json.put("primaryView", com.xnotes.platform.ViewOverridesJson.write(org.json.JSONObject(), viewOverrides))
+            json.put("secondView", com.xnotes.platform.ViewOverridesJson.write(org.json.JSONObject(), second.viewOverrides))
+        }
+        for ((ed, prefix) in listOfNotNull(this to "primary", second?.let { it to "second" })) {
+            json.put(prefix + "Canvas", ed.canvasOpen)
+            if (ed.canvasOpen) {
+                val v = ed.infinite.viewport.toWaypoint()
+                json.put(prefix + "CX", v.cx).put(prefix + "CY", v.cy).put(prefix + "CZ", v.zoom)
+            }
+        }
+        return json
+    }
+
+    private fun saveSplitWorkspace() {
+        val json = splitSnapshot()
+        splitWorkspace.write(json)
+        if (inSplit && openPanes.all { it.visibleDocumentUri != null }) {
+            savedSplit.write(json)
+            hasSavedSplit = true
+        }
+    }
+
+    private val savedSplit by lazy {
+        com.xnotes.platform.JsonStore(java.io.File(appContext.filesDir, "saved-split.json"))
+    }
+    var hasSavedSplit by mutableStateOf(savedSplit.read().has("primaryPath"))
+        private set
+
+    /** Await writes without overwriting an externally changed clean file. */
+    suspend fun flushSplitDocument(): Boolean {
+        if (canvasOpen) return saveCanvasBeforeReplacement()
+        if (documentOwner !== this) return documentOwner.flushSplitDocument()
+        commitText()
+        flowText.endSession()
+        noteDebounceJob?.cancel()
+        noteWriteJob?.join()
+        if (!state.document.dirty) return true
+        val uri = currentUri ?: return false
+        startNoteWrite(uri, state.document.snapshot(), state.document.displayName ?: state.document.title, System.nanoTime())
+        noteWriteJob?.join()
+        return !state.document.dirty
+    }
+
+    /** An explicit reusable arrangement; independent of the last-session recovery files. */
+    suspend fun saveCurrentSplit(): Boolean {
+        if (savingNote) return false
+        if (!inSplit || openPanes.any { it.stylusInContact }) return false
+        if (openPanes.any { it.visibleDocumentUri == null }) {
+            say(appContext.getString(R.string.split_save_files_first)); return false
+        }
+        savingNote = true
+        try {
+            commitSplitEdits()
+            for (ed in openPanes.map { it.documentOwner }.distinct()) {
+                val ok = ed.flushSplitDocument()
+                if (!ok) { say(appContext.getString(R.string.err_save_note)); return false }
+            }
+            val json = splitSnapshot()
+            fun capture(ed: Editor, prefix: String) {
+                json.put(prefix + "Canvas", ed.canvasOpen)
+                if (ed.canvasOpen) {
+                    val view = ed.infinite.viewport.toWaypoint()
+                    json.put(prefix + "CX", view.cx).put(prefix + "CY", view.cy).put(prefix + "CZ", view.zoom)
+                }
+            }
+            capture(this, "primary")
+            capture(secondary!!, "second")
+            val name = splitFileName()
+            val ok = withContext(Dispatchers.IO) {
+                runCatching {
+                    val directory = splitDirectory
+                    check(directory.isDirectory || directory.mkdirs())
+                    var file = java.io.File(directory, name)
+                    var sequence = 1
+                    while (file.exists()) file = java.io.File(directory, "${DocumentKind.stripSuffix(name)}_${sequence++}${DocumentKind.SPLIT.suffix}")
+                    check(com.xnotes.platform.JsonStore(file).writeChecked(json))
+                    // The explicit file is already safe even if updating last-session recovery fails.
+                    savedSplit.writeChecked(json)
+                    true
+                }.getOrDefault(false)
+            }
+            if (ok) { hasSavedSplit = true; persist() }
+            say(appContext.getString(if (ok) R.string.split_saved else R.string.err_save_note))
+            return ok
+        } finally { savingNote = false }
+    }
+
+    private val splitDirectory get() = java.io.File(appContext.filesDir, "splits")
+
+    /** App-owned arrangements only; ordinary document storage remains independent. IO thread. */
+    fun storedSplitFiles(): List<java.io.File> = splitDirectory.listFiles()?.filter {
+        it.isFile && it.extension == "xsplit"
+    }?.sortedWith(compareByDescending<java.io.File> { it.lastModified() }.thenBy { it.name }) ?: emptyList()
+
+    private fun managedSplitFile(uri: String): java.io.File {
+        val parsed = android.net.Uri.parse(uri)
+        require(parsed.scheme == "file")
+        val file = java.io.File(requireNotNull(parsed.path)).canonicalFile
+        require(file.parentFile == splitDirectory.canonicalFile && file.extension == "xsplit")
+        return file
+    }
+
+    fun splitFileName(): String {
+        val panes = listOfNotNull(this, secondary).let { if (splitReversed) it.reversed() else it }
+        return panes.joinToString(" + ") { ed ->
+            DocumentKind.stripSuffix(if (ed.canvasOpen) ed.infinite.title else ed.title)
+                .replace(Regex("[/\\\\:*?\"<>|]"), "_").take(40).ifBlank { "Note" }
+        } + DocumentKind.SPLIT.suffix
+    }
+
+    private fun commitSplitEdits() {
+        for (ed in openPanes) {
+            AudioRecording.stopFor(ed)
+            if (ed.canvasOpen) { AudioRecording.stopFor(ed.infinite); ed.infinite.commitText() }
+            else { ed.commitText(); ed.flowText.endSession() }
+        }
+    }
+
+    /** Validate the arrangement and both references before replacing the current workspace. */
+    suspend fun openSplitFile(uri: String? = null, explicitlyDiscarded: Set<Editor> = emptySet()): Boolean {
+        if (openPanes.any { it.stylusInContact }) return false
+        val json = withContext(Dispatchers.IO) {
+            runCatching {
+                val j = if (uri == null) savedSplit.read() else managedSplitFile(uri).inputStream().use { input ->
+                    val output = java.io.ByteArrayOutputStream()
+                    val buffer = ByteArray(8192)
+                    while (true) {
+                        val n = input.read(buffer)
+                        if (n < 0) break
+                        require(output.size() + n <= 1024 * 1024)
+                        output.write(buffer, 0, n)
+                    }
+                    org.json.JSONObject(output.toString("UTF-8"))
+                } ?: error("Cannot read split file")
+                require((uri == null || j.optString("format") == "xnotes-split") && j.optInt("version", 1) == 1)
+                require(j.optDouble("ratio", .5).isFinite())
+                for (prefix in listOf("primary", "second")) {
+                    val path = j.getString(if (prefix == "primary") "primaryPath" else "secondPath")
+                    require(path.isNotBlank())
+                    val valid = if (j.optBoolean(prefix + "Canvas")) peekFile(path, { canvasCodec.peek(it) }, { canvasCodec.peek(it) }) != null
+                        else peekFile(path, { codec.peek(it) }, { codec.peek(it) }) != null
+                    require(valid)
+                    for (key in listOf(prefix + "CX", prefix + "CY", prefix + "CZ")) if (j.has(key)) require(j.getDouble(key).isFinite())
+                }
+                for (key in listOf("primaryZoom", "primaryX", "primaryY", "zoom", "x", "y")) if (j.has(key)) require(j.getDouble(key).isFinite())
+                j
+            }.getOrNull()
+        }
+        if (json == null) { say(appContext.getString(R.string.split_invalid_file)); return false }
+        commitSplitEdits()
+        for (ed in openPanes.map { it.documentOwner }.distinct()) {
+            // Exact document identity, authorized by this operation's explicit Discard click.
+            if (ed in explicitlyDiscarded && !ed.canvasOpen) continue
+            if (!ed.flushSplitDocument()) { say(appContext.getString(R.string.err_save_note)); return false }
+        }
+        // All edits and writes above have settled. Detach synchronously; goHome schedules callbacks
+        // that must never be allowed to close a newly opened replacement document later.
+        val closing = openPanes.toList()
+        if (inSplit) saveSplitWorkspace()
+        for (ed in closing) {
+            ed.resetPenButtons()
+            AudioPlayback.closeFor(ed)
+            ed.infiniteOrNull?.let { AudioPlayback.closeFor(it) }
+            if (!ed.canvasOpen) ed.saveViewState()
+            if (ed.sharedOwner != null) ed.leaveSharedDocument()
+            ed.noteDebounceJob?.cancel()
+            ed.autosaveUri = null
+            ed.canvasAutosaveUri = null
+            ed.canvasOpen = false
+            ed.noteOpen = false
+        }
+        return openSavedSplit(json).also { if (it) persist() }
+    }
+
+    /** Called from the main menu when no documents are open; failed files never replace live edits. */
+    suspend fun openSavedSplit(snapshot: org.json.JSONObject? = null): Boolean {
+        if (openPanes.isNotEmpty()) return false
+        val json = snapshot ?: withContext(Dispatchers.IO) { savedSplit.read() }
+        val first = json.optString("primaryPath")
+        val other = json.optString("secondPath")
+        if (first.isBlank() || other.isBlank()) return false
+        suspend fun load(ed: Editor, path: String, prefix: String): Boolean {
+            if (json.optBoolean(prefix + "Canvas")) ed.openCanvasAsync(path, null) else ed.openAsync(path)
+            return ed.noteOpen && ed.visibleDocumentUri == path
+        }
+        if (!load(this, first, "primary")) return false
+        val second = secondaryPane()
+        if (json.optBoolean("shared") && !canvasOpen && first == other) second.openSharedView(this)
+        else if (!load(second, other, "second")) {
+            abandonSecondary(); say(appContext.getString(R.string.err_open_note)); return false
+        }
+        fun position(ed: Editor, prefix: String, z: String, x: String, y: String) {
+            if (ed.canvasOpen) {
+                val view = com.xnotes.core.infinite.Waypoint("", json.optDouble(prefix + "CX", 0.0),
+                    json.optDouble(prefix + "CY", 0.0), json.optDouble(prefix + "CZ", 1.0).coerceIn(0.05, 20.0))
+                ed.infinite.document.lastView = view
+                ed.infinite.viewport.apply(view)
+                ed.infinite.view.publish()
+            } else {
+                json.optJSONObject(prefix + "View")?.let { ed.installViewOverrides(com.xnotes.platform.ViewOverridesJson.read(it)) }
+                ed.state.pendingInitialView = InitialView.Restore(json.optDouble(z, 1.0).coerceIn(0.05, 20.0), json.optDouble(x, 0.0), json.optDouble(y, 0.0))
+                ed.state.didInitialFit = false
+                ed.view.requestLayout()
+                ed.view.requestRender()
+            }
+        }
+        position(this, "primary", "primaryZoom", "primaryX", "primaryY")
+        position(second, "second", "zoom", "x", "y")
+        splitRatio = json.optDouble("ratio", 0.5).toFloat().coerceIn(0.18f, 0.82f)
+        splitReversed = json.optBoolean("reversed")
+        splitSideBySide = if (json.has("sideBySide")) json.optBoolean("sideBySide") else null
+        focusPane(if (json.optString("focused") == Pane.SECONDARY.name) Pane.SECONDARY else Pane.PRIMARY)
+        return true
+    }
+
+    /** Restore the workspace after the primary session, validating identities before sharing. */
+    suspend fun restoreSplitWorkspace() {
+        val json = splitWorkspace.read()
+        if (!json.optBoolean("secondOpen")) return
+        if (json.optBoolean("primaryOpen") && restoredPagedSession) noteOpen = true
+        splitReversed = json.optBoolean("reversed")
+        splitRatio = json.optDouble("ratio", 0.5).toFloat().coerceIn(0.18f, 0.82f)
+        splitSideBySide = if (json.has("sideBySide")) json.optBoolean("sideBySide") else null
+        val second = secondaryPane()
+        if (json.optBoolean("shared")) {
+            if (!noteOpen || canvasOpen || json.optString("primaryPath") != (visibleDocumentUri ?: "")) {
+                abandonSecondary(); return
+            }
+            second.openSharedView(this)
+            json.optJSONObject("primaryView")?.let { installViewOverrides(com.xnotes.platform.ViewOverridesJson.read(it)) }
+            json.optJSONObject("secondView")?.let { second.installViewOverrides(com.xnotes.platform.ViewOverridesJson.read(it)) }
+            state.pendingInitialView = InitialView.Restore(
+                json.optDouble("primaryZoom", 1.0).coerceIn(0.05, 20.0),
+                json.optDouble("primaryX", 0.0), json.optDouble("primaryY", 0.0),
+            )
+            state.didInitialFit = false
+            second.state.pendingInitialView = InitialView.Restore(
+                json.optDouble("zoom", 1.0).coerceIn(0.05, 20.0),
+                json.optDouble("x", 0.0), json.optDouble("y", 0.0),
+            )
+            second.state.didInitialFit = false
+        } else {
+            second.restoreSession()
+            if (second.restoredPagedSession) second.noteOpen = true
+            if (json.optString("secondPath") != (second.visibleDocumentUri ?: "")) second.noteOpen = false
+        }
+        if (!second.noteOpen) abandonSecondary()
+        focusedPane = if (json.optString("focused") == Pane.SECONDARY.name) Pane.SECONDARY else Pane.PRIMARY
     }
 
     // --- split view ---
@@ -9135,6 +9582,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     fun secondaryPane(): Editor = secondary ?: Editor(viewContext, Pane.SECONDARY).also {
         it.keyActions = keyActions // the shortcuts already resolve their target pane themselves
         it.sibling = this
+        it.sessionLoaded = true
         sibling = it
         secondaryStarted = false
         secondary = it
@@ -9148,9 +9596,72 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         releaseClosedSecondary()
     }
 
+    /** The shared toolbar transfers its configuration before the next pane accepts input. */
+    fun copyToolSettingsFrom(source: Editor) {
+        if (source === this) return
+        val sourceCanvas = source.infiniteOrNull?.takeIf { source.canvasOpen }
+        val selected = sourceCanvas?.tool ?: source.tool
+        val colors = sourceCanvas?.toolbarColors ?: source.toolbarColors
+        val colorIndex = sourceCanvas?.activeColorIndex ?: source.activeColorIndex
+        val color = sourceCanvas?.inkColor ?: source.controller.inkColor
+        val shape = sourceCanvas?.shapeConfig ?: source.shapeConfig
+        val configs = ToolDefaults.persistedTools.associateWith { sourceCanvas?.toolConfig(it) ?: source.controller.configFor(it) }
+        toolbarColors = colors.toList()
+        toolbarColorCount = sourceCanvas?.toolbarColorCount ?: source.toolbarColorCount
+        activeColorIndex = colorIndex
+        configs.forEach { (tool, config) -> controller.setToolConfig(tool, config) }
+        controller.inkColor = color
+        shapeConfig = shape
+        controller.shapeConfig = shape
+        if (canvasOpen) {
+            val canvas = infinite
+            canvas.toolbarColors = colors.toList()
+            canvas.toolbarColorCount = toolbarColorCount
+            configs.forEach { (tool, config) -> canvas.setToolConfig(tool, config) }
+            canvas.useWorkspaceInk(colorIndex, color)
+            canvas.armShapeConfig(shape)
+            val supported = selected.isStroke || selected in setOf(Tool.ERASER, Tool.PAN, Tool.SELECT, Tool.LASSO, Tool.SHAPE, Tool.TAPE, Tool.TEXT, Tool.TEXT_BOX, Tool.SCREENSHOT)
+            canvas.armTool(if (supported) selected else Tool.PAN)
+        } else selectTool(if (selected == Tool.MARKUP && !hasPdf) Tool.PAN else selected)
+    }
+
+    /** UI Back, Home and Close all use this one-pane operation. */
+    fun closePane(target: Editor) {
+        if (openPanes.any { it.stylusInContact }) return
+        if (inSplit) saveSplitWorkspace()
+        val remaining = openPanes.firstOrNull { it !== target }
+        target.resetPenButtons()
+        remaining?.copyToolSettingsFrom(target)
+        target.goHome()
+    }
+
+    private val hoverButtons: Int get() = if (canvasOpen) infinite.hoverButtons else proPenInput.lastButtons
+
+    /** Handoff at hover entry, before dispatching the sample to the new pane's controller. */
+    private fun focusForPenHover(event: android.view.MotionEvent): Int? {
+        if (!noteOpen || event.actionMasked !in listOf(android.view.MotionEvent.ACTION_HOVER_ENTER, android.view.MotionEvent.ACTION_HOVER_MOVE)) return null
+        if (event.getToolType(0) != android.view.MotionEvent.TOOL_TYPE_STYLUS && event.getToolType(0) != android.view.MotionEvent.TOOL_TYPE_ERASER) return null
+        val workspace = sibling?.takeIf { it.secondary === this } ?: this
+        if (workspace.active === this || workspace.openPanes.any { it.stylusInContact }) return null
+        val held = workspace.active.hoverButtons
+        workspace.focusPane(pane)
+        return held
+    }
+
     /** Give [pane] the keyboard and the file actions. */
     fun focusPane(pane: Pane) {
-        if (focusedPane != pane) focusedPane = pane
+        if (focusedPane != pane) {
+            if (active.stylusInContact) return
+            val previous = active
+            if (previous.canvasOpen) previous.infinite.commitText() else previous.commitText()
+            previous.flowText.endSession()
+            previous.controller.clearSelection()
+            if (previous.canvasOpen) previous.infinite.clearHover() else previous.controller.clearHover()
+            previous.resetPenButtons()
+            val next = if (pane == Pane.SECONDARY) secondary else this
+            next?.copyToolSettingsFrom(previous)
+            focusedPane = pane
+        }
     }
 
     /** Set once the second pane has actually had a document pushed onto it, so it is not released in
@@ -9167,6 +9678,12 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         if (!secondaryStarted) return
         secondaryStarted = false
         com.xnotes.platform.MathRendering.removeListener(other.mathLanded)
+        other.closeSearchSession()
+        other.pdfSource?.close()
+        other.pdfSource = null
+        other.state.invalidateAllCaches()
+        other.pageThumbs.evictAll()
+        other.noteThumbs.evictAll()
         other.sibling = null
         sibling = null
         secondary = null
@@ -9175,13 +9692,45 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     /** Close every open pane, so the backstage is what's left. */
     fun goHomeAll() {
-        secondary?.goHome()
-        goHome()
+        if (inSplit) saveSplitWorkspace()
+        if (sharedOwner != null) {
+            goHome()
+            secondary?.goHome()
+        } else {
+            secondary?.goHome()
+            goHome()
+        }
     }
 
     /** Pop back to backstage: detach the current note (flush autosave, drop the binding) and clear
      *  [noteOpen] so the editor is removed from the stack. The document stays as an inert buffer. */
     fun goHome() {
+        resetPenButtons()
+        AudioRecording.stopFor(this)
+        infiniteOrNull?.let { AudioRecording.stopFor(it) }
+        AudioPlayback.closeFor(this)
+        infiniteOrNull?.let { AudioPlayback.closeFor(it) }
+        if (sharedOwner != null) {
+            commitText()
+            flowText.endSession()
+            flushAutosave()
+            leaveSharedDocument()
+            noteOpen = false
+            return
+        }
+        val linked = sharedPeer()
+        if (linked != null) {
+            linked.commitText()
+            linked.flowText.endSession()
+            val position = InitialView.Restore(linked.state.zoom, linked.state.scrollX, linked.state.scrollY)
+            val overrides = linked.viewOverrides
+            linked.goHome()
+            installViewOverrides(overrides)
+            state.pendingInitialView = position
+            state.didInitialFit = false
+            view.requestRender()
+            return // retain the remaining view using the same save owner
+        }
         resetPenButtons()
         if (!noteOpen) return
         // Closing the note places a recording still going, before the note is saved.

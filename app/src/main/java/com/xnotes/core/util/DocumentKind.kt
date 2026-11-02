@@ -14,6 +14,9 @@ enum class DocumentKind(val extension: String) {
 
     /** The infinite canvas. */
     CANVAS("xcanvas"),
+
+    /** References two documents and their viewports, without embedding their contents. */
+    SPLIT("xsplit"),
     ;
 
     /** The extension with its dot, as it appears at the end of a file name. */

@@ -1149,14 +1149,14 @@ class CanvasState(
 
     fun cacheFor(page: Page): CacheEntry {
         val res = clampedRes(page)
-        caches[page]?.let { if (it.usableFor(page, res)) return it }
+        caches[page]?.let { if (page !in staleInk && it.usableFor(page, res)) return it }
         return buildCache(page, res).also { caches[page] = it; staleInk.remove(page) }
     }
 
     /** Whether this entry still matches [page]'s footprint and the [target] resolution, and holds
      *  the page's current content ([staleInk]). */
     private fun CacheEntry.usableFor(page: Page, target: Double): Boolean =
-        page !in staleInk && cover == footprint(page) && (zoomingInProgress || abs(res - target) < 1e-6)
+        cover == footprint(page) && (zoomingInProgress || abs(res - target) < 1e-6)
 
     /**
      * Like [cacheFor] but never rasterizes on the calling (UI) thread: returns the ready
@@ -1167,7 +1167,7 @@ class CanvasState(
     fun cacheForOrSchedule(page: Page): CacheEntry? {
         val res = clampedRes(page)
         val existing = caches[page]
-        if (existing != null && existing.usableFor(page, res)) return existing
+        if (existing != null && page !in staleInk && existing.usableFor(page, res)) return existing
         scheduleInk(page, res)
         // Sync scheduler filled it; async leaves the stale entry (or null). A stale *resolution* is
         // still blitted (scaled) so a pinch never flashes, but a stale *footprint* is not: stretching
@@ -1403,6 +1403,7 @@ class CanvasState(
      * layers on screen hold them, so nothing blinks while the new layer renders.
      */
     fun rebakeBackground(page: Page, added: List<TextMarkup>) {
+        backgroundRevision++
         val seq = ++markupSeq
         if (added.isNotEmpty()) unbaked.getOrPut(page) { ArrayList() }.addAll(added.map { Unbaked(seq, it) })
         // A whole-layer build under way may have read the markups before the edit.
@@ -1450,7 +1451,7 @@ class CanvasState(
         if (pendingSharp) pendingSharpEdits.add(page to item.paintBounds().outset(SHARP_EDIT_PAD))
         val res = clampedRes(page)
         val existing = caches[page]
-        if (existing == null || !existing.usableFor(page, res)) {
+        if (existing == null || page in staleInk || !existing.usableFor(page, res)) {
             invalidatePage(page)
             return
         }
@@ -1551,13 +1552,18 @@ class CanvasState(
         sharpGen++
     }
 
+    var backgroundRevision: Long = 0
+        private set
+
     fun invalidateBackground(page: Page) {
+        backgroundRevision++
         bgCaches.remove(page)
         cacheGen++
         sharpGen++
     }
 
     fun invalidateAllBackgrounds() {
+        backgroundRevision++
         bgCaches.clear()
         cacheGen++
         sharpGen++
@@ -1576,6 +1582,7 @@ class CanvasState(
     }
 
     fun invalidateAllCaches() {
+        backgroundRevision++
         caches.clear()
         staleInk.clear()
         bgCaches.clear()

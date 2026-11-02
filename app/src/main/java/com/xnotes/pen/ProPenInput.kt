@@ -14,6 +14,9 @@ class ProPenInput(
     private val buttons by lazy { ProPenButtons(currentTool().id) }
     private var applying = false
     private var contact = false
+    val stylusInContact: Boolean get() = contact
+    var lastButtons: Int = 0
+        private set
     private var device: Int? = null
     private var pendingTool: String? = null
     private val pendingCommands = mutableListOf<String>()
@@ -43,6 +46,7 @@ class ProPenInput(
         val index = stylusIndex(e)
         if (index < 0) return dispatch()
         val action = e.actionMasked
+        lastButtons = e.buttonState
         if (device != e.deviceId) {
             reset()
             device = e.deviceId
@@ -66,16 +70,17 @@ class ProPenInput(
         return handled
     }
 
-    fun motion(e: MotionEvent) {
+    fun motion(e: MotionEvent, inheritedButtons: Int? = null) {
         if (stylusIndex(e) < 0) return
         if (device != e.deviceId) {
             reset()
             device = e.deviceId
         }
+        if (e.actionMasked != MotionEvent.ACTION_HOVER_EXIT) lastButtons = e.buttonState
         if (e.actionMasked == MotionEvent.ACTION_HOVER_EXIT && !contact) {
             apply(buttons.suspend())
         } else {
-            apply(buttons.update(e.buttonState, bindings()))
+            apply(buttons.update(e.buttonState, bindings(), inheritedButtons))
         }
     }
 

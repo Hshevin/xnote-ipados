@@ -164,7 +164,7 @@ import kotlinx.coroutines.withTimeout
 import kotlin.math.roundToInt
 
 /** Which pane the backstage shows on the right. */
-enum class BackstageView { HOME, PREFERENCES, ABOUT, TRASH }
+enum class BackstageView { HOME, SPLIT, PREFERENCES, ABOUT, TRASH }
 
 /** Whether the Home explorer is awaiting a new file/folder name. */
 private enum class CreateMode { NONE, FILE, CANVAS, FOLDER }
@@ -181,6 +181,13 @@ private fun nextUntitled(editor: Editor, entries: List<BrowseEntry>?): String =
  * granted, beside a navigation sidebar. On wide screens the sidebar collapses into an icon rail; on
  * phones it is a slide-over drawer. Creating things lives in the explorer's create button.
  */
+private val LocalHomeBackEnabled = androidx.compose.runtime.compositionLocalOf { true }
+
+@Composable
+private fun HomeBackHandler(enabled: Boolean = true, onBack: () -> Unit) {
+    BackHandler(enabled = enabled && LocalHomeBackEnabled.current, onBack = onBack)
+}
+
 @Composable
 fun Backstage(
     editor: Editor,
@@ -202,6 +209,12 @@ fun Backstage(
     onBackup: (export: Boolean) -> Unit = {},
     /** Two picked files are to be opened together, one per pane of a split view. */
     onOpenSplit: (String, String) -> Unit = { _, _ -> },
+    allowSplits: Boolean = true,
+    initialDocument: String? = null,
+    backEnabled: Boolean = true,
+    onChooseSplitPair: () -> Unit = {},
+    onOpenSplitFile: (String) -> Unit = {},
+    onRestoreSplit: () -> Unit = {},
     /** Several files are to be shared at once, as they are. */
     onShareFiles: (List<String>) -> Unit = {},
     /** Opens a file beside the note last open; null when there's no note to pair it with. */
@@ -217,6 +230,7 @@ fun Backstage(
     val compact = LocalConfiguration.current.screenWidthDp < COMPACT_WIDTH_DP
     // A folder is required to import into; without one, send the user to pick a folder first.
     val calls = ExplorerCalls(
+        allowSplits = allowSplits,
         openFile = onOpenFile,
         pickRoot = onPickRoot,
         importPdf = { if (editor.browseRoot != null) onImportPdf() else onPickRoot() },
@@ -225,6 +239,7 @@ fun Backstage(
         saveCopyFile = onSaveCopyFile,
         exportFilePdf = onExportFilePdf,
         openSplit = onOpenSplit,
+        chooseSplitPair = onChooseSplitPair, openSplitFile = onOpenSplitFile, restoreSplit = onRestoreSplit,
         openBeside = onOpenBeside,
         exportPdfs = onExportPdfs,
         importTemplate = onImportTemplate,
@@ -232,7 +247,9 @@ fun Backstage(
     )
     // The backstage is the root of the stack — ordinary base content, not a dialog. The activity
     // window already runs edge-to-edge with the system bars hidden (MainActivity.applyFullscreen).
-    BackstageContent(editor, compact, view, onSelectView, calls, onExitApp, onImportCodeTheme, onImportFont, onBackup)
+    androidx.compose.runtime.CompositionLocalProvider(LocalHomeBackEnabled provides backEnabled) {
+        BackstageContent(editor, compact, view, onSelectView, calls, onExitApp, onImportCodeTheme, onImportFont, onBackup, initialDocument)
+    }
 }
 
 /** Width at or above which the sidebar is a persistent pane rather than a drawer. */
@@ -262,6 +279,7 @@ private fun BackstageContent(
     onImportCodeTheme: () -> Unit,
     onImportFont: () -> Unit,
     onBackup: (Boolean) -> Unit,
+    initialDocument: String?,
 ) {
     val palette = LocalPalette.current
     var createMode by remember { mutableStateOf(CreateMode.NONE) }
@@ -282,11 +300,37 @@ private fun BackstageContent(
     }
     // A sidebar pick the explorer has yet to act on, and the folder or colour filter it is showing.
     var explorerNav by remember { mutableStateOf<ExplorerNav?>(null) }
+    LaunchedEffect(initialDocument) {
+        val root = editor.browseRoot
+        if (root != null && initialDocument != null) {
+            val parent = runCatching { splitFolderPath(editor.browseRootDocId(root), editor.browseDocId(initialDocument)).lastOrNull() }.getOrNull()
+            if (parent != null) explorerNav = ExplorerNav(android.provider.DocumentsContract.buildDocumentUriUsingTree(android.net.Uri.parse(root), parent).toString())
+        }
+    }
     var explorerFolder by remember { mutableStateOf<String?>(null) }
     var explorerColor by remember { mutableStateOf<Rgba?>(null) }
     var explorerRecent by remember { mutableStateOf(false) }
+    var folderTreeRevision by remember { mutableStateOf(0) }
+    val expandedFolders = remember(editor.browseRoot) { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
     val link = remember(explorerNav) {
-        ExplorerLink(explorerNav, { explorerNav = null }) { folder, color, recent -> explorerFolder = folder; explorerColor = color; explorerRecent = recent }
+        ExplorerLink(explorerNav, { explorerNav = null }, { folderTreeRevision++ }) { folder, color, recent -> explorerFolder = folder; explorerColor = color; explorerRecent = recent }
+    }
+    LaunchedEffect(editor.browseRoot, explorerFolder) {
+        val root = editor.browseRoot ?: return@LaunchedEffect
+        val id = explorerFolder ?: return@LaunchedEffect
+        val uri = android.provider.DocumentsContract.buildDocumentUriUsingTree(android.net.Uri.parse(root), id).toString()
+        val chain = withContext(Dispatchers.IO) { editor.folderChain(root, uri) }
+        chain.orEmpty().dropLast(1).forEach { expandedFolders[it.first] = true }
+    }
+    val folderTree: @Composable () -> Unit = {
+        editor.browseRoot?.let { root -> key(root) {
+            SidebarFolderTree(editor, root,
+                explorerFolder.takeIf { view == BackstageView.HOME && explorerColor == null && !explorerRecent },
+                folderTreeRevision, expandedFolders) { uri ->
+                selectView(BackstageView.HOME)
+                explorerNav = ExplorerNav(uri)
+            }
+        } }
     }
     val scope = rememberCoroutineScope()
     var renamingColor by remember { mutableStateOf<Rgba?>(null) }
@@ -309,10 +353,11 @@ private fun BackstageContent(
     LaunchedEffect(editor.browseRoot) { editor.browseRoot?.let { r -> withContext(Dispatchers.IO) { editor.purgeExpiredTrash(r, prefs.trashDays) } } }
     // Kept while its inputs hold, so folding the sidebar never recomposes the rail or the sidebar.
     val showRecent = prefs.sidebarRecent && editor.browseRoot != null
-    val nav = remember(view, shownColors, activeColor, pins, activePin, trashCount, showRecent, recentActive) {
+    val nav = remember(view, shownColors, activeColor, pins, activePin, trashCount, showRecent, recentActive, explorerFolder) {
         SidebarNav(
+            allowSplits = calls.allowSplits,
             view = view,
-            homeSelected = view == BackstageView.HOME && activePin < 0 && activeColor == null && !recentActive,
+            homeSelected = view == BackstageView.HOME && explorerFolder == null && activeColor == null && !recentActive,
             recent = if (!showRecent) null else recentActive,
             onRecent = { selectView(BackstageView.HOME); explorerNav = ExplorerNav(null, recent = true) },
             colors = shownColors,
@@ -337,7 +382,7 @@ private fun BackstageContent(
     // one layer at a time — drawer, Preferences, an in-progress create — and once at the bare
     // Home screen it leaves the app instead. A deeper explorer folder is popped first by the
     // explorer's own (more-nested) handler before this one ever sees the press.
-    BackHandler {
+    HomeBackHandler {
         when {
             compact && drawerOpen -> dismissDrawer()
             // Preferences, About and Trash are sub-pages of Home: back lands on Home rather than leaving the app.
@@ -366,7 +411,7 @@ private fun BackstageContent(
                 enter = slideInHorizontally(animationSpec = tween(SIDEBAR_ANIM_MS), initialOffsetX = { -it }),
                 exit = if (animateClose) slideOutHorizontally(animationSpec = tween(SIDEBAR_ANIM_MS), targetOffsetX = { -it }) else ExitTransition.None,
             ) {
-                BackstageSidebar(Modifier.width(DRAWER_WIDTH), nav, dismissDrawer)
+                BackstageSidebar(Modifier.width(DRAWER_WIDTH), nav, folderTree, dismissDrawer)
             }
         }
     } else {
@@ -390,7 +435,7 @@ private fun BackstageContent(
             Layout(
                 content = {
                     BackstageRail(Modifier.width(RAIL_WIDTH), nav) { setRailed(false) }
-                    BackstageSidebar(Modifier.width(SIDEBAR_WIDTH), nav) { setRailed(true) }
+                    BackstageSidebar(Modifier.width(SIDEBAR_WIDTH), nav, folderTree) { setRailed(true) }
                 },
                 modifier = Modifier
                     .fillMaxHeight()
@@ -416,11 +461,13 @@ private class ExplorerNav(val folderUri: String?, val color: Rgba? = null, val r
 private class ExplorerLink(
     val nav: ExplorerNav?,
     val onNavHandled: () -> Unit,
+    val onRefresh: () -> Unit,
     val onPlace: (folderDocId: String?, color: Rgba?, recent: Boolean) -> Unit,
 )
 
 /** What the sidebar and its rail show and do, shared so the two never drift apart. */
 private class SidebarNav(
+    val allowSplits: Boolean,
     val view: BackstageView,
     val homeSelected: Boolean,
     /** Whether Recent is showing; null leaves Recent out of the sidebar. */
@@ -445,7 +492,7 @@ private class SidebarNav(
 
 /** The full sidebar: a pane on wide screens, a slide-over drawer on phones. */
 @Composable
-private fun BackstageSidebar(modifier: Modifier, nav: SidebarNav, onCollapse: () -> Unit) {
+private fun BackstageSidebar(modifier: Modifier, nav: SidebarNav, folderTree: @Composable () -> Unit, onCollapse: () -> Unit) {
     val palette = LocalPalette.current
     Column(modifier.fillMaxHeight().background(palette.panel.toComposeColor()).padding(vertical = 12.dp)) {
         Row(
@@ -463,7 +510,9 @@ private fun BackstageSidebar(modifier: Modifier, nav: SidebarNav, onCollapse: ()
         Spacer(Modifier.height(6.dp))
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             Command(XnotesIcons.home, stringResource(R.string.home), selected = nav.homeSelected) { nav.onHome() }
+            folderTree()
             nav.recent?.let { on -> Command(XnotesIcons.clock, stringResource(R.string.recent), selected = on) { nav.onRecent() } }
+            if (nav.allowSplits) Command(XnotesIcons.split, stringResource(R.string.split_workspace), selected = nav.view == BackstageView.SPLIT) { nav.onSelectView(BackstageView.SPLIT) }
             if (nav.colors.isNotEmpty()) {
                 SidebarLabel(stringResource(R.string.toolbar_colours))
                 nav.colors.forEach { (color, name) ->
@@ -512,6 +561,7 @@ private fun BackstageRail(modifier: Modifier, nav: SidebarNav, onExpand: () -> U
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
             RailItem(XnotesIcons.home, stringResource(R.string.home), selected = nav.homeSelected) { nav.onHome() }
             nav.recent?.let { on -> RailItem(XnotesIcons.clock, stringResource(R.string.recent), selected = on) { nav.onRecent() } }
+            if (nav.allowSplits) RailItem(XnotesIcons.split, stringResource(R.string.split_workspace), selected = nav.view == BackstageView.SPLIT) { nav.onSelectView(BackstageView.SPLIT) }
             if (nav.pins.isNotEmpty()) Spacer(Modifier.height(8.dp))
             nav.pins.forEachIndexed { i, pin ->
                 key(pin.uri) {
@@ -552,9 +602,9 @@ private fun BackstageMain(
 ) {
     val palette = LocalPalette.current
     Column(modifier) {
-        // About's slim top bar (constant height so toggling the sidebar never shifts it) holds the
+        // About and Split use a slim top bar (constant height so toggling the sidebar never shifts it) holds the
         // same leading control as Home/Preferences: a Back arrow to Home on compact, else a hamburger.
-        if (view == BackstageView.ABOUT) {
+        if (view == BackstageView.ABOUT || view == BackstageView.SPLIT) {
             Box(
                 Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 6.dp, end = 12.dp),
                 contentAlignment = Alignment.CenterStart,
@@ -577,6 +627,26 @@ private fun BackstageMain(
         Box(Modifier.weight(1f).fillMaxWidth().padding(start = PANE_GUTTER, end = PANE_GUTTER, top = 4.dp, bottom = 12.dp)) {
             when (view) {
                 BackstageView.HOME -> HomePane(editor, calls, createMode, onCreateMode, sidebarOpen, onShowSidebar, link)
+                BackstageView.SPLIT -> Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    Text(stringResource(R.string.split_workspace), color = palette.text.toComposeColor(), fontSize = 24.sp, modifier = Modifier.padding(16.dp))
+                    Command(XnotesIcons.split, stringResource(R.string.split_choose_pair)) { calls.chooseSplitPair() }
+                    if (editor.hasSavedSplit || editor.inSplit) Command(XnotesIcons.clock, stringResource(R.string.split_restore_recent)) { calls.restoreSplit() }
+                    val files by produceState<List<java.io.File>?>(null, editor, editor.savingNote) {
+                        value = withContext(Dispatchers.IO) { editor.storedSplitFiles() }
+                    }
+                    HorizontalDivider(Modifier.padding(vertical = 12.dp), color = palette.border.toComposeColor())
+                    val listed = files
+                    if (listed == null || listed.isEmpty()) {
+                        Text(stringResource(if (listed == null) R.string.split_loading else R.string.split_empty_saved),
+                            color = palette.textDim.toComposeColor(), modifier = Modifier.padding(16.dp))
+                    } else listed.forEach { file ->
+                        key(file.name) {
+                            Command(XnotesIcons.split, file.nameWithoutExtension) {
+                                calls.openSplitFile(android.net.Uri.fromFile(file).toString())
+                            }
+                        }
+                    }
+                }
                 BackstageView.PREFERENCES -> PreferencesPane(editor, compact, sidebarOpen, onShowSidebar, onBackToHome, onImportCodeTheme, onImportFont, onBackup)
                 BackstageView.TRASH -> TrashPane(editor, sidebarOpen, onShowSidebar, onOpenPreferences)
                 BackstageView.ABOUT -> AboutPane()
@@ -809,6 +879,7 @@ private fun NewItemMenuItems(
 
 /** What the explorer hands back to the activity: opening, sharing and exporting files it can't do itself. */
 private class ExplorerCalls(
+    val allowSplits: Boolean,
     val openFile: (String) -> Unit,
     val pickRoot: () -> Unit,
     val importPdf: () -> Unit,
@@ -817,6 +888,9 @@ private class ExplorerCalls(
     val saveCopyFile: (String) -> Unit,
     val exportFilePdf: (String) -> Unit,
     val openSplit: (String, String) -> Unit,
+    val chooseSplitPair: () -> Unit,
+    val openSplitFile: (String) -> Unit,
+    val restoreSplit: () -> Unit,
     /** Opens a file beside the note last open, or null when there is none to pair it with. */
     val openBeside: (String) -> (() -> Unit)?,
     /** Exports picked items as PDFs, zipped under the given name; the callback runs once a destination is chosen. */
@@ -1017,15 +1091,15 @@ private fun ExplorerSection(
     LaunchedEffect(currentDocId) { query = "" }
     // Inside a subfolder, back climbs one level out (this sits below the Backstage's root
     // handler, so it's consulted first and only fires while there's a folder to leave).
-    BackHandler(enabled = stack.isNotEmpty() && colorFilter == null) {
+    HomeBackHandler(enabled = stack.isNotEmpty() && colorFilter == null) {
         stack.removeAt(stack.lastIndex)
         clearUp()
     }
-    BackHandler(enabled = colorFilter != null) {
+    HomeBackHandler(enabled = colorFilter != null) {
         colorFilter = null
         selection.clear()
     }
-    BackHandler(enabled = showRecent) {
+    HomeBackHandler(enabled = showRecent) {
         showRecent = false
         selection.clear()
     }
@@ -1043,6 +1117,7 @@ private fun ExplorerSection(
     }
     val switcherLayouts = prefs.switcherLayouts.filter { !(compactScreen && it == ExplorerLayout.COLUMNS) }
 
+    LaunchedEffect(root, refreshKey) { link.onRefresh() }
     // Listing. Re-keyed on noteOpen so returning from the editor re-queries the folder, picking up
     // the just-closed note's new mtime (its tile refreshes) and any newly created/discovered items.
     val entries by produceState(editor.cachedChildren(root, currentDocId), root, currentDocId, refreshKey, editor.noteOpen, editor.treeVersion) {
@@ -1373,6 +1448,7 @@ private fun ExplorerSection(
                 EntryKind.FOLDER -> stringResource(R.string.kind_no_folders)
                 EntryKind.NOTE -> stringResource(R.string.kind_no_notes)
                 EntryKind.CANVAS -> stringResource(R.string.kind_no_canvases)
+                EntryKind.SPLIT -> stringResource(R.string.split_no_documents)
             },
             EmptyArt.SEARCH,
         )
@@ -1759,13 +1835,13 @@ private fun ExplorerSection(
             // While items are picked, the selection bar stays pinned where the chip row starts.
             if (selection.isNotEmpty()) Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.CenterStart) {
                 // Registered when the bar appears, after the search field's, so Back clears the picks first.
-                BackHandler { selection.clear() }
+                HomeBackHandler { selection.clear() }
                 SelectionBar(selection.size, onClear = { selection.clear() }, onSelectAll = { selection.clear(); selection.addAll(arranged.orEmpty()) }) {
                     val files = selection.filterNot { it.isDir }
                     val fg = palette.selectionForeground.toComposeColor()
                     if (selection.size == 1) ExplorerIcon(XnotesIcons.edit, stringResource(R.string.rename), fg) { renaming = selection.first(); selection.clear() }
-                    val pair = files.map { it.documentUri }.distinct().takeIf { it.size == 2 && files.size == selection.size }
-                    if (pair != null) ExplorerIcon(XnotesIcons.split, stringResource(R.string.open_side_by_side), fg) { selection.clear(); calls.openSplit(pair[0], pair[1]) }
+                    val pair = files.map { it.documentUri }.distinct().takeIf { it.size == 2 && files.size == selection.size && files.none { e -> DocumentKind.ofName(e.name) == DocumentKind.SPLIT } }
+                    if (calls.allowSplits && pair != null) ExplorerIcon(XnotesIcons.split, stringResource(R.string.open_side_by_side), fg) { selection.clear(); calls.openSplit(pair[0], pair[1]) }
                     ExplorerIcon(XnotesIcons.moveToFolder, stringResource(R.string.move_to_folder), fg) { moving = selection.toList() }
                     ExplorerIcon(XnotesIcons.copy, stringResource(R.string.copy), fg) { clipboard = ClipItem(selection.toList(), false); selection.clear() }
                     SelectionDivider()
@@ -2064,7 +2140,7 @@ internal fun ExplorerSearchField(query: String, onQueryChange: (String) -> Unit,
     val border = palette.border.toComposeColor()
     LaunchedEffect(active) { if (active) runCatching { focus.requestFocus() } }
     // Back exits the search
-    BackHandler(enabled = expanded) { focusManager.clearFocus() }
+    HomeBackHandler(enabled = expanded) { focusManager.clearFocus() }
     Row(
         Modifier
             .width(lerp(SEARCH_HEIGHT, expandedWidth, open))

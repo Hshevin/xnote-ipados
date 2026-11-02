@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="split_current_document">Choose a document to split</string>
+    <string name="split_change_direction">Switch split direction</string>
+    <string name="split_choose_document">Choose a document for this pane</string>
+    <string name="split_current_location">Another location in the current document</string>
+    <string name="split_picker_hint">Choose an imported PDF note, a note or a canvas from this workspace.</string>
+    <string name="split_parent_folder">Parent folder</string>
+    <string name="split_loading">Loading…</string>
+    <string name="split_no_documents">No notes or canvases in this folder.</string>
+    <string name="split_replace_document">Replace this document</string>
+    <string name="split_close_document">Close this document</string>
+    <string name="split_drag_hint">Drag divider; double tap for equal halves</string>
+    <string name="split_centered">50%</string>
+    <string name="split_save_before_replace">Save this canvas to a file before replacing it.</string>
+    <string name="split_locations">Locations</string>
+    <string name="split_other_folder">Choose another folder</string>
+    <string name="split_save">Save current split</string>
+    <string name="split_saved">Split saved. Reopen it from the main menu.</string>
+    <string name="split_save_files_first">Save both documents as files before saving this split.</string>
+    <string name="split_resume">Return to open documents</string>
+    <string name="split_open_saved">Open saved split</string>
+    <string name="split_workspace">Split screen</string>
+    <string name="split_choose_pair">Choose two documents</string>
+    <string name="split_choose_first">Choose the first document</string>
+    <string name="split_choose_second">Choose the second document</string>
+    <string name="split_open_file">Open split file</string>
+    <string name="split_restore_recent">Restore last split</string>
+    <string name="split_invalid_file">Cannot open this split: the file is invalid, or a referenced document is missing or inaccessible.</string>
+    <string name="split_empty_saved">No saved splits yet. Save a split from the editor to show it here.</string>
+</resources>

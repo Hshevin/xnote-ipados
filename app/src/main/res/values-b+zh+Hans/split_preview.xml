@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="split_current_document">选择文件分屏</string>
+    <string name="split_change_direction">切换分屏方向</string>
+    <string name="split_choose_document">选择本侧要打开的文件</string>
+    <string name="split_current_location">当前文档的另一位置</string>
+    <string name="split_picker_hint">选择当前工作文件夹中的 PDF 笔记、普通笔记或画布。</string>
+    <string name="split_parent_folder">返回上级文件夹</string>
+    <string name="split_loading">正在读取…</string>
+    <string name="split_no_documents">此文件夹中没有笔记或画布。</string>
+    <string name="split_replace_document">替换本侧文件</string>
+    <string name="split_close_document">关闭本侧文件</string>
+    <string name="split_drag_hint">拖动分割线调整比例，双击均分</string>
+    <string name="split_centered">50%</string>
+    <string name="split_save_before_replace">请先将此画布保存为文件，再替换当前窗格。</string>
+    <string name="split_locations">位置</string>
+    <string name="split_other_folder">选择其他文件夹</string>
+    <string name="split_save">保存当前分屏</string>
+    <string name="split_saved">分屏已保存，可从主菜单重新打开。</string>
+    <string name="split_save_files_first">请先将两侧文档保存为文件，再保存分屏组合。</string>
+    <string name="split_resume">返回当前文档</string>
+    <string name="split_open_saved">打开已保存的分屏</string>
+    <string name="split_workspace">分屏</string>
+    <string name="split_choose_pair">选择两个文件并排打开</string>
+    <string name="split_choose_first">选择第一个文件</string>
+    <string name="split_choose_second">选择第二个文件</string>
+    <string name="split_open_file">打开分屏文件</string>
+    <string name="split_restore_recent">恢复最近一次分屏</string>
+    <string name="split_invalid_file">无法打开分屏：文件无效，或引用的文档已丢失或无权访问。</string>
+    <string name="split_empty_saved">还没有保存的分屏。在编辑界面保存分屏后，会显示在这里。</string>
+</resources>

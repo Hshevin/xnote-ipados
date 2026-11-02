@@ -432,7 +432,7 @@ private fun SectionCaret() {
 }
 
 @Composable
-private fun itemIcon(item: ToolbarItem): ImageVector = when (item) {
+internal fun itemIcon(item: ToolbarItem): ImageVector = when (item) {
     ToolbarItem.HOME -> XnotesIcons.home
     ToolbarItem.TITLE -> XnotesIcons.edit
     ToolbarItem.SIDEBAR -> XnotesIcons.sidebar

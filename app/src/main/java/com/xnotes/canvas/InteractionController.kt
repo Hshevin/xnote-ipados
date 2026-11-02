@@ -672,6 +672,13 @@ class InteractionController(
         requestRender()
     }
 
+    fun clearHover() {
+        if (hoverActionTool != null) endHoverAction()
+        eraserCursor = null
+        connectHot = emptyList()
+        requestRender()
+    }
+
     fun onHover(e: MotionEvent): Boolean {
         if (handleHoverAction(e)) return true
         if (hoverConnect(e)) return true

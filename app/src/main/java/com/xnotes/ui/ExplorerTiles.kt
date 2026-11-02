@@ -167,6 +167,7 @@ internal class ExplorerBody(
 
 internal fun entryKind(e: BrowseEntry, meta: DocMetaStore.Meta?): EntryKind = when {
     e.isDir -> EntryKind.FOLDER
+    DocumentKind.ofName(e.name) == DocumentKind.SPLIT -> EntryKind.SPLIT
     DocumentKind.ofName(e.name) == DocumentKind.CANVAS -> EntryKind.CANVAS
     meta?.pdf == true -> EntryKind.PDF
     else -> EntryKind.NOTE
@@ -177,6 +178,7 @@ internal fun kindIcon(k: EntryKind): ImageVector = when (k) {
     EntryKind.NOTE -> XnotesIcons.file
     EntryKind.PDF -> XnotesIcons.pdf
     EntryKind.CANVAS -> XnotesIcons.canvas
+    EntryKind.SPLIT -> XnotesIcons.split
 }
 
 @Composable
@@ -185,6 +187,7 @@ internal fun kindLabel(k: EntryKind): String = when (k) {
     EntryKind.NOTE -> stringResource(R.string.kind_note)
     EntryKind.PDF -> stringResource(R.string.kind_pdf_note)
     EntryKind.CANVAS -> stringResource(R.string.kind_canvas)
+    EntryKind.SPLIT -> stringResource(R.string.split_workspace)
 }
 
 /** A document's first page: the top cropped to fill [shape]'s square, or the whole page fitted in. */

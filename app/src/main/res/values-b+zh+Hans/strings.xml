@@ -956,4 +956,5 @@
     <string name="pref_show_folder_counts">在文件夹上显示项目数</string>
     <string name="pref_show_extensions">显示文件扩展名（.xnote、.xcanvas）</string>
     <string name="pref_dates">日期</string>
+    <string name="split_drop_swap">松手交换位置</string>
 </resources>

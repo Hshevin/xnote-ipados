@@ -87,4 +87,46 @@ class ProPenInputTest {
         input.reset()
         assertEquals(Tool.PEN, tool)
     }
+    @Test fun crossingWithHeldCommandDoesNotRepeatItButNextPressWorks() {
+        val e = event(MotionEvent.ACTION_HOVER_ENTER, 4)
+        try { input.motion(e, inheritedButtons = 4) } finally { e.recycle() }
+        assertTrue(commands.isEmpty())
+        motion(MotionEvent.ACTION_HOVER_MOVE, 4)
+        assertTrue(commands.isEmpty())
+        motion(MotionEvent.ACTION_HOVER_MOVE, 0)
+        motion(MotionEvent.ACTION_HOVER_MOVE, 4)
+        assertEquals(listOf("undo"), commands)
+    }
+
+    @Test fun crossingWithHeldEraserRestoresPenOnRelease() {
+        val e = event(MotionEvent.ACTION_HOVER_ENTER, 0x20)
+        try { input.motion(e, inheritedButtons = 0x20) } finally { e.recycle() }
+        assertEquals(Tool.ERASER, tool)
+        input.reset()
+        assertEquals(Tool.PEN, tool)
+        val returned = event(MotionEvent.ACTION_HOVER_ENTER, 0x20)
+        try { input.motion(returned, inheritedButtons = 0x20) } finally { returned.recycle() }
+        assertEquals(Tool.ERASER, tool)
+        motion(MotionEvent.ACTION_HOVER_MOVE, 0)
+        assertEquals(Tool.PEN, tool)
+    }
+
+    @Test fun sameCommandOnANewPhysicalButtonStillRunsAcrossPanes() {
+        val seen = mutableListOf<String>()
+        val adapter = ProPenInput({ mapOf(0x20 to PenBinding("undo"), 0x40 to PenBinding("undo")) },
+            { Tool.PEN }, {}, { seen.add(it) })
+        val e = event(MotionEvent.ACTION_HOVER_ENTER, 0x60)
+        try { adapter.motion(e, inheritedButtons = 0x20) } finally { e.recycle() }
+        assertEquals(listOf("undo"), seen)
+    }
+
+    @Test fun releaseInOtherPaneThenNewPressOnReturnIsNotSwallowed() {
+        motion(MotionEvent.ACTION_HOVER_ENTER, 4)
+        input.reset()
+        // The other pane observed release; this pane has not seen that sample.
+        val returned = event(MotionEvent.ACTION_HOVER_ENTER, 4)
+        try { input.motion(returned, inheritedButtons = 0) } finally { returned.recycle() }
+        assertEquals(listOf("undo", "undo"), commands)
+    }
+
 }

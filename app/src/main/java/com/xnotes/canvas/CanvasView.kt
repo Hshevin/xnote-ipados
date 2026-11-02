@@ -97,6 +97,11 @@ class CanvasView @JvmOverloads constructor(
 
     /** Transparent debug HUD (frame rate / cache / heap), toggled by a four-finger tap. */
     val debugOverlay = DebugOverlay()
+    fun toggleDebug() {
+        debugOverlay.toggle()
+        startDebugTick()
+        requestRender()
+    }
 
     /** Whether the canvas scrollbar is shown (the View menu's per-note toggle). */
     var scrollbarEnabled = false
@@ -141,12 +146,6 @@ class CanvasView @JvmOverloads constructor(
     }
 
     // --- four-finger-tap recognition (toggles the debug HUD) ---
-    private var gestureDownMs = 0L
-    private var gestureMaxPointers = 0
-    private var fourFingerActive = false
-    private var fourCx = 0f
-    private var fourCy = 0f
-    private var fourMoved = false
 
     // --- two/three-finger-tap recognition (configurable gesture actions) ---
     private val fingerTaps = MultiFingerTap()
@@ -157,7 +156,12 @@ class CanvasView @JvmOverloads constructor(
     }
 
     @Suppress("ClickableViewAccessibility")
-    override fun onTouchEvent(event: MotionEvent): Boolean {
+    val crossPaneTouchGate = com.xnotes.pen.CrossPaneTouchGate()
+
+    override fun onTouchEvent(event: MotionEvent): Boolean =
+        crossPaneTouchGate.dispatch(event, ::deliverTouch)
+
+    private fun deliverTouch(event: MotionEvent): Boolean {
         if (trackScrollbar(event)) return true
         if (trackFourFingerTap(event)) return true
         if (trackMultiFingerTap(event)) return true
@@ -277,63 +281,18 @@ class CanvasView @JvmOverloads constructor(
      * we toggle [debugOverlay]. Returns true when the event was consumed here (so the
      * caller must not forward it to the interaction layer).
      */
+    private val fourFingerTap = com.xnotes.pen.FourFingerTap(16f * resources.displayMetrics.density)
+
     private fun trackFourFingerTap(e: MotionEvent): Boolean {
-        when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                gestureDownMs = e.eventTime
-                gestureMaxPointers = 1
-                fourFingerActive = false
-                fourMoved = false
-            }
-            MotionEvent.ACTION_POINTER_DOWN -> {
-                gestureMaxPointers = maxOf(gestureMaxPointers, e.pointerCount)
-                if (!fourFingerActive && e.pointerCount >= 4) {
-                    fourFingerActive = true
-                    val (cx, cy) = centroid(e)
-                    fourCx = cx; fourCy = cy
-                    cancelInteraction(e) // abort the pinch the controller already started
-                }
-                if (fourFingerActive) return true
-            }
-            MotionEvent.ACTION_MOVE -> {
-                if (fourFingerActive) {
-                    val (cx, cy) = centroid(e)
-                    if (kotlin.math.hypot((cx - fourCx).toDouble(), (cy - fourCy).toDouble()) > TAP_SLOP) {
-                        fourMoved = true
-                    }
-                    return true
-                }
-            }
-            MotionEvent.ACTION_POINTER_UP -> {
-                if (fourFingerActive) return true // wait for the last finger to lift
-            }
-            MotionEvent.ACTION_UP -> {
-                if (fourFingerActive) {
-                    fourFingerActive = false
-                    val quick = e.eventTime - gestureDownMs <= TAP_TIMEOUT_MS
-                    if (quick && !fourMoved && gestureMaxPointers == 4) {
-                        debugOverlay.toggle()
-                        startDebugTick()
-                        requestRender()
-                    }
-                    return true
-                }
-            }
-            MotionEvent.ACTION_CANCEL -> {
-                if (fourFingerActive) {
-                    fourFingerActive = false
-                    return true
-                }
-            }
+        return when (fourFingerTap.track(e)) {
+            com.xnotes.pen.FourFingerTap.Result.PASS -> false
+            com.xnotes.pen.FourFingerTap.Result.CAPTURE -> { cancelInteraction(e); true }
+            com.xnotes.pen.FourFingerTap.Result.CONSUME -> true
+            com.xnotes.pen.FourFingerTap.Result.TRIGGER -> { toggleDebug(); true }
         }
-        return false
     }
 
-    private fun centroid(e: MotionEvent): Pair<Float, Float> {
-        var sx = 0f; var sy = 0f
-        for (i in 0 until e.pointerCount) { sx += e.getX(i); sy += e.getY(i) }
-        return sx / e.pointerCount to sy / e.pointerCount
-    }
+
 
     /** Forward a synthetic CANCEL so the interaction layer abandons its in-flight gesture. */
     private fun cancelInteraction(e: MotionEvent) {
@@ -381,6 +340,17 @@ class CanvasView @JvmOverloads constructor(
         mainHandler.removeCallbacks(debugTick)
         mainHandler.removeCallbacks(sharpDebounce)
         super.onDetachedFromWindow()
+    }
+
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        super.onLayout(changed, left, top, right, bottom)
+        val st = state ?: return
+        // Reused panes can reopen at exactly the same size: onSizeChanged will not run then.
+        if (!st.didInitialFit && width > 0 && height > 0) {
+            st.establishInitialView()
+            afterLayout?.invoke()
+            requestRender()
+        }
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -775,12 +745,6 @@ class CanvasView @JvmOverloads constructor(
     }
 
     companion object {
-        /** Max gesture duration (ms) still counted as a tap. */
-        private const val TAP_TIMEOUT_MS = 500L
-
-        /** Max centroid drift (viewport px) the four fingers may wander and still tap. */
-        private const val TAP_SLOP = 40.0
-
         /** How long the view must be still before the sharp viewport is rendered (ms). */
         private const val SHARP_SETTLE_MS = 90L
 

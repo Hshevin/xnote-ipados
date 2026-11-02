@@ -18,16 +18,18 @@ class ProPenButtons(initialTool: String) {
     private var previousMask = 0
     private val holds = linkedMapOf<Int, String>()
 
-    fun update(rawMask: Int, bindings: Map<Int, PenBinding>): PenButtonResult {
-        val pressed = rawMask and previousMask.inv()
+    fun update(rawMask: Int, bindings: Map<Int, PenBinding>, inheritedButtons: Int? = null): PenButtonResult {
+        // Re-arm inherited HOLD tools, but only genuinely new physical presses run commands.
+        val pressed = rawMask and (inheritedButtons ?: previousMask).inv()
+        val rearmed = pressed or (rawMask and (inheritedButtons ?: 0))
         previousMask = rawMask // keep unknown bits; only the three known bits dispatch actions
         holds.keys.removeAll { rawMask and it == 0 }
         val commands = mutableListOf<String>()
         for (mask in masks) {
-            if (pressed and mask == 0) continue
+            if (rearmed and mask == 0) continue
             val binding = bindings[mask] ?: continue
             when (binding.action) {
-                in PenBinding.commands -> commands.add(binding.action)
+                in PenBinding.commands -> if (mask and pressed != 0) commands.add(binding.action)
                 in PenBinding.tools -> if (binding.mode == PenBindingMode.HOLD) {
                     holds[mask] = binding.action
                 } else {

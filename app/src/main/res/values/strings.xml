@@ -1158,4 +1158,5 @@
     <string name="toolbar_size_compact">Compact</string>
     <string name="toolbar_size_regular">Regular</string>
     <string name="toolbar_size_comfortable">Comfortable</string>
+    <string name="split_drop_swap">Release to swap</string>
 </resources>
