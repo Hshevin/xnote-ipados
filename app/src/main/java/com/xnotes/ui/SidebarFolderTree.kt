@@ -22,7 +22,7 @@ import com.xnotes.ui.theme.toComposeColor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Only expanded branches are queried; no recursive scan of the user's workspace. */
+/** Query one level below visible folders to discover leaves; never scan collapsed subtrees. */
 @Composable
 internal fun SidebarFolderTree(
     editor: Editor, root: String, selectedId: String?, revision: Int,
@@ -46,11 +46,11 @@ private fun SidebarFolderBranch(
     if (id in ancestors) return // A provider must not create a cycle in the visible tree.
     val open = expanded[id] == true
     var children by remember(root, id) { mutableStateOf<List<BrowseEntry>?>(null) }
-    LaunchedEffect(open, revision, editor.treeVersion, editor.noteOpen) {
+    LaunchedEffect(root, id, revision, editor.treeVersion, editor.noteOpen) {
         // Keep the old visible branch until its replacement arrives, avoiding collapse/flicker.
-        if (open) children = withContext(Dispatchers.IO) {
+        children = withContext(Dispatchers.IO) {
             editor.browseChildren(root, id).filter { it.isDir }.sortedBy { it.name.lowercase() }
-        } else children = null
+        }
     }
     val palette = LocalPalette.current
     val selected = id == selectedId
@@ -58,7 +58,7 @@ private fun SidebarFolderBranch(
     Row(Modifier.fillMaxWidth().height(48.dp)
         .background((if (selected) palette.selectionBackground else palette.panel).toComposeColor())
         .padding(start = (8 + depth.coerceAtMost(6) * 12).dp), verticalAlignment = Alignment.CenterVertically) {
-        if (children?.isEmpty() != true) {
+        if (!children.isNullOrEmpty()) {
             val label = stringResource(if (open) R.string.folder_tree_collapse else R.string.folder_tree_expand, folder.name)
             IconButton(onClick = { expanded[id] = !open }, modifier = Modifier.size(40.dp).semantics { contentDescription = label }) {
                 Text(if (open) "▾" else "▸", color = foreground)

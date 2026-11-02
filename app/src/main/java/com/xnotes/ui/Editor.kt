@@ -1630,13 +1630,14 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     }
 
     /**
-     * A repaint was asked for. While the front buffer owns the stroke under the pen the canvas is not
-     * drawing that ink and keeps its last recording, but the window still posts a frame: some devices
-     * only composite the pad when another layer queues a buffer, and show nothing until pen up
-     * otherwise. Invalidating the container re-renders the canvas without calling its onDraw.
+     * Invalidate the drawing view even while the front buffer owns the live stroke. A container
+     * invalidation can reuse the child's display list after split panes are reparented, without
+     * publishing the window frame some compositors need to display front-buffer updates.
+     * The overlay already skips front-owned ink, so this does not paint the stroke twice. The
+     * page caches stay intact and requestRender coalesces input samples onto the next vsync.
      */
     private fun onRender() {
-        if (controller.frontInk?.live == true) surfaces.postInvalidateOnAnimation() else view.requestRender()
+        view.requestRender()
     }
 
     /** Formulas set off the main thread landing: a box moves the layout, a raster only repaints. */

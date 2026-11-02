@@ -768,9 +768,32 @@ private fun EditorScreen(
         return target.takeIf { it.noteOpen && it.visibleDocumentUri?.let { uri -> it.isSameDocument(uri, uriStr) } == true }
     }
 
-    fun closeEditorPane(pane: Editor) {
-        val close = { homeFocus = paneHomes.keys.firstOrNull(); editor.closePane(pane) }
+    fun closePaneHome(pane: Editor) {
+        if (editor.openPanes.any { it.stylusInContact }) return
+        val close = {
+            // Closing a shared owner retains that editor and closes the borrowed view instead.
+            val retained = if (pane.isSharedView && pane.documentOwner === pane) pane.sibling else null
+            paneHomes = com.xnotes.ui.closePaneHomeState(paneHomes, pane.pane, retained?.pane)
+            if (retained != null) editor.splitReversed = !editor.splitReversed
+            homeFocus = paneHomes.keys.firstOrNull()
+            if (pane.noteOpen) editor.closePane(pane)
+            else if (pane.pane == com.xnotes.ui.Pane.SECONDARY) editor.abandonSecondary()
+        }
         if (pane.isSharedView) close() else guarded(pane) { close() }
+    }
+
+    fun closeEditorPane(pane: Editor) {
+        if (editor.openPanes.any { it.stylusInContact }) return
+        val other = if (pane === editor) editor.secondary else editor
+        if (other != null && (other.noteOpen || other.pane in paneHomes)) {
+            // Park the document behind its file browser. Reuse the existing guarded replacement
+            // path when a file is picked; only closing this browser removes the pane itself.
+            paneHomes = paneHomes + (pane.pane to pane.visibleDocumentUri)
+            homeFocus = pane.pane
+        } else {
+            val close = { homeFocus = paneHomes.keys.firstOrNull(); editor.closePane(pane) }
+            if (pane.isSharedView) close() else guarded(pane) { close() }
+        }
     }
 
     fun openTreeFile(uriStr: String, explicitlyDiscarded: Set<Editor> = emptySet()) {
@@ -1046,7 +1069,7 @@ private fun EditorScreen(
                 allowSplits = target == null,
                 initialDocument = target?.let { paneHomes[it.pane] },
                 backEnabled = target == null || homeFocus == target.pane,
-                onExitApp = { if (target == null) (context as? android.app.Activity)?.finish() else { paneHomes = paneHomes - target.pane; homeFocus = paneHomes.keys.firstOrNull(); if (!target.noteOpen && target.pane == com.xnotes.ui.Pane.SECONDARY) editor.abandonSecondary() } },
+                onExitApp = { if (target == null) (context as? android.app.Activity)?.finish() else closePaneHome(target) },
                 onImportCodeTheme = { importCodeThemeLauncher.launch(arrayOf("*/*")) },
                 onImportFont = { importFontLauncher.launch(arrayOf("*/*")) },
                 onBackup = { export ->
@@ -1248,9 +1271,7 @@ private fun EditorScreen(
                                 Text(stringResource(R.string.home), Modifier.weight(1f).padding(horizontal = 16.dp),
                                     color = com.xnotes.ui.theme.LocalPalette.current.text.toComposeColor())
                                 androidx.compose.material3.IconButton(onClick = {
-                                    paneHomes = paneHomes - pane.pane
-                                    homeFocus = paneHomes.keys.firstOrNull()
-                                    if (!pane.noteOpen && pane.pane == com.xnotes.ui.Pane.SECONDARY) editor.abandonSecondary()
+                                    closePaneHome(pane)
                                 }) { Icon(XnotesIcons.close, stringResource(R.string.split_close_document)) }
                             }
                             Box(Modifier.weight(1f)) { home(pane) }

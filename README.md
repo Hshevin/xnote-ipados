@@ -16,7 +16,7 @@ This fork targets Wacom MovinkPad Pro 14 and Pro Pen 3. Three-button mappings an
 - 测试包名 `com.xnotes.movinkpad.splitpreview`，与正式包名 `com.xnotes.movinkpad` 分开安装。用户已确认该版本满足当前需求，并要求打包原应用覆盖升级版；后续修复及维护文档在 `codex/split-workspace` 分支维护，`master` 保留分屏前边界。
 - 本轮验证：2462 项 JVM 测试、39 项 Android 模拟器测试通过。测试数量是本次记录，不代表后续版本已验证。
 
-当前覆盖升级版为 **0.9.7-movinkpad / versionCode 79**，使用原应用身份和历史签名。交付与验证见 [Release 记录](docs/movinkpad/release-2026-11-02.md)。测试版的数据不会自动迁入原应用。版本 79 修复返回主菜单后打开普通文件仍保留分屏的问题，普通文件进入单文档，显式恢复分屏不受影响。
+当前覆盖升级版为 **0.9.7-movinkpad / versionCode 80**，使用原应用身份和历史签名。交付与验证见 [Release 记录](docs/movinkpad/release-2026-11-02.md)。测试版的数据不会自动迁入原应用。版本 79 修复返回主菜单后打开普通文件仍保留分屏的问题，普通文件进入单文档，显式恢复分屏不受影响。
 
 构建覆盖升级 Release（须保留本机原签名密钥）：
 
@@ -31,6 +31,8 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 ./gradlew --no-daemon -PsplitPreview=true :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest
 ```
+
+Release 80 包含实时笔迹刷新调整、分屏关闭先回到窗格首页再退出，以及文件树叶子文件夹箭头修复。前缓冲显示和性能仍待目标设备验证；发布结果见 Release 记录。
 
 每个功能阶段或交付前检查本文件与 [AGENTS.md](AGENTS.md)，同步状态、构建入口及维护约定；详细历史和证据保存在 `docs/movinkpad/`。
 
