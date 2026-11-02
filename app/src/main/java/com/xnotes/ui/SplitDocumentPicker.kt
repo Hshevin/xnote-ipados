@@ -7,4 +7,3 @@ internal fun splitFolderPath(root: String, document: String?): List<String> {
     val folders = document.removePrefix(prefix).split('/').dropLast(1)
     return folders.runningFold(root) { parent, name -> if (parent.endsWith(':')) "$parent$name" else "$parent/$name" }
 }
-

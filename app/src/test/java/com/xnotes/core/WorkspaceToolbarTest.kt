@@ -31,4 +31,13 @@ class WorkspaceToolbarTest {
         assertFalse(ToolbarItem.MINIMAP in items(false, true))
     }
 
+    @Test fun insertSpaceOnlyAppearsInPagedDocumentControls() {
+        val layout = workspaceToolbarLayout(ToolbarLayout.DEFAULT, ToolbarLayout.CANVAS_DEFAULT)
+        fun items(layout: ToolbarLayout) = layout.visibleSections.flatMap { it.visibleEntries }.map { it.item }
+        assertFalse(ToolbarItem.INSERT_SPACE in items(layout.forDocumentControls(false)))
+        assertTrue(ToolbarItem.INSERT_SPACE in items(documentToolbarLayout(layout, false, false)))
+        assertTrue(ToolbarItem.INSERT_SPACE in items(documentToolbarLayout(layout, false, true)))
+        assertFalse(ToolbarItem.INSERT_SPACE in items(documentToolbarLayout(layout, true, false)))
+    }
+
 }

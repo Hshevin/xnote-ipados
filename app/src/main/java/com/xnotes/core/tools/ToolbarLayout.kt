@@ -50,7 +50,10 @@ enum class ToolbarItem(val id: String) {
     WAYPOINTS("waypoints"),
 
     /** Canvas only: the overview map in the corner. */
-    MINIMAP("minimap");
+    MINIMAP("minimap"),
+
+    /** Notes only: opens and closes room on a page. Last, so a stored bar missing older items too still gets it right after the lasso. */
+    INSERT_SPACE("insert_space");
 
     companion object {
         fun fromId(id: String?): ToolbarItem? = entries.firstOrNull { it.id == id }
@@ -154,6 +157,7 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
             ToolbarItem.MARGINS to ToolbarItem.STYLES,
             ToolbarItem.WAND to ToolbarItem.LASSO,
             ToolbarItem.TAPE to ToolbarItem.WAND,
+            ToolbarItem.INSERT_SPACE to ToolbarItem.LASSO,
             ToolbarItem.MARKUP to ToolbarItem.TEXT_BOX,
         )
 
@@ -174,7 +178,7 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
             ToolbarItem.ZOOM, ToolbarItem.FIT, ToolbarItem.ZOOM_LOCK,
         )
 
-        /** Everything the paged bar can hold: the whole enum bar the two canvas-only additions. */
+        /** Everything the paged bar can hold: the whole enum bar the two canvas-only additions. Insert space is the note bar's alone. */
         val NOTE_ITEMS: Set<ToolbarItem> =
             ToolbarItem.entries.toSet() - setOf(ToolbarItem.WAYPOINTS, ToolbarItem.MINIMAP)
 
@@ -186,7 +190,7 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
                 ToolbarItem.PEN, ToolbarItem.DASHED, ToolbarItem.CALLIGRAPHY, ToolbarItem.SPEED,
                 ToolbarItem.TAPER, ToolbarItem.HIGHLIGHTER, ToolbarItem.ERASER,
             ),
-            listOf(ToolbarItem.PAN, ToolbarItem.SELECT, ToolbarItem.LASSO, ToolbarItem.SCREENSHOT),
+            listOf(ToolbarItem.PAN, ToolbarItem.SELECT, ToolbarItem.LASSO, ToolbarItem.INSERT_SPACE, ToolbarItem.SCREENSHOT),
             listOf(ToolbarItem.WAND, ToolbarItem.TAPE, ToolbarItem.SHAPE, ToolbarItem.RULER, ToolbarItem.TEXT, ToolbarItem.TEXT_BOX, ToolbarItem.MARKUP),
             listOf(ToolbarItem.IMAGE),
             listOf(ToolbarItem.COLORS),
@@ -251,7 +255,7 @@ fun workspaceToolbarLayout(paged: ToolbarLayout, canvas: ToolbarLayout): Toolbar
     return ToolbarLayout(paged.visibleSections + if (extra.isEmpty()) emptyList() else listOf(ToolbarSection(extra)))
 }
 
-val documentToolbarItems = setOf(ToolbarItem.SIDEBAR, ToolbarItem.MARKUP, ToolbarItem.PAGE_NAV,
+val documentToolbarItems = setOf(ToolbarItem.SIDEBAR, ToolbarItem.MARKUP, ToolbarItem.PAGE_NAV, ToolbarItem.INSERT_SPACE,
     ToolbarItem.ZOOM, ToolbarItem.FIT, ToolbarItem.ZOOM_LOCK,
     ToolbarItem.STYLES, ToolbarItem.MARGINS, ToolbarItem.VIEW, ToolbarItem.WAYPOINTS, ToolbarItem.MINIMAP)
 fun ToolbarLayout.forDocumentControls(document: Boolean): ToolbarLayout = ToolbarLayout(sections.map {

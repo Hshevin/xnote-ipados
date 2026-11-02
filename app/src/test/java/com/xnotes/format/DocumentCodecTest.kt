@@ -12,6 +12,8 @@ import com.xnotes.core.model.AudioItem
 import com.xnotes.core.model.Bookmark
 import com.xnotes.core.model.ConnectorEnd
 import com.xnotes.core.model.ConnectorItem
+import com.xnotes.core.model.snapshot
+import com.xnotes.core.model.deepCopy
 import com.xnotes.core.model.Document
 import com.xnotes.core.model.Glue
 import com.xnotes.core.model.ImageItem
@@ -60,6 +62,22 @@ import java.nio.file.Files
 import java.util.zip.ZipInputStream
 
 class DocumentCodecTest {
+
+    @Test fun bodyStartSurvivesAutosaveSnapshot() {
+        val doc = Document().apply { bodyStartPage = 4 }
+        val saved = doc.snapshot()
+        doc.bodyStartPage = null
+        assertEquals(4, roundTrip(saved).bodyStartPage)
+        assertNull(roundTrip(doc.snapshot()).bodyStartPage)
+    }
+
+    @Test fun bodyStartSurvivesIndependentCopy() {
+        val doc = Document().apply { bodyStartPage = 4 }
+        val copy = doc.deepCopy(FakeTextMeasurer())
+        doc.bodyStartPage = null
+        assertEquals(4, roundTrip(copy).bodyStartPage)
+        assertNull(roundTrip(doc.deepCopy(FakeTextMeasurer())).bodyStartPage)
+    }
 
     @Test fun bodyStartSurvivesSaveAndAutomaticReset() {
         val doc = Document.blank(count = 12)

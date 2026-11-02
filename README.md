@@ -6,6 +6,7 @@ This fork targets Wacom MovinkPad Pro 14 and Pro Pen 3. Three-button mappings an
 - [Project brief](docs/movinkpad/project-brief.md)
 - [Linux build and repository structure](docs/movinkpad/server-build.md)
 - [Workspace switching and consistent pen settings](docs/movinkpad/workspace-switch-2026-10-31.md)
+- [Branch split and upstream sync](docs/movinkpad/github-sync-2026-11-02.md)
 - [Planned PDF and cursor work](tasks/plan.md)
 
 Build this fork with **JDK 21**. The original upstream README below is retained for attribution and context; its JDK 17 and upstream clone instructions do not override this fork's build instructions.
@@ -55,6 +56,7 @@ Build this fork with **JDK 21**. The original upstream README below is retained 
 - **Book layouts**: single, double or cover pages, scrolling or page flips.
 - **PDF import**: bring in any PDF and write all over it.
 - **Room for side notes**: widen a PDF's margins on any edge and take notes on the side.
+- **Insert space**: drag anywhere on a page to open up room there, even in the middle of a PDF.
 - **PDF text markups**: highlight, underline and strike out text, add comments, search it.
 - **PDF colour filters**: invert, sepia, contrast, brightness, multiply and screen.
 - **Images stay untouched**: filter a PDF and its photos and images keep their true colours.

@@ -25,6 +25,46 @@ class SplitEditorTest {
         error?.let { throw it }
     }
 
+    @Test fun sharedInsertSpaceRelayoutsBothViewsAndSurvivesUndoRedo() = onMain { a ->
+        val b = a.secondaryPane()
+        b.openSharedView(a)
+        for (pane in listOf(a, b)) {
+            pane.state.viewportW = 800; pane.state.viewportH = 1200
+            pane.state.zoom = 0.5; pane.state.relayout()
+        }
+        val page = a.state.document.pages.first()
+        page.style = com.xnotes.core.model.PageStyle(template = "lines")
+        val originalHeight = page.height
+        val originalRect = b.state.pageRects.first()
+        var paints = 0
+        val paint = b.state.paintPageBackground!!
+        b.state.paintPageBackground = { p, r, scale, region -> paints++; paint(p, r, scale, region) }
+        assertNotNull(b.state.backgroundFor(page))
+        val beforePaints = paints
+        a.selectTool(com.xnotes.core.tools.Tool.INSERT_SPACE)
+        val start = a.state.contentToViewport(a.state.pageRects.first().topLeft + com.xnotes.core.geometry.Pt(100.0, 100.0))
+        val now = android.os.SystemClock.uptimeMillis()
+        for ((index, action) in listOf(android.view.MotionEvent.ACTION_DOWN, android.view.MotionEvent.ACTION_MOVE, android.view.MotionEvent.ACTION_UP).withIndex()) {
+            val event = android.view.MotionEvent.obtain(now, now + index * 20L, action, start.x.toFloat(), (start.y + if (index == 0) 0.0 else 100.0).toFloat(), 0)
+            try { a.controller.onTouch(event) } finally { event.recycle() }
+        }
+        assertTrue(page.rooms.isNotEmpty())
+        val grownHeight = page.height
+        assertTrue(grownHeight > originalHeight)
+        assertEquals(a.state.pageRects.first().h, b.state.pageRects.first().h, 0.001)
+        assertTrue(b.state.pageRects.first().h > originalRect.h)
+        b.state.backgroundFor(page)
+        assertTrue("the other view must rebuild the resized page background", paints > beforePaints)
+        b.undo()
+        assertTrue(page.rooms.isEmpty())
+        assertEquals(originalHeight, page.height, 0.001)
+        assertEquals(originalRect.h, b.state.pageRects.first().h, 0.001)
+        assertEquals(originalRect.h, a.state.pageRects.first().h, 0.001)
+        a.redo()
+        assertEquals(grownHeight, page.height, 0.001)
+        assertEquals(a.state.pageRects.first().h, b.state.pageRects.first().h, 0.001)
+    }
+
     @Test fun sharedViewsEditUndoSaveAndDetachWithoutLosingHistory() = onMain { a ->
         val original = a.pageCount
         val b = a.secondaryPane()
