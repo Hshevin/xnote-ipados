@@ -6,6 +6,7 @@ This fork targets Wacom MovinkPad Pro 14 and Pro Pen 3. Three-button mappings an
 - [Project brief](docs/movinkpad/project-brief.md)
 - [Linux build and repository structure](docs/movinkpad/server-build.md)
 - [Workspace switching and consistent pen settings](docs/movinkpad/workspace-switch-2026-10-31.md)
+- [Branch split and upstream sync](docs/movinkpad/github-sync-2026-11-02.md)
 - [Planned PDF and cursor work](tasks/plan.md)
 
 Build this fork with **JDK 21**. The original upstream README below is retained for attribution and context; its JDK 17 and upstream clone instructions do not override this fork's build instructions.

@@ -83,7 +83,7 @@ fun Document.deepCopy(measurer: TextMeasurer): Document = Document(
     templates = templates,
     templatePackages = templatePackages,
     newPageSize = newPageSize,
-)
+).also { it.bodyStartPage = bodyStartPage }
 
 /**
  * The document as the writer should see it: fresh [Page] objects over fresh item *lists*, sharing
@@ -116,4 +116,4 @@ fun Document.snapshot(): Document = Document(
     templates = templates,
     templatePackages = templatePackages,
     newPageSize = newPageSize,
-)
+).also { it.bodyStartPage = bodyStartPage }
