@@ -53,6 +53,9 @@ class Document(
     /** The size of each page added from now on, or null to give it the size of the page before it. */
     var newPageSize: PageSizeChoice? = null,
 ) {
+    /** Null uses PDF labels or the first page; otherwise a zero-based body start. */
+    var bodyStartPage: Int? = null
+
     /** Transient: set by the codec when legacy ink was compacted at load (debug overlay readout). */
     var compactedOnLoad = false
 

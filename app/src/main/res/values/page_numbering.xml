@@ -1,0 +1,11 @@
+<resources>
+    <string name="number_absolute">Absolute page</string>
+    <string name="number_body">Body page</string>
+    <string name="number_start">Body starts at absolute page</string>
+    <string name="number_set">Set start</string>
+    <string name="number_auto">Restore automatic</string>
+    <string name="number_invalid">Enter a valid page in range</string>
+    <string name="number_current">Absolute %1$d / %2$d · Body %3$s</string>
+    <string name="number_hint">Before the body: i, ii, iii…</string>
+    <string name="number_use_current">Use current page as body start</string>
+</resources>

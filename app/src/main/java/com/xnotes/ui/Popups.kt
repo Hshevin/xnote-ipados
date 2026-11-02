@@ -808,35 +808,74 @@ private fun FilterColorRow(label: String, value: Rgba, off: Rgba, onChange: (Rgb
 /** Page-nav popup: type a page number (1-based) and jump to it; Done/GO both commit. */
 @Composable
 fun PageJumpPopup(editor: Editor, onDismiss: () -> Unit) {
+    val numbering = editor.pageNumbering
+    var absolute by remember { mutableStateOf(true) }
     var text by remember { mutableStateOf("${editor.pageIndex + 1}") }
+    var startText by remember(numbering.start) { mutableStateOf("${numbering.start + 1}") }
+    var invalid by remember { mutableStateOf(false) }
     fun go() {
-        val n = text.toIntOrNull() ?: return
-        editor.goToPage(n - 1)
+        val index = if (absolute) text.trim().toIntOrNull()?.takeIf { it in 1..editor.pageCount }?.minus(1)
+            else numbering.resolve(text)
+        if (index == null) { invalid = true; return }
+        editor.goToPage(index)
         onDismiss()
     }
+    val liveGo = androidx.compose.runtime.rememberUpdatedState { go() }
     DropdownMenu(expanded = true, onDismissRequest = onDismiss) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
             PopupTitle(stringResource(R.string.title_go_to_page))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FieldFrame(Modifier.width(72.dp)) {
-                    NativeField(
-                        value = text,
-                        onText = { text = it },
-                        modifier = Modifier.weight(1f),
-                        numeric = true,
-                        maxLen = 5,
-                        endAlign = true,
-                        autoFocus = true,
-                        onDone = { go() },
-                    )
+            Text(stringResource(R.string.number_current, editor.pageIndex + 1, editor.pageCount,
+                numbering.label(editor.pageIndex)), fontSize = 13.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ModeChip(stringResource(R.string.number_absolute), selected = absolute) {
+                    absolute = true; text = "${editor.pageIndex + 1}"; invalid = false
                 }
-                Text(
-                    "/ ${editor.pageCount}",
-                    color = LocalPalette.current.textDim.toComposeColor(),
-                    fontSize = 13.sp,
-                )
+                ModeChip(stringResource(R.string.number_body), selected = !absolute) {
+                    absolute = false; text = numbering.label(editor.pageIndex); invalid = false
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FieldFrame(Modifier.width(100.dp)) {
+                    androidx.compose.runtime.key(absolute, numbering.start) {
+                    NativeField(value = text, onText = { text = it; invalid = false },
+                        modifier = Modifier.weight(1f), numeric = absolute, maxLen = 16,
+                        endAlign = true, autoFocus = true, onDone = { liveGo.value() })
+                    }
+                }
                 ModeChip(stringResource(R.string.go), selected = true) { go() }
             }
+            ModeChip(stringResource(R.string.number_use_current), selected = false) {
+                if (editor.setBodyStartPage(editor.pageIndex)) {
+                    startText = "${editor.pageIndex + 1}"
+                    text = if (absolute) "${editor.pageIndex + 1}" else "1"
+                    invalid = false
+                }
+            }
+            Text(stringResource(R.string.number_start), fontSize = 13.sp)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FieldFrame(Modifier.width(100.dp)) {
+                    androidx.compose.runtime.key(numbering.start) {
+                    NativeField(value = startText, onText = { startText = it; invalid = false },
+                        modifier = Modifier.weight(1f), numeric = true, maxLen = 8, endAlign = true)
+                    }
+                }
+                ModeChip(stringResource(R.string.number_set), selected = false) {
+                    val start = startText.trim().toIntOrNull()
+                    invalid = start == null || start !in 1..editor.pageCount
+                    if (!invalid) {
+                        editor.setBodyStartPage(start!! - 1)
+                        text = if (absolute) "${editor.pageIndex + 1}" else editor.pageNumbering.label(editor.pageIndex)
+                    }
+                }
+            }
+            ModeChip(stringResource(R.string.number_auto), selected = editor.state.document.bodyStartPage == null) {
+                editor.setBodyStartPage(null)
+                startText = "${editor.pageNumbering.start + 1}"
+                text = if (absolute) "${editor.pageIndex + 1}" else editor.pageNumbering.label(editor.pageIndex)
+                invalid = false
+            }
+            Text(stringResource(R.string.number_hint), fontSize = 12.sp)
+            if (invalid) Text(stringResource(R.string.number_invalid), fontSize = 13.sp)
         }
     }
 }

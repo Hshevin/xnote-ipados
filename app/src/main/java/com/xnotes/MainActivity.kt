@@ -579,8 +579,11 @@ private fun EditorScreen(
     // Grant a folder for the in-app explorer (a one-time system folder picker).
     val pickRootLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         uri?.let {
-            runCatching { resolver.takePersistableUriPermission(it, rwFlags) }
-            editor.updateBrowseRoot(it.toString())
+            if (runCatching { resolver.takePersistableUriPermission(it, rwFlags) }.isSuccess) {
+                scope.launch { editor.switchWorkspace(it.toString()) }
+            } else {
+                editor.message = context.getString(R.string.workspace_unavailable)
+            }
         }
     }
 
@@ -1465,9 +1468,13 @@ private fun EditorPane(
             }
             if (editor.canvasOpen) {
                 val canvas = editor.infinite
+                val renameFailed = stringResource(R.string.err_rename_note)
                 val bar: @Composable () -> Unit = {
                     com.xnotes.ui.InfiniteToolbar(
                         canvas,
+                        onRename = { name ->
+                            if (!editor.renameCurrentCanvas(name)) editor.message = renameFailed
+                        },
                         onOpenBackstage = actions.onOpenBackstage,
                         onInsertImage = { actions.onInsertCanvasImage(editor, null) },
                         onClosePane = onClose,

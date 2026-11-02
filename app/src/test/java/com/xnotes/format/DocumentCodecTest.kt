@@ -61,6 +61,14 @@ import java.util.zip.ZipInputStream
 
 class DocumentCodecTest {
 
+    @Test fun bodyStartSurvivesSaveAndAutomaticReset() {
+        val doc = Document.blank(count = 12)
+        doc.bodyStartPage = 4
+        assertEquals(4, roundTrip(doc).bodyStartPage)
+        doc.bodyStartPage = null
+        assertNull(roundTrip(doc).bodyStartPage)
+    }
+
     private val codec = DocumentCodec(FakeImageCodec(), FakeTextMeasurer())
 
     private fun imageFile(bytes: ByteArray = byteArrayOf(1, 2, 3, 4)): File =

@@ -1,5 +1,6 @@
 package com.xnotes.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
@@ -48,6 +49,7 @@ private val CANVAS_TOOL_OF: Map<ToolbarItem, Tool> = mapOf(
 fun InfiniteToolbar(
     editor: InfiniteEditor,
     onOpenBackstage: () -> Unit,
+    onRename: (String) -> Unit,
     onInsertImage: () -> Unit = {},
     onClosePane: (() -> Unit)? = null,
     onInsertAudio: () -> Unit = {},
@@ -70,6 +72,13 @@ fun InfiniteToolbar(
         Tool.LASSO to XnotesIcons.lasso,
         Tool.TAPE to XnotesIcons.tape,
     )
+    var renaming by remember(editor) { mutableStateOf(false) }
+    if (renaming) {
+        RenameDialog(editor.title, onConfirm = { name ->
+            renaming = false
+            onRename(name)
+        }, onDismiss = { renaming = false })
+    }
     var stylesOpen by remember { mutableStateOf(false) }
     var eraserOpen by remember { mutableStateOf(false) }
     var shapeOpen by remember { mutableStateOf(false) }
@@ -90,7 +99,7 @@ fun InfiniteToolbar(
                 when (val item = entry.item) {
                     ToolbarItem.HOME -> ToolbarIcon(XnotesIcons.prev, stringResource(R.string.toolbar_home)) { onOpenBackstage() }
                     // A name has no room down a side rail.
-                    ToolbarItem.TITLE -> if (!LocalBar.current.vertical) Label(if (editor.document.displayName == null && editor.document.path == null) stringResource(R.string.untitled) else editor.title, Modifier.padding(end = 4.dp))
+                    ToolbarItem.TITLE -> if (!LocalBar.current.vertical) Label(if (editor.document.displayName == null && editor.document.path == null) stringResource(R.string.untitled) else editor.title, Modifier.clickable { renaming = true }.padding(end = 4.dp))
 
                     in CANVAS_TOOL_OF -> {
                         val tool = CANVAS_TOOL_OF.getValue(item)

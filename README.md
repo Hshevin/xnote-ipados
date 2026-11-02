@@ -5,6 +5,7 @@ This fork targets Wacom MovinkPad Pro 14 and Pro Pen 3. Three-button mappings an
 - [Preview scope and existing validation](MOVINKPAD.md)
 - [Project brief](docs/movinkpad/project-brief.md)
 - [Linux build and repository structure](docs/movinkpad/server-build.md)
+- [Workspace switching and consistent pen settings](docs/movinkpad/workspace-switch-2026-10-31.md)
 - [Planned PDF and cursor work](tasks/plan.md)
 
 Build this fork with **JDK 21**. The original upstream README below is retained for attribution and context; its JDK 17 and upstream clone instructions do not override this fork's build instructions.
@@ -91,3 +92,11 @@ git clone https://github.com/shardulvs/xnotes-android.git
 cd xnotes-android
 JAVA_HOME=/path/to/jdk-17 ./gradlew assembleDebug
 ```
+
+### MovinkPad Release 候选版（2026-11-02）
+
+Debug 与 Release 均使用 com.xnotes.movinkpad。当前 Release 候选为
+0.9.6-movinkpad-rc1 / versionCode 68，可通过显式
+-PmovinkpadPreviewSigning=true 复用本机原 Debug 签名构建，以覆盖此前版本 67。
+这不是新的生产密钥；跨机器必须核对签名，不能假定默认 Debug 密钥一致。
+构建、覆盖验证与限制见 [Release 候选记录](docs/movinkpad/release-candidate-2026-11-02.md)。

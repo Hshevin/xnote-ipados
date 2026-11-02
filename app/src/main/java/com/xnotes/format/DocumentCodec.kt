@@ -299,6 +299,7 @@ class DocumentCodec(
         j.name("format").value(FORMAT)
         j.name("version").value(VERSION)
         j.name("writer").value(WRITER)
+        doc.bodyStartPage?.let { j.name("body_start_page").value(it) }
         doc.created?.let { j.name("created").value(java.time.Instant.ofEpochMilli(it).toString()) }
         j.name("dpi").value(doc.dpi)
         j.name("has_pdf").value(doc.pdfFile != null)
@@ -806,6 +807,7 @@ class DocumentCodec(
         if (!m.formatOk) throw XNoteFormatException(NOT_XNOTE)
 
         val doc = Document(dpi = m.dpi)
+        doc.bodyStartPage = m.bodyStartPage?.takeIf { it >= 0 }
         doc.created = m.created
         doc.templates = templates
         doc.templatePackages = packages
@@ -882,6 +884,7 @@ class DocumentCodec(
     private class ParsedManifest {
         var formatOk = false
         var writer = 0
+        var bodyStartPage: Int? = null
         var created: Long? = null
         var dpi = PageSize.DEFAULT_DPI
         var hasPdf = false
@@ -986,6 +989,7 @@ class DocumentCodec(
                 "has_pdf" -> m.hasPdf = boolOr(p, false)
                 "style" -> m.style = parseStyle(p)
                 "margins" -> m.margins = parseMargins(p)
+                "body_start_page" -> m.bodyStartPage = intOr(p, -1).takeIf { it >= 0 }
                 "new_page_size" -> m.newPageSize = parseNewPageSize(p)
                 "bookmarks" -> parseBookmarks(p, m.bookmarks)
                 "pages" -> parsePages(p, m)

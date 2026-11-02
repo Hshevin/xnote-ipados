@@ -2390,6 +2390,10 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
         view.contentBounds = document.contentBounds()
     }
 
+    fun refreshTitle() {
+        title = document.title
+    }
+
     private fun refresh() {
         title = document.title
         canUndo = history.canUndo

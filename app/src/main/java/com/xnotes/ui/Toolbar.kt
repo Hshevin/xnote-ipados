@@ -229,9 +229,8 @@ private fun ToolbarItemView(
             var jumpOpen by remember { mutableStateOf(false) }
             Box {
                 Tooltip(stringResource(R.string.title_go_to_page)) {
-                    PageCounter(
-                        editor.pageIndex + 1,
-                        editor.pageCount,
+                    Label(
+                        stringResource(R.string.number_current, editor.pageIndex + 1, editor.pageCount, editor.pageNumbering.label(editor.pageIndex)),
                         Modifier
                             .clip(MaterialTheme.shapes.extraSmall)
                             .clickable { jumpOpen = true },
@@ -347,7 +346,7 @@ private val PAGED_TOOL_KEYS = mapOf(
 
 /** Renames the open note: a small prefilled text field; the ".xnote" suffix is implicit. */
 @Composable
-private fun RenameDialog(initial: String, onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
+internal fun RenameDialog(initial: String, onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
     var text by remember { mutableStateOf(initial) }
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }

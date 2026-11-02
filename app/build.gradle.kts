@@ -10,6 +10,8 @@ plugins {
 // F-Droid builds without that file, producing an unsigned APK it verifies against
 // the published (signed) binary for reproducible builds.
 val keystorePropertiesFile = rootProject.file("keystore.properties")
+// Explicit opt-in for the existing locally installed preview upgrade chain.
+val previewUpgradeSigning = providers.gradleProperty("movinkpadPreviewSigning").orNull == "true"
 val hasReleaseSigning = keystorePropertiesFile.exists()
 val keystoreProperties = Properties().apply {
     if (hasReleaseSigning) keystorePropertiesFile.inputStream().use { load(it) }
@@ -22,11 +24,11 @@ android {
     ndkVersion = "27.0.12077973"
 
     defaultConfig {
-        applicationId = "com.xnotes"
+        applicationId = "com.xnotes.movinkpad"
         minSdk = 26
         targetSdk = 36
         testInstrumentationRunner = "com.xnotes.pen.PenTestRunner"
-        versionCode = 67
+        versionCode = 68
         versionName = "0.9.6"
         ndk {
             // This preview targets the ARM64 MovinkPad and ARM64 test emulator.
@@ -73,11 +75,16 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix = ".movinkpad"
             versionNameSuffix = "-movinkpad-preview1"
         }
         release {
-            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
+            versionNameSuffix = "-movinkpad-rc1"
+            isDebuggable = false
+            signingConfig = when {
+                previewUpgradeSigning -> signingConfigs.getByName("debug")
+                hasReleaseSigning -> signingConfigs.getByName("release")
+                else -> null
+            }
             // R8 shrinks/optimises release builds (see proguard-rules.pro for the few keeps). R8
             // output is reproducible (pinned AGP fixes the R8 version + mapping); the one
             // non-reproducible artefact, the baseline profile, is dropped below (see ArtProfile).

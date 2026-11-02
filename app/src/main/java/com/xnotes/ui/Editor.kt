@@ -1608,6 +1608,12 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     /** Set when a side-panel thumbnail stood in for a formula, so they render again once it lands. */
     @Volatile private var thumbsAwaitMath = false
 
+    // Initialized before rebuildPdfSource() runs in the constructor.
+    var numberingVersion by mutableStateOf(0)
+        private set
+    private var automaticFirstNumber = 1
+    private var automaticBodyStart = 0
+
     init {
         com.xnotes.platform.MathRendering.addListener(mathLanded)
         if (pane == Pane.PRIMARY) reloadTemplateLibrary()
@@ -2052,7 +2058,53 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     private fun clipboardImageUri(): android.net.Uri? =
         com.xnotes.platform.SystemClipboard.imageUri(appContext)
 
+    val pageNumbering: com.xnotes.core.model.PageNumbering
+        get() {
+            numberingVersion
+            return com.xnotes.core.model.PageNumbering(pageCount, state.document.bodyStartPage ?: automaticBodyStart,
+                if (state.document.bodyStartPage == null) automaticFirstNumber else 1)
+        }
+
+    fun setBodyStartPage(index: Int?): Boolean {
+        if (index != null && index !in 0 until pageCount) return false
+        state.document.bodyStartPage = index
+        state.document.dirty = true
+        dirty = true
+        numberingVersion++
+        scheduleAutosave()
+        return true
+    }
+
+    private fun loadBodyStartFromPdf() {
+        automaticBodyStart = 0
+        automaticFirstNumber = 1
+        numberingVersion++
+        val doc = state.document
+        val file = doc.pdfFile ?: return
+        autosaveScope.launch {
+            val sourceStart = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    val memory = com.tom_roush.pdfbox.io.MemoryUsageSetting.setupTempFileOnly()
+                        .setTempDir(appContext.cacheDir)
+                    com.tom_roush.pdfbox.pdmodel.PDDocument.load(file, memory).use { pdf ->
+                        pdf.documentCatalog.pageLabels?.labelsByPageIndices?.withIndex()
+                            ?.firstOrNull { (it.value.toIntOrNull() ?: 0) > 0 }
+                            ?.let { it.index to it.value.toInt() }
+                    }
+                }.getOrNull()
+            }
+            if (state.document === doc) {
+                automaticBodyStart = sourceStart?.let { source ->
+                    doc.pages.indexOfFirst { it.pdfPage == source.first }.takeIf { it >= 0 }
+                } ?: 0
+                automaticFirstNumber = sourceStart?.second ?: 1
+                numberingVersion++
+            }
+        }
+    }
+
     private fun rebuildPdfSource() {
+        loadBodyStartFromPdf()
         pdfText.clear()
         // Opening never waits, and queued first it runs before the old document's close.
         val old = pdfSource
@@ -4061,13 +4113,35 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     // --- in-app file explorer (a user-granted SAF tree) ---
 
     fun updateBrowseRoot(treeUri: String) {
+        val next = settings.copy(browseRoot = treeUri)
+        if (!settingsRepo.saveChecked(next)) {
+            say(appContext.getString(R.string.workspace_save_failed))
+            return
+        }
         colorNames = emptyMap()
         browseRoot = treeUri
-        settings = settings.copy(browseRoot = treeUri)
-        settingsRepo.save(settings)
+        settings = next
         browseCache.clear()
         rootNameCache.clear()
         reloadTemplateLibrary()
+    }
+
+    /** Persisted SAF grants survive restarts and are retained when changing roots. */
+    fun workspaceRoots(): List<String> = buildList {
+        add(com.xnotes.platform.AppStorageDocumentsProvider.treeUri(appContext).toString())
+        browseRoot?.let { add(it) }
+        appContext.contentResolver.persistedUriPermissions
+            .filter { it.isReadPermission && it.isWritePermission && android.provider.DocumentsContract.isTreeUri(it.uri) }
+            .forEach { add(it.uri.toString()) }
+    }.distinct()
+
+    /** A missing/revoked folder must not replace the current usable workspace. */
+    suspend fun switchWorkspace(treeUri: String) {
+        val readable = withContext(Dispatchers.IO) {
+            runCatching { browseRootName(treeUri) != null }.getOrDefault(false)
+        }
+        if (readable) updateBrowseRoot(treeUri)
+        else say(appContext.getString(R.string.workspace_unavailable))
     }
 
     /** Browse the app's own private storage instead of a granted folder; no SAF grant needed. */
@@ -4635,6 +4709,35 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             title = state.document.title
             true
         }
+    }
+
+    /** Rename the canvas using its own extension and autosave binding. */
+    fun renameCurrentCanvas(rawName: String): Boolean {
+        val canvas = infiniteOrNull ?: return false
+        // Do not rename a file while a background writer still owns its old URI.
+        if (canvasWriteJob?.isActive == true) return false
+        val name = rawName.trim()
+        if (name.isEmpty()) return false
+        val fileName = if (name.endsWith(".xcanvas", ignoreCase = true)) name else "$name.xcanvas"
+        val oldUri = canvas.document.path
+        if (oldUri != null) {
+            val renamed = runCatching {
+                android.provider.DocumentsContract.renameDocument(
+                    appContext.contentResolver, android.net.Uri.parse(oldUri), fileName)
+            }.getOrNull() ?: return false
+            val newUri = renamed.toString()
+            canvas.document.path = newUri
+            if (canvasAutosaveUri == oldUri) {
+                canvasDebounceJob?.cancel()
+                canvasAutosaveUri = newUri
+                rememberStamp(newUri)
+            }
+            onDocumentMoved(oldUri, newUri, fileName)
+        }
+        canvas.document.displayName = fileName
+        canvas.refreshTitle()
+        scheduleCanvasAutosave()
+        return true
     }
 
     /** Deletes a document (file or folder), then erases every trace of it. IO, call off-thread. */

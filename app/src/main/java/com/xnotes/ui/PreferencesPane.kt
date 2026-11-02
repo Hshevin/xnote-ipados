@@ -689,7 +689,7 @@ private fun SectionTitle(text: String) {
 }
 
 @Composable
-private fun FieldLabel(text: String) {
+internal fun FieldLabel(text: String) {
     Text(text, color = LocalPalette.current.accent.toComposeColor(), fontSize = 13.sp)
 }
 
@@ -917,7 +917,7 @@ private fun MillimetreField(label: String, value: Double, onChange: (Double) -> 
 }
 
 @Composable
-private fun OptionDropdown(options: List<Pair<String, String>>, selectedId: String, onSelect: (String) -> Unit) {
+internal fun OptionDropdown(options: List<Pair<String, String>>, selectedId: String, onSelect: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     val palette = LocalPalette.current
     val label = options.firstOrNull { it.first == selectedId }?.second ?: options.first().second

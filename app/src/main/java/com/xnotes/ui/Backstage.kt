@@ -1705,7 +1705,7 @@ private fun ExplorerSection(
                                     modifier = Modifier.size(18.dp).clip(MaterialTheme.shapes.extraSmall).clickable { stack.clear(); clearUp() },
                                 )
                                 Spacer(Modifier.width(8.dp))
-                                Crumb(rootName ?: stringResource(R.string.folder), current = stack.isEmpty()) { stack.clear(); clearUp() }
+                                WorkspaceSwitcher(editor, rootName ?: stringResource(R.string.folder), calls.pickRoot)
                                 stack.forEachIndexed { i, (_, name) ->
                                     Text("/", color = palette.textDim.toComposeColor(), fontSize = 15.sp, modifier = Modifier.padding(horizontal = 4.dp))
                                     Crumb(name, current = i == stack.lastIndex) {
@@ -2407,6 +2407,53 @@ internal fun EmptyPane(text: String, art: EmptyArt? = null, actions: (@Composabl
                     content = actions,
                 )
             }
+        }
+    }
+}
+
+/** Root selection leaves the files in every workspace in place. */
+@Composable
+private fun WorkspaceSwitcher(editor: Editor, name: String, pickRoot: () -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    var switching by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val roots = remember(expanded, editor.browseRoot) { editor.workspaceRoots() }
+    val names by produceState<Map<String, String>>(emptyMap(), roots) {
+        value = withContext(Dispatchers.IO) {
+            roots.associateWith { uri ->
+                runCatching { editor.browseRootName(uri) }.getOrNull() ?: uri
+            }
+        }
+    }
+    Box {
+        TextButton(enabled = !switching, onClick = { expanded = true }) {
+            Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(" ▾")
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            Text(stringResource(R.string.workspace_switch), modifier = Modifier.padding(12.dp))
+            roots.forEach { uri ->
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text((if (uri == editor.browseRoot) "✓ " else "") + (names[uri] ?: uri))
+                            if (uri != roots.first()) Text(android.net.Uri.decode(uri.substringAfter("/tree/")), fontSize = 12.sp)
+                        }
+                    },
+                    onClick = {
+                        expanded = false
+                        switching = true
+                        scope.launch {
+                            try { editor.switchWorkspace(uri) } finally { switching = false }
+                        }
+                    },
+                )
+            }
+            HorizontalDivider()
+            DropdownMenuItem(text = { Text(stringResource(R.string.workspace_add)) }, onClick = {
+                expanded = false
+                pickRoot()
+            })
         }
     }
 }
