@@ -29,7 +29,7 @@ android {
         targetSdk = 36
         testInstrumentationRunner = "com.xnotes.pen.PenTestRunner"
         versionCode = 68
-        versionName = "0.9.6"
+        versionName = "0.9.7"
         ndk {
             // This preview targets the ARM64 MovinkPad and ARM64 test emulator.
             abiFilters += listOf("arm64-v8a")
