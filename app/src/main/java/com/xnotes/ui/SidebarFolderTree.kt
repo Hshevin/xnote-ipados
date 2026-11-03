@@ -21,6 +21,7 @@ import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.xnotes.ui.theme.Space
 
 /** Query one level below visible folders to discover leaves; never scan collapsed subtrees. */
 @Composable
@@ -63,12 +64,12 @@ private fun SidebarFolderBranch(
             IconButton(onClick = { expanded[id] = !open }, modifier = Modifier.size(40.dp).semantics { contentDescription = label }) {
                 Text(if (open) "▾" else "▸", color = foreground)
             }
-        } else Spacer(Modifier.width(40.dp))
+        } else Spacer(Modifier.width(Space.s40))
         Row(Modifier.weight(1f).fillMaxHeight().semantics { this.selected = selected }
-            .clickable { onOpen(folder.documentUri) }.padding(end = 12.dp),
+            .clickable { onOpen(folder.documentUri) }.padding(end = Space.s12),
             verticalAlignment = Alignment.CenterVertically) {
             Icon(XnotesIcons.folder, null, tint = foreground, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Space.s8))
             Text(folder.name, color = foreground, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }

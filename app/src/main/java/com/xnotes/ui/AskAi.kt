@@ -15,6 +15,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.xnotes.ui.theme.Space
 import androidx.compose.ui.unit.IntOffset
 import com.xnotes.ai.*
 import com.xnotes.ui.theme.LocalPalette
@@ -36,7 +37,7 @@ private fun AiSettings(close: () -> Unit) {
     var error by remember { mutableStateOf("") }
     var config by remember { mutableStateOf(runCatching { store.load() }.getOrElse { error = "配置无法读取，请重新填写并保存"; AiConfig() }) }
     AlertDialog(onDismissRequest = close, title = { Text("AI 设置") }, text = {
-        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             Text("兼容 Chat Completions 接口。请选择支持图片的模型；仅在点击发送时上传截图和当前会话。")
             OutlinedTextField(config.url, { config = config.copy(url = it) }, label = { Text("供应商 URL（包含 /v1 等前缀）") }, singleLine = true)
             OutlinedTextField(config.model, { config = config.copy(model = it) }, label = { Text("模型名称") }, singleLine = true)
@@ -128,7 +129,7 @@ private fun AskAiWindow(sessions: AiSessions, chat: AiChat, floating: Boolean = 
         val maxY = with(density) { (maxHeight - height).toPx() }.coerceAtLeast(0f)
         Column(Modifier.offset { IntOffset(x.coerceIn(0f, maxX).toInt(), y.coerceIn(0f, maxY).toInt()) }
             .width(width).height(height).background(palette.menuBg.toComposeColor())
-            .then(if (floating) Modifier.border(1.dp, palette.text.toComposeColor()) else Modifier).pointerInput(Unit) { detectTapGestures { } }.padding(8.dp)) {
+            .then(if (floating) Modifier.border(1.dp, palette.text.toComposeColor()) else Modifier).pointerInput(Unit) { detectTapGestures { } }.padding(Space.s8)) {
             Row(Modifier.fillMaxWidth().pointerInput(maxX, maxY) {
                 if (floating) detectDragGestures { change, drag -> change.consume(); x = (x + drag.x).coerceIn(0f, maxX); y = (y + drag.y).coerceIn(0f, maxY) }
             }, horizontalArrangement = Arrangement.SpaceBetween) {
@@ -144,7 +145,7 @@ private fun AskAiWindow(sessions: AiSessions, chat: AiChat, floating: Boolean = 
                     SelectionContainer {
                         Column {
                             chat.turns.forEachIndexed { index, turn ->
-                                Text("你：${turn.user.text}", modifier = Modifier.padding(top = 12.dp), color = palette.text.toComposeColor())
+                                Text("你：${turn.user.text}", modifier = Modifier.padding(top = Space.s12), color = palette.text.toComposeColor())
                                 turn.user.image?.let { encoded ->
                                     val bitmap = remember(encoded) { runCatching { val bytes = Base64.decode(encoded, Base64.DEFAULT); BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }.getOrNull() }
                                     bitmap?.let { Image(it.asImageBitmap(), "会话截图", Modifier.fillMaxWidth().heightIn(max = 180.dp)) }
@@ -184,7 +185,7 @@ private fun AskAiWindow(sessions: AiSessions, chat: AiChat, floating: Boolean = 
                     }
                 }
                 importState?.let { state ->
-                    Column(Modifier.fillMaxWidth().border(1.dp, palette.text.toComposeColor()).padding(8.dp)) {
+                    Column(Modifier.fillMaxWidth().border(1.dp, palette.text.toComposeColor()).padding(Space.s8)) {
                         Text(if (state.loading) "正在准备 ${state.name ?: "PDF"}… 切换会话后会继续" else state.error, color = palette.text.toComposeColor())
                         Row {
                             if (!state.loading) TextButton(onClick = { sessions.retryImport(chat.id) }) { Text("重试附件") }
@@ -257,7 +258,7 @@ private fun AiHistoryList(onShowSidebar: () -> Unit, onOpenSource: (String) -> U
     var deleting by remember { mutableStateOf<String?>(null) }
     var renaming by remember { mutableStateOf<String?>(null) }
     var title by remember { mutableStateOf("") }
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
+    Column(Modifier.fillMaxSize().padding(Space.s16)) {
         Row {
             TextButton(onClick = onShowSidebar) { Text("菜单") }
             TextButton(onClick = { sessions.newChat(); onSelected() }, enabled = sessions.ready) { Text("新会话") }
@@ -275,7 +276,7 @@ private fun AiHistoryList(onShowSidebar: () -> Unit, onOpenSource: (String) -> U
         androidx.compose.foundation.lazy.LazyColumn {
             items(chats.size, key = { chats[it].id }) { index ->
                 val chat = chats[index]
-                Column(Modifier.fillMaxWidth().then(if (sessions.activeId == chat.id) Modifier.border(1.dp, palette.text.toComposeColor()) else Modifier).clickable { sessions.open(chat.id); onSelected() }.padding(8.dp)) {
+                Column(Modifier.fillMaxWidth().then(if (sessions.activeId == chat.id) Modifier.border(1.dp, palette.text.toComposeColor()) else Modifier).clickable { sessions.open(chat.id); onSelected() }.padding(Space.s8)) {
                     Text(chat.title, color = palette.text.toComposeColor())
                     Text((if (sessions.isRunning(chat.id)) chat.turns.lastOrNull()?.progress?.ifBlank { "生成中" } ?: "正在准备" else chat.turns.lastOrNull()?.state ?: "未发送") + " · " + java.text.DateFormat.getDateTimeInstance().format(java.util.Date(chat.updated)), color = palette.text.toComposeColor())
                     if (chat.draft.text.isNotBlank() || chat.draft.image != null || chat.draft.pdf != null) Text("有未发送草稿", color = palette.text.toComposeColor())

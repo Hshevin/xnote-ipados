@@ -55,7 +55,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -90,6 +89,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /** The side panel's tabs. */
 enum class SidePanelTab { PAGES, CONTENTS, BOOKMARKS, SEARCH }
@@ -136,7 +137,7 @@ fun SidePanel(
             .fillMaxHeight()
             .background(palette.panel.toComposeColor()),
     ) {
-        Row(Modifier.fillMaxWidth().padding(4.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+        Row(Modifier.fillMaxWidth().padding(Space.s4), horizontalArrangement = Arrangement.SpaceEvenly) {
             SegIcon(XnotesIcons.thumbnails, stringResource(R.string.pages), tab == SidePanelTab.PAGES) { editor.sidePanelTab = SidePanelTab.PAGES }
             SegIcon(XnotesIcons.contents, stringResource(R.string.contents), tab == SidePanelTab.CONTENTS) { editor.sidePanelTab = SidePanelTab.CONTENTS }
             SegIcon(XnotesIcons.bookmark, stringResource(R.string.bookmarks), tab == SidePanelTab.BOOKMARKS) { editor.sidePanelTab = SidePanelTab.BOOKMARKS }
@@ -411,17 +412,16 @@ private fun DragStack(drag: PageDrag, finger: Offset, room: IntSize) {
         }
         Box(
             Modifier.size(cardW, cardH)
-                .shadow(6.dp * t)
                 .background(palette.paper.toComposeColor())
                 .border(2.dp, palette.accent.toComposeColor()),
         ) {
             drag.bitmap?.let { Image(it, null, modifier = Modifier.fillMaxSize()) }
             if (drag.pages.size > 1) {
                 Box(
-                    Modifier.align(Alignment.TopEnd).padding(4.dp).size(22.dp).clip(CircleShape).background(palette.accent.toComposeColor()),
+                    Modifier.align(Alignment.TopEnd).padding(Space.s4).size(22.dp).clip(CircleShape).background(palette.accent.toComposeColor()),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("${drag.pages.size}", color = palette.onAccent.toComposeColor(), fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                    Text("${drag.pages.size}", color = palette.onAccent.toComposeColor(), fontSize = TextSize.caption, fontWeight = FontWeight.Medium)
                 }
             }
         }
@@ -493,7 +493,7 @@ private fun PageThumb(
             if (selected) {
                 Box(Modifier.matchParentSize().background(palette.selectionBackground.withAlpha(77).toComposeColor()))
                 Box(
-                    Modifier.align(Alignment.TopStart).padding(4.dp).size(20.dp)
+                    Modifier.align(Alignment.TopStart).padding(Space.s4).size(20.dp)
                         .clip(CircleShape).background(palette.accent.toComposeColor()),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -501,7 +501,7 @@ private fun PageThumb(
                 }
             } else if (!selecting) {
                 // Three-dot menu, on a faint scrim so it reads over any thumbnail.
-                Box(Modifier.align(Alignment.TopEnd).padding(2.dp)) {
+                Box(Modifier.align(Alignment.TopEnd).padding(Space.s2)) {
                     Tooltip(stringResource(R.string.page_options)) {
                         Box(
                             Modifier.size(26.dp).clip(CircleShape)
@@ -520,9 +520,9 @@ private fun PageThumb(
             }
         }
         val captionColor = (if (current || selected) palette.accent else palette.textDim).toComposeColor()
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("%02d".format(index + 1), color = captionColor, fontSize = 10.sp)
-            if (page.cover) Text(stringResource(R.string.cover), color = captionColor, fontSize = 10.sp)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s6)) {
+            Text("%02d".format(index + 1), color = captionColor, fontSize = TextSize.micro)
+            if (page.cover) Text(stringResource(R.string.cover), color = captionColor, fontSize = TextSize.micro)
         }
     }
 }
@@ -661,7 +661,7 @@ private fun PageSelectionBar(
     // The bar sits at the panel's foot, so its tips open upward.
     CompositionLocalProvider(LocalTipSide provides TipSide.ABOVE) {
         Row(
-            Modifier.fillMaxWidth().height(52.dp).background(palette.surface.toComposeColor()).padding(horizontal = 4.dp),
+            Modifier.fillMaxWidth().height(52.dp).background(palette.surface.toComposeColor()).padding(horizontal = Space.s4),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Tooltip(stringResource(R.string.clear_selection)) {
@@ -669,7 +669,7 @@ private fun PageSelectionBar(
                     Icon(XnotesIcons.close, stringResource(R.string.clear_selection), tint = palette.textDim.toComposeColor(), modifier = Modifier.size(18.dp))
                 }
             }
-            Text("${editor.pageSelectionCount}", color = palette.text.toComposeColor(), fontSize = 13.sp)
+            Text("${editor.pageSelectionCount}", color = palette.text.toComposeColor(), fontSize = TextSize.body)
             Spacer(Modifier.weight(1f))
             BarAction(XnotesIcons.selectAll, stringResource(R.string.select_all)) { editor.selectAllPages() }
             BarAction(XnotesIcons.copy, stringResource(R.string.copy)) { editor.copyPages(editor.selectedPageIndices()) }
@@ -876,7 +876,7 @@ private fun ContentsTab(editor: Editor) {
                 Text(
                     e.title,
                     color = (if (hasTarget) palette.text else palette.textDim).toComposeColor(),
-                    fontSize = 12.sp,
+                    fontSize = TextSize.label,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
@@ -896,7 +896,7 @@ private fun BookmarksTab(editor: Editor) {
     val bookmarks = remember(version) { editor.bookmarks }
 
     Column(Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.End) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = Space.s8), horizontalArrangement = Arrangement.End) {
             Tooltip(stringResource(R.string.add_bookmark)) {
                 IconButton(onClick = { showAdd = true }) {
                     Icon(XnotesIcons.plus, stringResource(R.string.add_bookmark), tint = palette.textDim.toComposeColor(), modifier = Modifier.size(18.dp))
@@ -909,13 +909,13 @@ private fun BookmarksTab(editor: Editor) {
             LazyColumn(Modifier.fillMaxWidth()) {
                 itemsIndexed(bookmarks) { _, bm ->
                     Row(
-                        Modifier.fillMaxWidth().clickable { editor.goToPage(bm.page) }.padding(start = 10.dp, top = 2.dp, bottom = 2.dp),
+                        Modifier.fillMaxWidth().clickable { editor.goToPage(bm.page) }.padding(start = Space.s12, top = Space.s2, bottom = Space.s2),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
                             stringResource(R.string.bookmark_entry, bm.label, bm.page + 1),
                             color = palette.text.toComposeColor(),
-                            fontSize = 12.sp,
+                            fontSize = TextSize.label,
                             modifier = Modifier.weight(1f),
                         )
                         BookmarkMenu(editor, bm) { renaming = bm }
@@ -974,7 +974,7 @@ private fun BookmarkMenu(editor: Editor, mark: com.xnotes.core.model.Bookmark, o
 
 @Composable
 internal fun EmptyHint(text: String) {
-    Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-        Text(text, color = LocalPalette.current.textDim.toComposeColor(), fontSize = 12.sp)
+    Box(Modifier.fillMaxWidth().padding(Space.s16), contentAlignment = Alignment.Center) {
+        Text(text, color = LocalPalette.current.textDim.toComposeColor(), fontSize = TextSize.label)
     }
 }

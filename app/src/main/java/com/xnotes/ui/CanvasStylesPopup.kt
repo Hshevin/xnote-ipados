@@ -31,6 +31,8 @@ import com.xnotes.settings.SwatchRole
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
 import kotlin.math.roundToInt
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /**
  * The infinite canvas's background styles: pattern, spacing, pattern colour and paper colour.
@@ -55,13 +57,13 @@ fun CanvasStylesPopup(editor: InfiniteEditor, onDismiss: () -> Unit) {
     }
 
     DropdownMenu(expanded = true, onDismissRequest = onDismiss) {
-        Column(Modifier.width(286.dp).padding(horizontal = 14.dp, vertical = 8.dp)) {
+        Column(Modifier.width(286.dp).padding(horizontal = Space.s16, vertical = Space.s8)) {
             PopupTitle(stringResource(R.string.title_styles))
 
             StyleCaption(stringResource(R.string.caption_pattern))
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(Space.s6),
+                verticalArrangement = Arrangement.spacedBy(Space.s6),
             ) {
                 ModeChip(stringResource(R.string.none), background.pattern == PagePattern.NONE) {
                     apply(background.copy(pattern = PagePattern.NONE))
@@ -77,7 +79,7 @@ fun CanvasStylesPopup(editor: InfiniteEditor, onDismiss: () -> Unit) {
                 }
             }
 
-            Spacer(Modifier.size(12.dp))
+            Spacer(Modifier.size(Space.s12))
             SliderRow(
                 stringResource(R.string.caption_spacing),
                 background.clampedSpacing.toFloat(),
@@ -85,11 +87,11 @@ fun CanvasStylesPopup(editor: InfiniteEditor, onDismiss: () -> Unit) {
                 enabled = background.pattern != PagePattern.NONE,
             ) { apply(background.copy(spacing = it.toDouble())) }
 
-            Spacer(Modifier.size(8.dp))
+            Spacer(Modifier.size(Space.s8))
             StyleCaption(stringResource(R.string.caption_pattern_colour))
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(Space.s6),
+                verticalArrangement = Arrangement.spacedBy(Space.s4),
             ) {
                 // The hue at full strength; opacity is its own control.
                 SwatchCircles(editor.swatchStore, SwatchRole.LINES, background.patternColor.copy(a = 255)) {
@@ -106,11 +108,11 @@ fun CanvasStylesPopup(editor: InfiniteEditor, onDismiss: () -> Unit) {
                 apply(background.copy(patternColor = background.patternColor.copy(a = alpha)))
             }
 
-            Spacer(Modifier.size(8.dp))
+            Spacer(Modifier.size(Space.s8))
             StyleCaption(stringResource(R.string.caption_paper))
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(Space.s6),
+                verticalArrangement = Arrangement.spacedBy(Space.s4),
             ) {
                 ModeChip(stringResource(R.string.paper_theme), background.paperColor == null) { apply(background.copy(paperColor = null)) }
                 SwatchCircles(editor.swatchStore, SwatchRole.PAPER, background.paperColor) {
@@ -118,7 +120,7 @@ fun CanvasStylesPopup(editor: InfiniteEditor, onDismiss: () -> Unit) {
                 }
             }
 
-            Spacer(Modifier.size(8.dp))
+            Spacer(Modifier.size(Space.s8))
             if (showNewCanvasRow && background != CanvasBackground()) {
                 // The checkbox's 48dp touch frame insets the drawn box; pull the row back to align it.
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().offset(x = (-14).dp)) {
@@ -129,12 +131,12 @@ fun CanvasStylesPopup(editor: InfiniteEditor, onDismiss: () -> Unit) {
                     Text(
                         stringResource(R.string.default_for_new_canvases),
                         color = LocalPalette.current.text.toComposeColor(),
-                        fontSize = 12.sp,
+                        fontSize = TextSize.label,
                     )
                 }
-                Spacer(Modifier.size(4.dp))
+                Spacer(Modifier.size(Space.s4))
             }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s6), verticalArrangement = Arrangement.spacedBy(Space.s6)) {
                 ModeChip(stringResource(R.string.reset), selected = false) { apply(CanvasBackground()) }
             }
         }

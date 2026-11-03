@@ -20,6 +20,7 @@ import com.xnotes.core.tools.Tool
 import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.toComposeColor
+import com.xnotes.ui.theme.Space
 
 /** Which tool a toolbar item arms, for the items that are simply a tool button. */
 private val CANVAS_TOOL_OF: Map<ToolbarItem, Tool> = mapOf(
@@ -116,7 +117,7 @@ fun InfiniteToolbar(
                     ToolbarItem.RULER -> ToolbarIcon(XnotesIcons.ruler, stringResource(R.string.tool_ruler), active = editor.rulerVisible) { editor.toggleRuler() }
                     ToolbarItem.HOME -> ToolbarIcon(XnotesIcons.prev, stringResource(R.string.toolbar_home)) { onOpenBackstage() }
                     // A name has no room down a side rail.
-                    ToolbarItem.TITLE -> if (!LocalBar.current.vertical) Label(if (editor.document.displayName == null && editor.document.path == null) stringResource(R.string.untitled) else editor.title, Modifier.clickable { renaming = true }.padding(end = 4.dp))
+                    ToolbarItem.TITLE -> if (!LocalBar.current.vertical) Label(if (editor.document.displayName == null && editor.document.path == null) stringResource(R.string.untitled) else editor.title, Modifier.clickable { renaming = true }.padding(end = Space.s4))
 
                     in CANVAS_TOOL_OF -> {
                         val tool = CANVAS_TOOL_OF.getValue(item)
@@ -239,6 +240,6 @@ fun InfiniteToolbar(
             Separator()
             Label(stringResource(R.string.canvas_out_of_memory))
         }
-        Spacer(Modifier.padding(horizontal = 2.dp))
+        Spacer(Modifier.padding(horizontal = Space.s2))
     }
 }

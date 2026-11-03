@@ -7,11 +7,14 @@ This fork targets Wacom MovinkPad Pro 14 and Pro Pen 3. Three-button mappings an
 - [Linux build and repository structure](docs/movinkpad/server-build.md)
 - [Workspace switching and consistent pen settings](docs/movinkpad/workspace-switch-2026-10-31.md)
 - [Branch split and upstream sync](docs/movinkpad/github-sync-2026-11-02.md)
+- [Black/white hierarchy, type and spacing tokens](docs/movinkpad/ui-monochrome-tokens-2026-11-03.md)
 - [Planned PDF and cursor work](tasks/plan.md)
 
 ## AI 第一版（2026-11-03）
 
-独立工作树 `ask-ai` / 分支 `codex/ask-ai` 新增 PDF、分页笔记及无限画布截图菜单的「AI」。设置中填写 HTTPS 供应商地址、支持图片的模型和 API Key；支持应用内拖动/收起浮窗、流式回答、追问、停止和文本选择复制。当前源码已加入左侧 AI 历史：本地保存、搜索、继续、重命名、删除及 8 秒撤销。关闭浮窗、切换文档或新会话不取消生成；主动停止或确认删除才取消。进程结束后恢复最近保存的内容，并标记中断。
+源码已合入主工作区，保留 Release 81 的灰阶、字号/间距 tokens 和工具栏布局。本次仅整合功能，尚未开始下一轮 UI 调整，也未生成新 APK。
+
+由独立工作树 `ask-ai` 合入本地主分支的功能包括 PDF、分页笔记及无限画布截图菜单的「AI」。设置中填写 HTTPS 供应商地址、支持图片的模型和 API Key；支持应用内拖动/收起浮窗、流式回答、追问、停止和文本选择复制。当前源码已加入左侧 AI 历史：本地保存、搜索、继续、重命名、删除及 8 秒撤销。关闭浮窗、切换文档或新会话不取消生成；主动停止或确认删除才取消。进程结束后恢复最近保存的内容，并标记中断。
 
 本分支新增可选网络功能，上游下方“no internet access”不适用于此分支。笔记仍离线保存，只有主动发送才上传选区及当前会话。已导出 [AI 独立测试 APK](build/ai-preview/XNotes-0.9.7-ai-preview2-arm64.apk)，包名 `com.xnotes.movinkpad.aipreview`，可与 Release 并存。使用 `-PaiPreview=true :app:assembleDebug` 构建；真实接口、密钥存储故障恢复及平板交互尚待验收。详见 [实现与验证](docs/movinkpad/ask-ai-2026-11-03.md)。
 
@@ -29,14 +32,14 @@ This fork targets Wacom MovinkPad Pro 14 and Pro Pen 3. Three-button mappings an
 
 源码已接入独立 ZIP 文档 UUID、保留旧负载的迁移与恢复、SQLite 位置/资源登记、共享 PDF 对象，以及按 ID 恢复分屏和失联占位。AI 历史、草稿、撤销和生成任务参与资源引用/租约保护。便携笔记包仍嵌入原 PDF；真实 SQLite、SAF 故障恢复和平板交互待设备验收，本阶段未打包。见[实施与验证记录](docs/movinkpad/document-registry-2026-11-03.md)。旧笔画保真要求仅针对旧格式导入/升级，日常笔画处理逻辑保持不变。
 
-## 当前开发状态（2026-11-02）
+## 当前开发状态（2026-11-03）
 
-- `master` 保留分屏前的 MovinkPad 改进并已同步上游 0.9.7；分屏开发在 `codex/split-workspace`，见上面的分支同步记录。
+- 本地 `master` 已快进合入 `codex/split-workspace`，包含分屏功能及上游 0.9.7；原分屏分支保留，尚未推送此次合并。见上面的分支同步记录。
 - 分屏功能基线为 **0.9.7-split-preview10 / versionCode 77**：支持笔记、PDF、画布分屏、应用内分屏文件管理、默认新分屏位置和重复保存去重。详见 [分屏开发与验收记录](docs/movinkpad/split-preview-2026-11-02.md)。
-- 测试包名 `com.xnotes.movinkpad.splitpreview`，与正式包名 `com.xnotes.movinkpad` 分开安装。用户已确认该版本满足当前需求，并要求打包原应用覆盖升级版；后续修复及维护文档在 `codex/split-workspace` 分支维护，`master` 保留分屏前边界。
+- 测试包名 `com.xnotes.movinkpad.splitpreview`，与正式包名 `com.xnotes.movinkpad` 分开安装。用户已确认该版本满足当前需求，并要求打包原应用覆盖升级版；当前维护入口为 `master`。
 - 本轮验证：2462 项 JVM 测试、39 项 Android 模拟器测试通过。测试数量是本次记录，不代表后续版本已验证。
 
-当前覆盖升级版为 **0.9.7-movinkpad / versionCode 80**，使用原应用身份和历史签名。交付与验证见 [Release 记录](docs/movinkpad/release-2026-11-02.md)。测试版的数据不会自动迁入原应用。版本 79 修复返回主菜单后打开普通文件仍保留分屏的问题，普通文件进入单文档，显式恢复分屏不受影响。
+当前覆盖升级版为 **0.9.7-movinkpad / versionCode 81**，使用原应用身份和历史签名。交付与验证见 [Release 记录](docs/movinkpad/release-2026-11-02.md)。测试版的数据不会自动迁入原应用。版本 79 修复返回主菜单后打开普通文件仍保留分屏的问题，普通文件进入单文档，显式恢复分屏不受影响。
 
 构建覆盖升级 Release（须保留本机原签名密钥）：
 
@@ -53,6 +56,10 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 ```
 
 Release 80 包含实时笔迹刷新调整、分屏关闭先回到窗格首页再退出，以及文件树叶子文件夹箭头修复。前缓冲显示和性能仍待目标设备验证；发布结果见 Release 记录。
+
+Release 81（2026-11-03，仅本地打包）加入黑白灰阶层级、统一字号和间距规范，以及 48 dp 触控区。已知在 1280 dp 宽的分屏下工具栏会溢出到滚动区；真机验收待执行。
+
+当前未发布的工具栏调整统一按文档能力分配：插入空白在笔记/PDF 工作区置顶；PDF 文本标注在全 PDF 工作区置顶；混合不支持的文档时下放对应文档栏。缩放/导航/视图等独立设置保持在文档栏。新按钮必须显式分类。按用户要求暂不打包。
 
 每个功能阶段或交付前检查本文件与 [AGENTS.md](AGENTS.md)，同步状态、构建入口及维护约定；详细历史和证据保存在 `docs/movinkpad/`。
 

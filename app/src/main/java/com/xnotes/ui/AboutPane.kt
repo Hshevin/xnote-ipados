@@ -58,6 +58,8 @@ import com.xnotes.ui.theme.toComposeColor
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 private const val REPO_URL = "https://github.com/shardulvs/xnotes-android"
 private const val SPONSOR_URL = "https://github.com/sponsors/shardulvs"
@@ -99,63 +101,63 @@ fun AboutPane() {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Column(
-            Modifier.widthIn(max = 420.dp).fillMaxWidth().padding(top = 16.dp, bottom = 28.dp),
+            Modifier.widthIn(max = 420.dp).fillMaxWidth().padding(top = Space.s16, bottom = Space.s32),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (appIcon != null) {
                 Image(appIcon, "xnotes", modifier = Modifier.size(72.dp))
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(Space.s16))
             }
-            Text("xnotes", color = palette.text.toComposeColor(), fontWeight = FontWeight.Bold, fontSize = 24.sp)
-            Spacer(Modifier.height(5.dp))
+            Text("xnotes", color = palette.text.toComposeColor(), fontWeight = FontWeight.Bold, fontSize = TextSize.display)
+            Spacer(Modifier.height(Space.s4))
             Text(
                 stringResource(R.string.app_tagline),
-                color = palette.textDim.toComposeColor(), fontSize = 13.sp, textAlign = TextAlign.Center,
+                color = palette.textDim.toComposeColor(), fontSize = TextSize.body, textAlign = TextAlign.Center,
             )
             if (version.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.s8))
                 // Tap to copy, so a version string is easy to paste into a report.
                 Tooltip(stringResource(R.string.copy_version)) {
                     Row(
-                        Modifier.clickable { copyVersion(ctx, version) }.padding(horizontal = 8.dp, vertical = 4.dp),
+                        Modifier.clickable { copyVersion(ctx, version) }.padding(horizontal = Space.s8, vertical = Space.s4),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(stringResource(R.string.version_n, version), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
-                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.version_n, version), color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
+                        Spacer(Modifier.width(Space.s6))
                         Icon(XnotesIcons.copy, stringResource(R.string.copy_version), tint = palette.textDim.toComposeColor(), modifier = Modifier.size(12.dp))
                     }
                 }
             }
 
-            Spacer(Modifier.height(28.dp))
-            Text(stringResource(R.string.help_make_better), color = palette.text.toComposeColor(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(Space.s32))
+            Text(stringResource(R.string.help_make_better), color = palette.text.toComposeColor(), fontWeight = FontWeight.Bold, fontSize = TextSize.title)
+            Spacer(Modifier.height(Space.s16))
 
             // Three buttons, side by side; each fills with the selection container while pressed.
             Row(
                 Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(Space.s8),
             ) {
                 AboutButton(XnotesIcons.bug, stringResource(R.string.report_bug)) { open(bugReportUrl(version)) }
                 AboutButton(XnotesIcons.idea, stringResource(R.string.request_feature)) { open(featureRequestUrl()) }
                 AboutButton(XnotesIcons.heart, stringResource(R.string.sponsor)) { open(SPONSOR_URL) }
             }
 
-            Spacer(Modifier.height(26.dp))
+            Spacer(Modifier.height(Space.s24))
             // Quiet, single-line growth nudge (a link, never a popup).
             Row(
                 Modifier.clickable { open(REPO_URL) },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(stringResource(R.string.enjoying_xnotes), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
-                Text(stringResource(R.string.star_on_github), color = palette.accent.toComposeColor(), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.enjoying_xnotes), color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
+                Text(stringResource(R.string.star_on_github), color = palette.accent.toComposeColor(), fontSize = TextSize.label, fontWeight = FontWeight.Medium)
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(Space.s16))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.mit_license), color = palette.textDim.toComposeColor(), fontSize = 11.sp, modifier = Modifier.clickable { open(LICENSE_URL) })
-                Text("   ·   ", color = palette.textDim.toComposeColor(), fontSize = 11.sp)
-                Text("F-Droid", color = palette.textDim.toComposeColor(), fontSize = 11.sp, modifier = Modifier.clickable { open(FDROID_URL) })
+                Text(stringResource(R.string.mit_license), color = palette.textDim.toComposeColor(), fontSize = TextSize.caption, modifier = Modifier.clickable { open(LICENSE_URL) })
+                Text("   ·   ", color = palette.textDim.toComposeColor(), fontSize = TextSize.caption)
+                Text("F-Droid", color = palette.textDim.toComposeColor(), fontSize = TextSize.caption, modifier = Modifier.clickable { open(FDROID_URL) })
             }
         }
     }
@@ -200,16 +202,16 @@ private fun RowScope.AboutButton(icon: ImageVector, label: String, onClick: () -
             .background(if (pressed) palette.selectionBackground.toComposeColor() else Color.Transparent)
             .border(1.dp, if (pressed) accent else palette.border.toComposeColor(), MaterialTheme.shapes.medium)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
-            .padding(vertical = 14.dp, horizontal = 8.dp),
+            .padding(vertical = Space.s16, horizontal = Space.s8),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         Icon(icon, null, tint = if (pressed) onAccent else accent, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Space.s8))
         Text(
             label,
             color = if (pressed) onAccent else palette.text.toComposeColor(),
-            fontSize = 12.sp, lineHeight = 14.sp, textAlign = TextAlign.Center,
+            fontSize = TextSize.label, lineHeight = 14.sp, textAlign = TextAlign.Center,
         )
     }
 }

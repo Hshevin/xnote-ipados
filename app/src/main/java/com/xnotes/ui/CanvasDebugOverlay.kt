@@ -24,6 +24,8 @@ import com.xnotes.gl.GlStats
 import com.xnotes.ui.theme.toComposeColor
 import com.xnotes.core.model.Rgba
 import kotlinx.coroutines.delay
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /**
  * The GL canvas's debug HUD, toggled by a four-finger tap like the paged canvas's.
@@ -108,16 +110,16 @@ fun CanvasDebugOverlay(editor: InfiniteEditor) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopEnd) {
         Column(
             modifier = Modifier
-                .padding(12.dp)
+                .padding(Space.s12)
                 .background(PANEL_BG.toComposeColor())
                 .width(232.dp)
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = Space.s12, vertical = Space.s12),
         ) {
             for (line in lines) {
                 Text(
                     line,
                     color = TEXT.toComposeColor(),
-                    fontSize = 11.sp,
+                    fontSize = TextSize.caption,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Medium,
                 )
@@ -125,9 +127,9 @@ fun CanvasDebugOverlay(editor: InfiniteEditor) {
             Text(
                 "four finger tap to dismiss",
                 color = TEXT_DIM.toComposeColor(),
-                fontSize = 9.sp,
+                fontSize = TextSize.micro,
                 fontFamily = FontFamily.Monospace,
-                modifier = Modifier.padding(top = 6.dp),
+                modifier = Modifier.padding(top = Space.s6),
             )
         }
     }

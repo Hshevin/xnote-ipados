@@ -42,6 +42,8 @@ import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
 import kotlin.math.roundToInt
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /** A note's row in the merge list. */
 private val ROW = 44.dp
@@ -62,14 +64,14 @@ internal fun MergeDialog(picked: List<BrowseEntry>, onDismiss: () -> Unit, onMer
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.merge_notes)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.s12)) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     singleLine = true,
                     label = { Text(stringResource(R.string.new_note_name)) },
                 )
-                Text(stringResource(R.string.merge_order), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+                Text(stringResource(R.string.merge_order), color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
                 Column {
                     order.forEachIndexed { i, entry ->
                         key(entry.documentUri) {
@@ -87,13 +89,13 @@ internal fun MergeDialog(picked: List<BrowseEntry>, onDismiss: () -> Unit, onMer
                                 Text(
                                     "${i + 1}",
                                     color = palette.textDim.toComposeColor(),
-                                    fontSize = 13.sp,
-                                    modifier = Modifier.width(28.dp).padding(start = 8.dp),
+                                    fontSize = TextSize.body,
+                                    modifier = Modifier.width(28.dp).padding(start = Space.s8),
                                 )
                                 Text(
                                     DocumentKind.stripSuffix(entry.name),
                                     color = palette.text.toComposeColor(),
-                                    fontSize = 14.sp,
+                                    fontSize = TextSize.bodyLarge,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f),

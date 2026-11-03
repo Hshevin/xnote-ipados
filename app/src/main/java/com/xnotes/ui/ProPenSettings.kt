@@ -15,6 +15,8 @@ import com.xnotes.R
 import com.xnotes.pen.PenBinding
 import com.xnotes.pen.PenBindingMode
 import com.xnotes.pen.ProPenButtons
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -25,14 +27,14 @@ fun ProPenSettings(bindings: Map<Int, PenBinding>, onChange: (Map<Int, PenBindin
         "pan" to R.string.tool_pan, "select" to R.string.tool_select,
         "lasso" to R.string.tool_lasso, "undo" to R.string.undo, "redo" to R.string.redo,
     ).map { (id, label) -> id to stringResource(label) }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         FieldLabel(stringResource(R.string.pro_pen_title))
-        Text(stringResource(R.string.pro_pen_help), color = LocalPalette.current.textDim.toComposeColor(), fontSize = 12.sp)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(stringResource(R.string.pro_pen_help), color = LocalPalette.current.textDim.toComposeColor(), fontSize = TextSize.label)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             ProPenButtons.masks.forEachIndexed { index, mask ->
                 val binding = bindings[mask] ?: PenBinding()
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(stringResource(R.string.pro_pen_button, index + 1), color = LocalPalette.current.textDim.toComposeColor(), fontSize = 12.sp)
+                Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+                    Text(stringResource(R.string.pro_pen_button, index + 1), color = LocalPalette.current.textDim.toComposeColor(), fontSize = TextSize.label)
                     OptionDropdown(actions, binding.action) { action ->
                         onChange(bindings + (mask to binding.copy(action = action,
                             mode = if (action in PenBinding.commands) PenBindingMode.SELECT else binding.mode)))
@@ -45,7 +47,7 @@ fun ProPenSettings(bindings: Map<Int, PenBinding>, onChange: (Map<Int, PenBindin
                             onChange(bindings + (mask to binding.copy(mode = PenBindingMode.valueOf(mode))))
                         }
                     } else if (binding.action in PenBinding.commands) {
-                        Text(stringResource(R.string.pro_pen_once), color = LocalPalette.current.textDim.toComposeColor(), fontSize = 12.sp)
+                        Text(stringResource(R.string.pro_pen_once), color = LocalPalette.current.textDim.toComposeColor(), fontSize = TextSize.label)
                     }
                 }
             }

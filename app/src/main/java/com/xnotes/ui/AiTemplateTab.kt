@@ -49,6 +49,8 @@ import com.xnotes.ui.theme.toComposeColor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /** The xtemplate repo's AI.md, bundled byte for byte: the brief, the spec and examples in one text. */
 private const val GUIDE = "templates/AI.md"
@@ -88,23 +90,23 @@ internal fun AiTemplateTab(coversOnly: Boolean, wide: Boolean, onImport: () -> U
 
     @Composable
     fun Step(n: Int, title: String, content: @Composable () -> Unit) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                 Box(Modifier.size(26.dp).background(palette.selectionBackground.toComposeColor(), CircleShape), contentAlignment = Alignment.Center) {
-                    Text(n.toString(), color = palette.selectionForeground.toComposeColor(), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text(n.toString(), color = palette.selectionForeground.toComposeColor(), fontSize = TextSize.body, fontWeight = FontWeight.Medium)
                 }
-                Text(title, color = text, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                Text(title, color = text, fontSize = TextSize.title, fontWeight = FontWeight.Medium)
             }
             // The step's body lines up under its title, past the number.
-            Column(Modifier.padding(start = 38.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { content() }
+            Column(Modifier.padding(start = Space.s40), verticalArrangement = Arrangement.spacedBy(Space.s12)) { content() }
         }
     }
 
     @Composable
     fun Prompts(ids: List<Int>) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             for (row in ids.chunked(if (wide) 2 else 1)) {
-                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                     for (id in row) Prompt(id, copied == id, Modifier.weight(1f).fillMaxHeight()) { copy(id, it) }
                     if (row.size < (if (wide) 2 else 1)) Spacer(Modifier.weight(1f))
                 }
@@ -112,22 +114,22 @@ internal fun AiTemplateTab(coversOnly: Boolean, wide: Boolean, onImport: () -> U
         }
     }
 
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(28.dp)) {
-        Text(stringResource(R.string.ai_intro), color = dim, fontSize = 14.sp, lineHeight = 20.sp)
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(Space.s32)) {
+        Text(stringResource(R.string.ai_intro), color = dim, fontSize = TextSize.bodyLarge, lineHeight = 20.sp)
 
         Step(1, stringResource(R.string.ai_step_copy)) {
             Row(
-                Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(card).padding(start = 16.dp, top = 14.dp, end = 10.dp, bottom = 14.dp),
+                Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(card).padding(start = Space.s16, top = Space.s16, end = Space.s12, bottom = Space.s16),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(Space.s16),
             ) {
                 Icon(XnotesIcons.file, null, tint = accent, modifier = Modifier.size(28.dp))
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(stringResource(R.string.ai_guide_name), color = text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                        guide?.let { Text(stringResource(R.string.ai_guide_size, (it.size + 512) / 1024), color = dim, fontSize = 12.sp) }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
+                    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+                        Text(stringResource(R.string.ai_guide_name), color = text, fontSize = TextSize.bodyLarge, fontWeight = FontWeight.Medium)
+                        guide?.let { Text(stringResource(R.string.ai_guide_size, (it.size + 512) / 1024), color = dim, fontSize = TextSize.label) }
                     }
-                    Text(stringResource(R.string.ai_guide_about), color = dim, fontSize = 12.sp, lineHeight = 17.sp)
+                    Text(stringResource(R.string.ai_guide_about), color = dim, fontSize = TextSize.label, lineHeight = 17.sp)
                 }
                 val shareLabel = stringResource(R.string.share)
                 IconButton(
@@ -148,24 +150,24 @@ internal fun AiTemplateTab(coversOnly: Boolean, wide: Boolean, onImport: () -> U
                     ),
                 ) {
                     Icon(if (done) XnotesIcons.check else XnotesIcons.copy, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.size(8.dp))
+                    Spacer(Modifier.size(Space.s8))
                     Text(stringResource(if (done) R.string.copied else R.string.copy), fontWeight = FontWeight.Medium)
                 }
             }
         }
 
         Step(2, stringResource(R.string.ai_step_ask)) {
-            Text(stringResource(R.string.ai_step_ask_about), color = dim, fontSize = 13.sp, lineHeight = 19.sp)
+            Text(stringResource(R.string.ai_step_ask_about), color = dim, fontSize = TextSize.body, lineHeight = 19.sp)
             // A heading of their own, so the prompts read as requests to borrow, not text every request needs.
-            Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(stringResource(R.string.ai_examples), color = text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                Text(stringResource(R.string.ai_examples_about), color = dim, fontSize = 12.sp, lineHeight = 17.sp)
+            Column(Modifier.padding(top = Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
+                Text(stringResource(R.string.ai_examples), color = text, fontSize = TextSize.bodyLarge, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.ai_examples_about), color = dim, fontSize = TextSize.label, lineHeight = 17.sp)
             }
             if (!coversOnly) {
-                Text(stringResource(R.string.ai_page_templates), color = dim, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 4.dp))
+                Text(stringResource(R.string.ai_page_templates), color = dim, fontSize = TextSize.body, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = Space.s4))
                 Prompts(PAGE_PROMPTS)
             }
-            Text(stringResource(R.string.ai_cover_templates), color = dim, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 4.dp))
+            Text(stringResource(R.string.ai_cover_templates), color = dim, fontSize = TextSize.body, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = Space.s4))
             Prompts(COVER_PROMPTS)
         }
 
@@ -185,10 +187,10 @@ private fun Prompt(@StringRes id: Int, copied: Boolean, modifier: Modifier, onCo
             .clip(MaterialTheme.shapes.medium)
             .background(palette.menuBg.toComposeColor())
             .clickable(onClickLabel = stringResource(R.string.copy), role = Role.Button) { onCopy(prompt) }
-            .padding(start = 14.dp, top = 12.dp, end = 10.dp, bottom = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(start = Space.s16, top = Space.s12, end = Space.s12, bottom = Space.s12),
+        horizontalArrangement = Arrangement.spacedBy(Space.s12),
     ) {
-        Text(prompt, color = palette.text.toComposeColor(), fontSize = 13.sp, lineHeight = 19.sp, modifier = Modifier.weight(1f))
+        Text(prompt, color = palette.text.toComposeColor(), fontSize = TextSize.body, lineHeight = 19.sp, modifier = Modifier.weight(1f))
         Icon(
             if (copied) XnotesIcons.check else XnotesIcons.copy, null,
             tint = (if (copied) palette.accent else palette.textDim).toComposeColor(), modifier = Modifier.size(18.dp),
@@ -206,14 +208,14 @@ private fun Action(icon: ImageVector, title: String, about: String, onClick: () 
             .clip(MaterialTheme.shapes.medium)
             .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.medium)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = Space.s16, vertical = Space.s12),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(Space.s16),
     ) {
         Icon(icon, null, tint = palette.accent.toComposeColor(), modifier = Modifier.size(24.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, color = palette.text.toComposeColor(), fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            Text(about, color = palette.textDim.toComposeColor(), fontSize = 12.sp, lineHeight = 17.sp)
+        Column(verticalArrangement = Arrangement.spacedBy(Space.s2)) {
+            Text(title, color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge, fontWeight = FontWeight.Medium)
+            Text(about, color = palette.textDim.toComposeColor(), fontSize = TextSize.label, lineHeight = 17.sp)
         }
     }
 }

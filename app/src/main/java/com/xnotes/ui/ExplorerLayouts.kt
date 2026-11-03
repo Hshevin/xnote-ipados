@@ -76,6 +76,8 @@ import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /** Columns the grid shows at [size], from the screen's width so folding the sidebar never reflows it. */
 internal fun gridColumns(screenWidthDp: Int, size: TileSize): Int {
@@ -105,8 +107,8 @@ internal fun GridBody(b: ExplorerBody, state: LazyGridState, columns: Int, chips
         columns = GridCells.Fixed(columns),
         state = state,
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(Space.s12),
+        verticalArrangement = Arrangement.spacedBy(Space.s12),
         contentPadding = PaddingValues(top = EXPLORER_HEADER, bottom = 88.dp),
     ) {
         item(key = "chips", span = { GridItemSpan(maxLineSpan) }, contentType = "chips") { chips(48.dp) }
@@ -116,12 +118,12 @@ internal fun GridBody(b: ExplorerBody, state: LazyGridState, columns: Int, chips
         }
         if (b.folders.isNotEmpty()) {
             items(b.folders, key = { it.documentUri }, contentType = { "folder" }) { FolderChipTile(b, it) }
-            item(span = { GridItemSpan(maxLineSpan) }, contentType = "gap") { Spacer(Modifier.height(4.dp)) }
+            item(span = { GridItemSpan(maxLineSpan) }, contentType = "gap") { Spacer(Modifier.height(Space.s4)) }
         }
         b.groups.forEach { g ->
             if (g.label.isNotEmpty()) {
                 item(key = "group:${g.key}", span = { GridItemSpan(maxLineSpan) }, contentType = "header") {
-                    GroupHeader(g.label, g.items.size, g.color, Modifier.padding(top = 2.dp))
+                    GroupHeader(g.label, g.items.size, g.color, Modifier.padding(top = Space.s2))
                 }
             }
             items(g.items, key = { it.documentUri }, contentType = { if (it.isDir) "folderCard" else "file" }) { e ->
@@ -147,19 +149,19 @@ internal fun ListBody(
         item(key = "chips", contentType = "chips") { chips(48.dp) }
         top?.invoke(this)
         if (b.pinned.isNotEmpty()) {
-            item(key = "pinned", contentType = "pinned") { PinnedShelf(b, whole = false, Modifier.padding(top = 4.dp, bottom = 8.dp)) }
+            item(key = "pinned", contentType = "pinned") { PinnedShelf(b, whole = false, Modifier.padding(top = Space.s4, bottom = Space.s8)) }
         }
         item(key = "columnHeads", contentType = "columnHeads") {
-            Row(Modifier.fillMaxWidth().height(36.dp).padding(end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().height(36.dp).padding(end = Space.s4), verticalAlignment = Alignment.CenterVertically) {
                 ColumnHead(stringResource(R.string.sort_name), ExplorerSortKey.NAME, b, onSort, Modifier.weight(1f).padding(start = inset))
                 if (wide) {
                     ColumnHead(stringResource(R.string.group_kind), null, b, null, Modifier.width(LIST_KIND_W))
                     ColumnHead(stringResource(R.string.pages), null, b, null, Modifier.width(LIST_PAGES_W), TextAlign.End)
                     ColumnHead(stringResource(R.string.sort_size), ExplorerSortKey.SIZE, b, onSort, Modifier.width(LIST_SIZE_W), TextAlign.End)
                     val byCreated = b.view.sortKey == ExplorerSortKey.CREATED
-                    ColumnHead(if (byCreated) stringResource(R.string.created) else stringResource(R.string.modified), if (byCreated) ExplorerSortKey.CREATED else ExplorerSortKey.MODIFIED, b, onSort, Modifier.width(LIST_WHEN_W).padding(start = 28.dp))
+                    ColumnHead(if (byCreated) stringResource(R.string.created) else stringResource(R.string.modified), if (byCreated) ExplorerSortKey.CREATED else ExplorerSortKey.MODIFIED, b, onSort, Modifier.width(LIST_WHEN_W).padding(start = Space.s32))
                 }
-                Spacer(Modifier.width(40.dp))
+                Spacer(Modifier.width(Space.s40))
             }
             Hairline()
         }
@@ -170,7 +172,7 @@ internal fun ListBody(
         b.groups.forEach { g ->
             if (g.label.isNotEmpty()) {
                 item(key = "group:${g.key}", contentType = "header") {
-                    GroupHeader(g.label, g.items.size, g.color, Modifier.padding(start = 8.dp, top = 10.dp))
+                    GroupHeader(g.label, g.items.size, g.color, Modifier.padding(start = Space.s8, top = Space.s12))
                 }
             }
             items(g.items, key = { it.documentUri }, contentType = { "row" }) { e ->
@@ -198,9 +200,9 @@ private fun ColumnHead(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = if (align == TextAlign.End) Arrangement.End else Arrangement.Start,
     ) {
-        Text(label, color = tint, fontSize = 12.5.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        Text(label, color = tint, fontSize = TextSize.body, fontWeight = FontWeight.Medium, maxLines = 1)
         if (active) {
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(Space.s4))
             Icon(if (b.view.descending) XnotesIcons.arrowDown else XnotesIcons.arrowUp, null, tint = tint, modifier = Modifier.size(14.dp))
         }
     }
@@ -219,7 +221,7 @@ internal fun GalleryBody(b: ExplorerBody, state: LazyGridState, columns: Int, ch
             state = state,
             modifier = Modifier.fillMaxSize(),
             horizontalArrangement = Arrangement.spacedBy(GALLERY_GAP),
-            verticalArrangement = Arrangement.spacedBy(22.dp),
+            verticalArrangement = Arrangement.spacedBy(Space.s24),
             contentPadding = PaddingValues(top = EXPLORER_HEADER, bottom = 88.dp),
         ) {
             // Shorter than elsewhere since the shelves' wider row spacing already follows it.
@@ -230,7 +232,7 @@ internal fun GalleryBody(b: ExplorerBody, state: LazyGridState, columns: Int, ch
             }
             if (b.folders.isNotEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }, contentType = "folders") {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
                         b.folders.forEach { GalleryFolderChip(b, it) }
                     }
                 }
@@ -253,12 +255,12 @@ internal fun GalleryBody(b: ExplorerBody, state: LazyGridState, columns: Int, ch
 @Composable
 private fun SectionHeader(label: String, count: Int, color: com.xnotes.core.model.Rgba? = null, icon: ImageVector? = null) {
     val palette = LocalPalette.current
-    Row(Modifier.height(28.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(Modifier.height(28.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
         if (icon != null) Icon(icon, null, tint = palette.accent.toComposeColor(), modifier = Modifier.size(16.dp))
         if (color != null) Box(Modifier.size(10.dp).clip(CircleShape).background(codeTint(color, palette)))
-        Text(label, color = palette.text.toComposeColor(), fontSize = 15.sp, fontWeight = FontWeight.Medium)
-        Text("$count", color = palette.textDim.toComposeColor(), fontSize = 13.sp)
-        Hairline(Modifier.weight(1f).padding(start = 6.dp))
+        Text(label, color = palette.text.toComposeColor(), fontSize = TextSize.title, fontWeight = FontWeight.Medium)
+        Text("$count", color = palette.textDim.toComposeColor(), fontSize = TextSize.body)
+        Hairline(Modifier.weight(1f).padding(start = Space.s6))
     }
 }
 
@@ -267,11 +269,11 @@ private fun SectionHeader(label: String, count: Int, color: com.xnotes.core.mode
 private fun PinnedShelf(b: ExplorerBody, whole: Boolean, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth()) {
         SectionHeader(stringResource(R.string.pinned), b.pinned.size, icon = XnotesIcons.pin)
-        Spacer(Modifier.height(12.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Spacer(Modifier.height(Space.s12))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(Space.s16)) {
             items(b.pinned, key = { it.documentUri }) { PinnedCard(b, it, whole) }
         }
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(Space.s16))
         SectionHeader(b.restLabel, b.restCount)
     }
 }
@@ -313,13 +315,13 @@ internal fun ColumnsBody(
                         val shown = remember(entries, arrange) { entries?.let(arrange) }
                         val next = levels.getOrNull(i + 1)?.first
                         Column(
-                            Modifier.width(columnW).fillMaxHeight().padding(horizontal = 6.dp),
+                            Modifier.width(columnW).fillMaxHeight().padding(horizontal = Space.s6),
                         ) {
                             Text(
                                 if (shown == null) name else "$name · ${shown.size}",
-                                color = palette.textDim.toComposeColor(), fontSize = 12.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.4.sp,
+                                color = palette.textDim.toComposeColor(), fontSize = TextSize.label, fontWeight = FontWeight.Medium, letterSpacing = 0.4.sp,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.height(36.dp).padding(start = 12.dp, top = 11.dp),
+                                modifier = Modifier.height(36.dp).padding(start = Space.s12, top = Space.s12),
                             )
                             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 88.dp)) {
                                 items(shown.orEmpty(), key = { it.documentUri }) { e ->
@@ -346,9 +348,9 @@ internal fun ColumnsBody(
                                                 onClick = { if (e.isDir) onOpenFolder(i, e) else onPickFile(i, e) },
                                                 onLongClick = { b.host.onLongClick(e) },
                                             )
-                                            .padding(start = 12.dp, end = 8.dp),
+                                            .padding(start = Space.s12, end = Space.s8),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(Space.s12),
                                     ) {
                                         val fg = (if (sel) palette.selectionForeground else palette.text).toComposeColor()
                                         Icon(
@@ -356,7 +358,7 @@ internal fun ColumnsBody(
                                             tint = if (sel) fg else (code ?: palette.textDim.toComposeColor()),
                                             modifier = Modifier.size(18.dp),
                                         )
-                                        Text(b.label(e), color = fg, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                                        Text(b.label(e), color = fg, fontSize = TextSize.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                                         if (e.isDir) Icon(XnotesIcons.next, null, tint = palette.textDim.toComposeColor(), modifier = Modifier.size(14.dp))
                                     }
                                 }
@@ -407,18 +409,18 @@ internal fun TimelineBody(
     LazyColumn(state = listState, modifier = modifier, contentPadding = PaddingValues(top = EXPLORER_HEADER, bottom = 88.dp)) {
         item(key = "chips", contentType = "chips") { chips(48.dp) }
         item(key = "month", contentType = "month") {
-            Row(Modifier.fillMaxWidth().height(70.dp).padding(top = 4.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().height(70.dp).padding(top = Space.s4, bottom = Space.s16), verticalAlignment = Alignment.CenterVertically) {
                 Row(Modifier.width(164.dp), verticalAlignment = Alignment.CenterVertically) {
                     ExplorerIcon(XnotesIcons.prev, stringResource(R.string.previous_month), palette.textDim.toComposeColor()) { onMonth(month.minusMonths(1)) }
                     Text(
                         if (month.year == today.year) b.words.month(month.month) else b.words.monthYear(month.month, month.year),
-                        color = palette.text.toComposeColor(), fontSize = 15.sp, fontWeight = FontWeight.Medium,
+                        color = palette.text.toComposeColor(), fontSize = TextSize.title, fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.weight(1f),
                     )
                     ExplorerIcon(XnotesIcons.next, stringResource(R.string.next_month), palette.textDim.toComposeColor(), enabled = month < YearMonth.from(today)) { onMonth(month.plusMonths(1)) }
                 }
-                Spacer(Modifier.width(16.dp))
-                Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Spacer(Modifier.width(Space.s16))
+                Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
                     val counts = remember(items, month, view.timelineByCreated) {
                         items.filter { view.timelineTime(it) > 0 }.groupingBy { Instant.ofEpochMilli(view.timelineTime(it)).atZone(zone).toLocalDate() }.eachCount()
                     }
@@ -448,7 +450,7 @@ internal fun TimelineBody(
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
-                                "$d", fontSize = 10.5.sp,
+                                "$d", fontSize = TextSize.caption,
                                 color = when {
                                     ahead -> palette.textDim.toComposeColor()
                                     n >= 4 -> palette.onAccent.toComposeColor()
@@ -475,21 +477,21 @@ private fun TimelineDay(b: ExplorerBody, date: LocalDate, today: LocalDate, file
     val palette = LocalPalette.current
     Row(Modifier.fillMaxWidth().height(card + 64.dp)) {
         Column(Modifier.width(84.dp)) {
-            Text("${date.dayOfMonth}", color = palette.text.toComposeColor(), fontSize = 28.sp, fontWeight = FontWeight.Medium, lineHeight = 28.sp)
-            Spacer(Modifier.height(6.dp))
-            Text(b.words.shortWeekday(date.dayOfWeek), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+            Text("${date.dayOfMonth}", color = palette.text.toComposeColor(), fontSize = TextSize.display, fontWeight = FontWeight.Medium, lineHeight = 28.sp)
+            Spacer(Modifier.height(Space.s6))
+            Text(b.words.shortWeekday(date.dayOfWeek), color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
             val rel = when (date) {
                 today -> b.words.today
                 today.minusDays(1) -> b.words.yesterday
                 else -> null
             }
-            if (rel != null) Text(rel, color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+            if (rel != null) Text(rel, color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
         }
         Box(Modifier.width(28.dp).fillMaxHeight()) {
             Box(Modifier.offset(x = 4.dp, y = 12.dp).width(1.dp).fillMaxHeight().background(palette.border.toComposeColor()))
             Box(Modifier.offset(y = 8.dp).size(9.dp).clip(CircleShape).background(palette.accent.toComposeColor()))
         }
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.weight(1f)) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(Space.s16), modifier = Modifier.weight(1f)) {
             items(files.sortedByDescending { b.view.timelineTime(it) }, key = { it.documentUri }) { TimelineCard(b, it, card) }
         }
     }

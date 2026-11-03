@@ -38,6 +38,8 @@ import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
 import kotlin.math.roundToInt
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /**
  * Floating font/size bar for the active text box (the one being edited, or a lone
@@ -87,7 +89,7 @@ fun TextStyleBar(editor: TextEditHost) {
         ) {
             FacePicker(current = bar.face) { editor.setTextFace(it) }
             Box(
-                Modifier.width(1.dp).fillMaxHeight().padding(vertical = 8.dp)
+                Modifier.width(1.dp).fillMaxHeight().padding(vertical = Space.s8)
                     .background(palette.border.toComposeColor()),
             )
             SizeStepper(
@@ -97,7 +99,7 @@ fun TextStyleBar(editor: TextEditHost) {
             // A commit (✓) button so an edit can be finished without tapping off the box.
             if (bar.editing) {
                 Box(
-                    Modifier.width(1.dp).fillMaxHeight().padding(vertical = 8.dp)
+                    Modifier.width(1.dp).fillMaxHeight().padding(vertical = Space.s8)
                         .background(palette.border.toComposeColor()),
                 )
                 Tooltip(stringResource(R.string.done)) {
@@ -128,7 +130,7 @@ private fun FacePicker(current: FontFace, onPick: (FontFace) -> Unit) {
                 modifier = Modifier
                     .fillMaxHeight()
                     .clickable { open = true }
-                    .padding(horizontal = 12.dp),
+                    .padding(horizontal = Space.s12),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -137,9 +139,9 @@ private fun FacePicker(current: FontFace, onPick: (FontFace) -> Unit) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.widthIn(max = 92.dp),
-                    style = TextStyle(fontFamily = current.toComposeFamily(), fontSize = 15.sp),
+                    style = TextStyle(fontFamily = current.toComposeFamily(), fontSize = TextSize.title),
                 )
-                Text(" ▾", color = palette.textDim.toComposeColor(), fontSize = 11.sp)
+                Text(" ▾", color = palette.textDim.toComposeColor(), fontSize = TextSize.caption)
             }
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
@@ -159,7 +161,7 @@ private fun SizeStepper(size: Double, onDelta: (Double) -> Unit) {
         Text(
             size.roundToInt().toString(),
             color = palette.text.toComposeColor(),
-            fontSize = 15.sp,
+            fontSize = TextSize.title,
             modifier = Modifier.width(26.dp),
         )
         StepButton("+", stringResource(R.string.larger)) { onDelta(1.0) }
@@ -174,7 +176,7 @@ private fun StepButton(glyph: String, label: String, onClick: () -> Unit) {
             modifier = Modifier.size(40.dp).clickable { onClick() },
             contentAlignment = Alignment.Center,
         ) {
-            Text(glyph, color = palette.text.toComposeColor(), fontSize = 20.sp)
+            Text(glyph, color = palette.text.toComposeColor(), fontSize = TextSize.headline)
         }
     }
 }

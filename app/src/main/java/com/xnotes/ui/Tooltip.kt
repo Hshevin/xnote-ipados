@@ -29,7 +29,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -54,6 +53,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /** Which side of its anchor a tooltip opens on; it flips to the opposite side when there is no room. */
 internal enum class TipSide { BELOW, ABOVE, LEFT, RIGHT }
@@ -214,7 +215,7 @@ private fun TipPopup(tip: TipState, text: String, hint: String?, shortcut: Strin
     }
     val rise = with(density) { TIP_RISE.toPx() }
     Popup(popupPositionProvider = placement, properties = TIP_WINDOW) {
-        // The chip sits inset in its window so its shadow has room to fall.
+        // The chip sits inset in its window, clear of the anchor's edge.
         Box(
             Modifier
                 .padding(TIP_SHADOW_ROOM)
@@ -252,27 +253,26 @@ private fun TipChip(text: String, hint: String?, shortcut: String?) {
     val shape = MaterialTheme.shapes.small
     Column(
         Modifier
-            .shadow(TIP_ELEVATION, shape)
             .background(bg, shape)
             .widthIn(max = TIP_MAX_WIDTH)
             .padding(start = 10.dp, end = if (shortcut != null) 6.dp else 10.dp, top = 6.dp, bottom = 6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(text, color = fg, fontSize = 13.sp, fontWeight = FontWeight.Medium, lineHeight = 17.sp, modifier = Modifier.weight(1f, fill = false))
+            Text(text, color = fg, fontSize = TextSize.body, fontWeight = FontWeight.Medium, lineHeight = 17.sp, modifier = Modifier.weight(1f, fill = false))
             if (shortcut != null) {
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(Space.s12))
                 Text(
                     shortcut,
                     color = fg.copy(alpha = 0.72f),
-                    fontSize = 11.sp,
+                    fontSize = TextSize.caption,
                     maxLines = 1,
                     modifier = Modifier
                         .border(1.dp, fg.copy(alpha = 0.22f), TIP_KEY_SHAPE)
-                        .padding(horizontal = 5.dp, vertical = 1.dp),
+                        .padding(horizontal = Space.s4, vertical = 1.dp),
                 )
             }
         }
-        if (hint != null) Text(hint, color = fg.copy(alpha = 0.72f), fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 1.dp))
+        if (hint != null) Text(hint, color = fg.copy(alpha = 0.72f), fontSize = TextSize.label, lineHeight = 16.sp, modifier = Modifier.padding(top = 1.dp))
     }
 }
 
@@ -323,7 +323,6 @@ private const val TIP_START_SCALE = 0.92f
 private val TIP_GAP = 6.dp
 private val TIP_RISE = 4.dp
 private val TIP_SHADOW_ROOM = 8.dp
-private val TIP_ELEVATION = 4.dp
 private val TIP_MAX_WIDTH = 280.dp
 private val TIP_KEY_SHAPE = RoundedCornerShape(4.dp)
 

@@ -12,7 +12,7 @@ import org.json.JSONObject
  * field falls back to its default if missing or malformed.
  */
 data class Preferences(
-    val uiAppearance: String = "system", // "system" (follows OS dark/light) | "dark" | "light" | "oled"
+    val uiAppearance: String = "system", // "system" (follows OS dark/light) | "dark" | "light"
     val materialMode: MaterialColourMode = MaterialColourMode.DUAL,
     val materialSingleSeed: Rgba = DEFAULT_MATERIAL_SINGLE,
     val materialDualSeed: Rgba = DEFAULT_MATERIAL_DUAL,
@@ -220,7 +220,9 @@ data class Preferences(
         fun fromJson(o: JSONObject?): Preferences {
             if (o == null) return Preferences()
             val appearance = o.optString("ui_appearance", "system")
-                .let { if (it == "dark" || it == "light" || it == "oled") it else "system" }
+                // The pure black/white chrome has no separate OLED look; a saved "oled" opens as dark.
+                .let { if (it == "oled") "dark" else it }
+                .let { if (it == "dark" || it == "light") it else "system" }
             val template = o.optString("default_template", "color").let { if (it == "pdf") "pdf" else "color" }
             val zoomLockPan = o.optString("zoom_lock_pan", "single").let { if (it == "double" || it == "none") it else "single" }
             val tapActions = setOf("none", "undo", "redo", "toggle_pan", "toggle_eraser", "toggle_previous")

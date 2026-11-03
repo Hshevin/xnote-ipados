@@ -22,6 +22,8 @@ import com.xnotes.R
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /** One row of the Insert menu's Image group; [more] marks a row that opens a further menu. */
 class InsertRow(val icon: ImageVector, val label: String, val more: Boolean = false, val onPick: () -> Unit)
@@ -47,7 +49,7 @@ internal fun InsertButton(
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             InsertGroup(stringResource(R.string.insert_group_image))
             for (row in imageRows) InsertMenuRow(row.icon, row.label, row.more) { expanded = false; row.onPick() }
-            HorizontalDivider(Modifier.padding(vertical = 6.dp), color = LocalPalette.current.border.toComposeColor())
+            HorizontalDivider(Modifier.padding(vertical = Space.s6), color = LocalPalette.current.border.toComposeColor())
             InsertGroup(stringResource(R.string.insert_group_audio))
             // One recording at a time, so while one runs, here or in the other pane, this says where.
             InsertMenuRow(
@@ -76,8 +78,8 @@ private fun InsertGroup(label: String) {
     Text(
         label,
         color = LocalPalette.current.textDim.toComposeColor(),
-        fontSize = 12.sp,
-        modifier = Modifier.padding(start = 16.dp, end = 18.dp, top = 8.dp, bottom = 4.dp),
+        fontSize = TextSize.label,
+        modifier = Modifier.padding(start = Space.s16, end = Space.s20, top = Space.s8, bottom = Space.s4),
     )
 }
 
@@ -98,7 +100,7 @@ internal fun InsertMenuRow(
             } else {
                 androidx.compose.foundation.layout.Column {
                     Text(label)
-                    Text(supporting, fontSize = 12.sp, color = LocalPalette.current.textDim.toComposeColor())
+                    Text(supporting, fontSize = TextSize.label, color = LocalPalette.current.textDim.toComposeColor())
                 }
             }
         },
@@ -106,6 +108,6 @@ internal fun InsertMenuRow(
         trailingIcon = if (more) ({ Icon(XnotesIcons.next, contentDescription = null, modifier = Modifier.size(16.dp)) }) else null,
         enabled = enabled,
         onClick = onClick,
-        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+        contentPadding = PaddingValues(start = Space.s16, end = Space.s20),
     )
 }

@@ -36,6 +36,8 @@ import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /**
  * Picks a folder in the tree under [root] to move things into, starting at [start] (a path of (document id,
@@ -71,7 +73,7 @@ internal fun FolderPickerDialog(
                         Crumb("$name/", current = i == path.lastIndex) { while (path.size > i + 1) path.removeAt(path.lastIndex) }
                     }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.s8))
                 val list = folders
                 when {
                     list == null -> EmptyNote(stringResource(R.string.loading))
@@ -87,13 +89,13 @@ internal fun FolderPickerDialog(
                                     .clip(MaterialTheme.shapes.small)
                                     .clickable(enabled = !off) { path.add(id to f.name) }
                                     .alpha(if (off) 0.4f else 1f)
-                                    .padding(horizontal = 8.dp),
+                                    .padding(horizontal = Space.s8),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(Space.s12),
                             ) {
                                 val code = f.color?.let { codeTint(it, palette) }
                                 Icon(XnotesIcons.folder, null, tint = code ?: palette.textDim.toComposeColor(), modifier = Modifier.size(20.dp))
-                                Text(f.name, color = palette.text.toComposeColor(), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                                Text(f.name, color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                                 Icon(XnotesIcons.next, null, tint = palette.textDim.toComposeColor(), modifier = Modifier.size(16.dp))
                             }
                         }

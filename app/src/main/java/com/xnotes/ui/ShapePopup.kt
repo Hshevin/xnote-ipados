@@ -46,6 +46,8 @@ import com.xnotes.core.tools.ToolConversions
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /**
  * The shape tool's popup: its chips page by page, swiped sideways, the connectors below them the
@@ -65,7 +67,7 @@ fun ShapeConfigPopup(editor: ToolPopupHost, onDismiss: () -> Unit) {
     val ink = editor.hostToolbarColors.getOrNull(editor.hostActiveColorIndex) ?: Rgba(0, 0, 0)
 
     DropdownMenu(expanded = true, onDismissRequest = onDismiss) {
-        Column(Modifier.width(284.dp).padding(horizontal = 14.dp, vertical = 8.dp)) {
+        Column(Modifier.width(284.dp).padding(horizontal = Space.s16, vertical = Space.s8)) {
             PopupTitle(stringResource(R.string.title_shape))
             ShapePager(config, onPage = { emit(config.copy(shapePage = it)) }, onPick = { emit(config.choose(it)) })
             ConnectorPager(config, onPage = { emit(config.copy(connectorPage = it)) }, onPick = { emit(config.choose(it)) })
@@ -150,18 +152,18 @@ private fun ChipPager(
     Text(
         stringResource(caption(state.currentPage)),
         color = palette.textDim.toComposeColor(),
-        fontSize = 12.sp,
-        modifier = Modifier.padding(bottom = 4.dp),
+        fontSize = TextSize.label,
+        modifier = Modifier.padding(bottom = Space.s4),
     )
     HorizontalPager(state = state, modifier = Modifier.fillMaxWidth().height((rows * CHIP + (rows - 1) * GAP).dp)) { page ->
         Column(verticalArrangement = Arrangement.spacedBy(GAP.dp)) { content(page) }
     }
     if (pageCount > 1) {
-        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.Center) {
+        Row(Modifier.fillMaxWidth().padding(vertical = Space.s6), horizontalArrangement = Arrangement.Center) {
             for (i in 0 until pageCount) {
                 val on = i == state.currentPage
                 Box(
-                    Modifier.padding(horizontal = 3.dp).size(6.dp).clip(CircleShape)
+                    Modifier.padding(horizontal = Space.s2).size(6.dp).clip(CircleShape)
                         .background((if (on) palette.accent else palette.border).toComposeColor()),
                 )
             }
@@ -179,11 +181,11 @@ private fun ChipPager(
 private fun FillColourRow(chosen: Rgba?, ink: Rgba, host: SwatchHost, onPick: (Rgba?) -> Unit) {
     val palette = LocalPalette.current
     var editing by remember { mutableStateOf<Int?>(null) }
-    Text(stringResource(R.string.caption_fill_colour), color = palette.text.toComposeColor(), fontSize = 12.sp)
+    Text(stringResource(R.string.caption_fill_colour), color = palette.text.toComposeColor(), fontSize = TextSize.label)
     FlowRow(
-        Modifier.padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        Modifier.padding(vertical = Space.s4),
+        horizontalArrangement = Arrangement.spacedBy(Space.s6),
+        verticalArrangement = Arrangement.spacedBy(Space.s6),
     ) {
         Swatch(ink, selected = chosen == null, label = stringResource(R.string.fill_match_outline), mark = true) { onPick(null) }
         host.shownSwatches.forEachIndexed { i, c ->
@@ -236,8 +238,8 @@ private fun Swatch(color: Rgba, selected: Boolean, label: String?, mark: Boolean
 /** One end's head: a chip for each, drawn on a short line. */
 @Composable
 private fun HeadRow(caption: String, chosen: Head, atStart: Boolean, onPick: (Head) -> Unit) {
-    Text(caption, color = LocalPalette.current.text.toComposeColor(), fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
-    Row(Modifier.padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(GAP.dp)) {
+    Text(caption, color = LocalPalette.current.text.toComposeColor(), fontSize = TextSize.label, modifier = Modifier.padding(top = Space.s4))
+    Row(Modifier.padding(vertical = Space.s4), horizontalArrangement = Arrangement.spacedBy(GAP.dp)) {
         for (h in Head.entries) KindChip(ShapeIcons.head(h, atStart), stringResource(headLabel(h)), selected = h == chosen) { onPick(h) }
     }
 }
@@ -248,13 +250,13 @@ private fun CountRow(config: ShapeConfig, onChange: (Int) -> Unit) {
     val range = config.chip.kind.nRange ?: return
     val palette = LocalPalette.current
     val count = config.count.coerceIn(range.first, range.last)
-    Row(Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.padding(vertical = Space.s4), verticalAlignment = Alignment.CenterVertically) {
         Text(
             stringResource(countLabel(config.chip.kind.countKind)),
-            color = palette.text.toComposeColor(), fontSize = 12.sp, modifier = Modifier.width(120.dp),
+            color = palette.text.toComposeColor(), fontSize = TextSize.label, modifier = Modifier.width(120.dp),
         )
         StepButton("−", stringResource(R.string.count_fewer), enabled = count > range.first) { onChange(count - 1) }
-        Text("$count", color = palette.text.toComposeColor(), fontSize = 14.sp, modifier = Modifier.width(36.dp).padding(horizontal = 8.dp))
+        Text("$count", color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge, modifier = Modifier.width(36.dp).padding(horizontal = Space.s8))
         StepButton("+", stringResource(R.string.count_more), enabled = count < range.last) { onChange(count + 1) }
     }
 }
@@ -269,7 +271,7 @@ private fun StepButton(glyph: String, label: String, enabled: Boolean, onClick: 
                 .clickable(enabled = enabled, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Text(glyph, color = (if (enabled) palette.text else palette.textDim).toComposeColor(), fontSize = 16.sp)
+            Text(glyph, color = (if (enabled) palette.text else palette.textDim).toComposeColor(), fontSize = TextSize.title)
         }
     }
 }

@@ -28,6 +28,8 @@ import com.xnotes.R
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /**
  * Saved views. An infinite canvas has no pages to navigate by, so a named viewport is what stands
@@ -39,15 +41,15 @@ fun CanvasWaypointsPopup(editor: InfiniteEditor, onDismiss: () -> Unit) {
     var name by remember { mutableStateOf("") }
 
     DropdownMenu(expanded = true, onDismissRequest = onDismiss) {
-        Column(Modifier.width(268.dp).padding(horizontal = 14.dp, vertical = 8.dp)) {
+        Column(Modifier.width(268.dp).padding(horizontal = Space.s16, vertical = Space.s8)) {
             PopupTitle(stringResource(R.string.title_waypoints))
 
             if (editor.waypoints.isEmpty()) {
                 Text(
                     stringResource(R.string.no_waypoints),
                     color = palette.textDim.toComposeColor(),
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(vertical = 4.dp),
+                    fontSize = TextSize.label,
+                    modifier = Modifier.padding(vertical = Space.s4),
                 )
             }
             for (waypoint in editor.waypoints) {
@@ -58,16 +60,16 @@ fun CanvasWaypointsPopup(editor: InfiniteEditor, onDismiss: () -> Unit) {
                     Text(
                         waypoint.name,
                         color = palette.text.toComposeColor(),
-                        fontSize = 12.sp,
+                        fontSize = TextSize.label,
                         modifier = Modifier
                             .weight(1f)
                             .clickable { editor.jumpTo(waypoint); onDismiss() }
-                            .padding(vertical = 6.dp),
+                            .padding(vertical = Space.s6),
                     )
                     Text(
                         "${Math.round(waypoint.zoom * 100)}%",
                         color = palette.textDim.toComposeColor(),
-                        fontSize = 11.sp,
+                        fontSize = TextSize.caption,
                     )
                     Tooltip(stringResource(R.string.remove)) {
                         IconButton(onClick = { editor.removeWaypoint(waypoint) }, modifier = Modifier.size(30.dp)) {
@@ -82,11 +84,11 @@ fun CanvasWaypointsPopup(editor: InfiniteEditor, onDismiss: () -> Unit) {
                 }
             }
 
-            Spacer(Modifier.size(8.dp))
+            Spacer(Modifier.size(Space.s8))
             StyleCaption(stringResource(R.string.caption_save_view))
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(Space.s6),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TextField(
@@ -103,8 +105,8 @@ fun CanvasWaypointsPopup(editor: InfiniteEditor, onDismiss: () -> Unit) {
                 }
             }
 
-            Spacer(Modifier.size(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Spacer(Modifier.size(Space.s8))
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s6)) {
                 ModeChip(stringResource(R.string.toolbar_minimap), editor.minimapVisible) { editor.toggleMinimap() }
                 ModeChip(stringResource(R.string.fit_all), selected = false) { editor.zoomToFit(); onDismiss() }
             }

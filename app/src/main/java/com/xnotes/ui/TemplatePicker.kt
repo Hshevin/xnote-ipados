@@ -63,6 +63,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlin.math.max
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /** Bumped when the template library changes, so open pickers list it again. */
 internal object TemplateLibraryUi {
@@ -94,7 +96,7 @@ internal fun TemplateStrip(
     val thumbH = THUMB_W * aspect.toFloat()
     val wPx = thumbPx(THUMB_W)
     // Not a LazyRow: the popup measures its content's intrinsic size, which lazy lists refuse.
-    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s6)) {
         for (e in entries) key(e.key) {
             var menu by remember { mutableStateOf(false) }
             Column(
@@ -107,7 +109,7 @@ internal fun TemplateStrip(
                             if (e.source == TemplateLibrary.Source.IMPORTED || e.source == TemplateLibrary.Source.NOTE) menu = true
                         },
                     )
-                    .padding(vertical = 3.dp),
+                    .padding(vertical = Space.s2),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 val sel = e.key == selected
@@ -120,11 +122,11 @@ internal fun TemplateStrip(
                     val bmp = rememberTemplateThumb(e.template, TemplateThumbs.spec(e.key, pageMm, drawing(e), wPx), keep = true)
                     if (bmp != null) Image(bmp, contentDescription = e.template.name, Modifier.size(THUMB_W, thumbH))
                 }
-                Spacer(Modifier.height(3.dp))
+                Spacer(Modifier.height(Space.s2))
                 Text(
                     e.template.name,
                     color = palette.text.toComposeColor(),
-                    fontSize = 9.sp,
+                    fontSize = TextSize.micro,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center,
@@ -143,7 +145,7 @@ internal fun TemplateStrip(
                 .width(TILE_W)
                 .clip(MaterialTheme.shapes.extraSmall)
                 .combinedClickable(onClick = onImport)
-                .padding(vertical = 3.dp),
+                .padding(vertical = Space.s2),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box(
@@ -153,13 +155,13 @@ internal fun TemplateStrip(
                     .background(palette.surface.toComposeColor(), RoundedCornerShape(3.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("+", color = palette.textDim.toComposeColor(), fontSize = 20.sp)
+                Text("+", color = palette.textDim.toComposeColor(), fontSize = TextSize.headline)
             }
-            Spacer(Modifier.height(3.dp))
+            Spacer(Modifier.height(Space.s2))
             Text(
                 stringResource(R.string.import_template),
                 color = palette.text.toComposeColor(),
-                fontSize = 9.sp,
+                fontSize = TextSize.micro,
                 maxLines = 1,
             )
         }

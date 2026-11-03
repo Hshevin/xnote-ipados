@@ -49,6 +49,8 @@ import com.xnotes.settings.Preferences
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 private data class ColourPreset(@param:StringRes val name: Int, val accent: Rgba, val surface: Rgba? = null)
 private fun rgb(value: Int) = Rgba.fromArgb(value or (0xff shl 24))
@@ -88,18 +90,18 @@ internal fun MaterialColourPicker(prefs: Preferences, update: (Preferences) -> U
     val tinted = coloured && prefs.materialStyle != MaterialStyle.RAINBOW
     val presets = if (dual) dualTonePresets else singleTonePresets
     val selected = presets.firstOrNull { it.accent == accent && (!dual || it.surface == prefs.materialSurfaceSeed) }
-    Column(Modifier.widthIn(max = 520.dp).fillMaxWidth().selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.widthIn(max = 520.dp).fillMaxWidth().selectableGroup(), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         if (dual) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.material_colour_presets), color = palette.text.toComposeColor(), fontSize = 13.sp, modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.material_colour_presets), color = palette.text.toComposeColor(), fontSize = TextSize.body, modifier = Modifier.weight(1f))
                 val name = selected?.name ?: R.string.material_custom
-                Text(stringResource(name), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+                Text(stringResource(name), color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
             }
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val columns = when { maxWidth >= 480.dp -> 4; maxWidth >= 360.dp -> 3; else -> 2 }
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Space.s6)) {
                     presets.chunked(columns).forEach { row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Space.s6)) {
                             row.forEach { preset ->
                                 PresetChoice(preset, preset == selected, coloured, Modifier.weight(1f)) {
                                     update(prefs.copy(materialDualSeed = preset.accent, materialSurfaceSeed = requireNotNull(preset.surface)))
@@ -131,12 +133,12 @@ internal fun MaterialColourPicker(prefs: Preferences, update: (Preferences) -> U
                 ) { update(prefs.copy(materialSurfaceSeed = it)) }
             }
             if (dual && maxWidth >= 400.dp) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                     accentField(Modifier.weight(1f))
                     surfaceField(Modifier.weight(1f))
                 }
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Space.s6)) {
                     val singleWidth = singleColourSize * singleTonePresets.size + singleColourSpacing * (singleTonePresets.size - 1)
                     accentField(if (dual) Modifier.fillMaxWidth() else Modifier.widthIn(max = singleWidth).fillMaxWidth())
                     if (dual) surfaceField(Modifier.fillMaxWidth())
@@ -144,7 +146,7 @@ internal fun MaterialColourPicker(prefs: Preferences, update: (Preferences) -> U
             }
         }
         if (dual && !tinted) {
-            Text(stringResource(R.string.material_untinted_surfaces), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+            Text(stringResource(R.string.material_untinted_surfaces), color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
         }
     }
 }
@@ -159,7 +161,7 @@ private fun SingleColourChoice(preset: ColourPreset, selected: Boolean, enabled:
             .border(2.dp, if (selected) palette.accent.toComposeColor() else Color.Transparent, shape)
             .semantics { contentDescription = name }
             .selectable(selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
-            .padding(4.dp),
+            .padding(Space.s4),
     ) {
         Box(Modifier.size(24.dp).clip(MaterialTheme.shapes.extraSmall).background(preset.accent.toComposeColor()))
     }
@@ -175,15 +177,15 @@ private fun PresetChoice(preset: ColourPreset, selected: Boolean, enabled: Boole
             .background((if (selected) palette.selectionBackground else palette.surface).toComposeColor())
             .border(1.dp, (if (selected) palette.accent else palette.border).toComposeColor(), shape)
             .selectable(selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
-            .heightIn(min = 48.dp).padding(8.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            .heightIn(min = 48.dp).padding(Space.s8),
+        verticalArrangement = Arrangement.spacedBy(Space.s6),
     ) {
-        Row(Modifier.fillMaxWidth().height(16.dp).clip(MaterialTheme.shapes.extraSmall), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(Modifier.fillMaxWidth().height(16.dp).clip(MaterialTheme.shapes.extraSmall), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
             Box(Modifier.weight(1f).height(16.dp).background(preset.accent.toComposeColor()))
             preset.surface?.let { Box(Modifier.weight(1f).height(16.dp).background(it.toComposeColor())) }
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(stringResource(preset.name), color = foreground.toComposeColor(), fontSize = 12.sp, fontWeight = FontWeight.Medium,
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
+            Text(stringResource(preset.name), color = foreground.toComposeColor(), fontSize = TextSize.label, fontWeight = FontWeight.Medium,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             if (selected) Icon(XnotesIcons.check, null, tint = foreground.toComposeColor(), modifier = Modifier.size(14.dp))
         }
@@ -203,17 +205,17 @@ private fun CustomColourField(
                 .background(palette.surface.toComposeColor()).border(1.dp, palette.border.toComposeColor(), shape)
                 .clickable(enabled = enabled, role = Role.Button) { open = true }
                 .heightIn(min = 56.dp).padding(horizontal = 10.dp, vertical = if (compact) 6.dp else 8.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8),
         ) {
             Box(Modifier.size(if (compact) 20.dp else 24.dp).clip(MaterialTheme.shapes.extraSmall).background(colour.toComposeColor()))
             if (compact) {
-                Text(label, color = palette.text.toComposeColor(), fontSize = 12.sp, modifier = Modifier.weight(1f))
+                Text(label, color = palette.text.toComposeColor(), fontSize = TextSize.label, modifier = Modifier.weight(1f))
             } else {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(label, color = palette.text.toComposeColor(), fontSize = 12.sp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
+                    Text(label, color = palette.text.toComposeColor(), fontSize = TextSize.label)
                     Text(
                         Rgba.toHex(colour).uppercase(),
-                        color = palette.textDim.toComposeColor(), fontSize = 12.sp,
+                        color = palette.textDim.toComposeColor(), fontSize = TextSize.label,
                     )
                 }
             }

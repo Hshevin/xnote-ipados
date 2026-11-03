@@ -16,7 +16,7 @@ build, not an official XNotes release.
 - Both paged notebooks and the infinite canvas share the same input adapter.
 - Checked atomic settings replacement; failed mapping writes report failure and
   retain the previous settings. No document format change.
-- Pure black/white UI palette, without recolouring saved ink or source PDFs.
+- Black/white UI palette with neutral grey hierarchy (2026-11-03), without recolouring saved ink or source PDFs.
 
 ## Build and install
 

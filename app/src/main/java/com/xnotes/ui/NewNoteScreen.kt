@@ -74,7 +74,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -138,6 +137,8 @@ import com.xnotes.ui.theme.ColorMath
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
 import kotlin.math.roundToInt
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /**
  * The dialog's own window, made to behave like the activity's: the system bars hidden when the app
@@ -360,12 +361,12 @@ internal fun NewNoteScreen(
                     .clip(MaterialTheme.shapes.small)
                     .semantics { this.selected = selected }
                     .clickable(onClick = onClick)
-                    .padding(6.dp),
+                    .padding(Space.s6),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(Space.s12),
             ) {
-                Box(Modifier.border(2.dp, if (selected) accent else Color.Transparent, RoundedCornerShape(5.dp)).padding(4.dp)) { content() }
-                Text(label, color = if (selected) accent else dim, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                Box(Modifier.border(2.dp, if (selected) accent else Color.Transparent, RoundedCornerShape(5.dp)).padding(Space.s4)) { content() }
+                Text(label, color = if (selected) accent else dim, fontSize = TextSize.body, fontWeight = FontWeight.Medium)
             }
         }
 
@@ -380,7 +381,7 @@ internal fun NewNoteScreen(
                     )
                 },
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+                verticalArrangement = Arrangement.spacedBy(Space.s8, Alignment.CenterVertically),
                 content = content,
             )
         }
@@ -394,7 +395,7 @@ internal fun NewNoteScreen(
                 value = value,
                 onValueChange = onChange,
                 singleLine = true,
-                textStyle = TextStyle(color = text, fontSize = 14.sp, textAlign = TextAlign.Center),
+                textStyle = TextStyle(color = text, fontSize = TextSize.bodyLarge, textAlign = TextAlign.Center),
                 cursorBrush = SolidColor(accent),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
@@ -414,7 +415,7 @@ internal fun NewNoteScreen(
                         MaterialTheme.shapes.small,
                     )
                     .background(palette.menuBg.toComposeColor(), MaterialTheme.shapes.small)
-                    .padding(vertical = 10.dp),
+                    .padding(vertical = Space.s12),
             )
         }
 
@@ -438,8 +439,8 @@ internal fun NewNoteScreen(
         fun FormatRow() = Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             FlowRow(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(Space.s12, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(Space.s8),
             ) {
                 Box {
                     var open by remember { mutableStateOf(false) }
@@ -450,12 +451,12 @@ internal fun NewNoteScreen(
                             .border(1.dp, border, MaterialTheme.shapes.small)
                             .background(palette.menuBg.toComposeColor())
                             .clickable { open = true }
-                            .padding(start = 14.dp, end = 8.dp),
+                            .padding(start = Space.s16, end = Space.s8),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(Space.s8),
                     ) {
-                        Text(pageSizeLabel(size), color = text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                        if (!custom) Text(stringResource(R.string.page_size_mm, mmText(pageMm.first.roundToInt().toDouble()), mmText(pageMm.second.roundToInt().toDouble())), color = dim, fontSize = 13.sp)
+                        Text(pageSizeLabel(size), color = text, fontSize = TextSize.bodyLarge, fontWeight = FontWeight.Medium)
+                        if (!custom) Text(stringResource(R.string.page_size_mm, mmText(pageMm.first.roundToInt().toDouble()), mmText(pageMm.second.roundToInt().toDouble())), color = dim, fontSize = TextSize.body)
                         Icon(XnotesIcons.chevronDown, null, tint = dim, modifier = Modifier.size(18.dp))
                     }
                     DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
@@ -472,7 +473,7 @@ internal fun NewNoteScreen(
                                     }
                                 },
                                 leadingIcon = {
-                                    if (s == size) Icon(XnotesIcons.check, null, tint = accent, modifier = Modifier.size(18.dp)) else Spacer(Modifier.size(18.dp))
+                                    if (s == size) Icon(XnotesIcons.check, null, tint = accent, modifier = Modifier.size(18.dp)) else Spacer(Modifier.size(Space.s20))
                                 },
                                 onClick = {
                                     if (s == PageSize.CUSTOM && !custom) {
@@ -487,11 +488,11 @@ internal fun NewNoteScreen(
                     }
                 }
                 if (custom) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s6)) {
                         MmField(customW, stringResource(R.string.width_mm)) { customW = it }
-                        Text("×", color = dim, fontSize = 13.sp)
+                        Text("×", color = dim, fontSize = TextSize.body)
                         MmField(customH, stringResource(R.string.height_mm)) { customH = it }
-                        Text("mm", color = dim, fontSize = 13.sp)
+                        Text("mm", color = dim, fontSize = TextSize.body)
                     }
                 }
                 Row(Modifier.clip(MaterialTheme.shapes.small).border(1.dp, border, MaterialTheme.shapes.small)) {
@@ -504,7 +505,7 @@ internal fun NewNoteScreen(
             if (custom && (cw == null || ch == null)) {
                 Text(
                     stringResource(R.string.custom_size_range, mmText(range.start), mmText(range.endInclusive)),
-                    color = palette.danger.toComposeColor(), fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp),
+                    color = palette.danger.toComposeColor(), fontSize = TextSize.label, modifier = Modifier.padding(top = Space.s6),
                 )
             }
         }
@@ -524,12 +525,12 @@ internal fun NewNoteScreen(
             }
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                horizontalArrangement = Arrangement.spacedBy(Space.s16, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.Bottom,
             ) {
-                // Sheets of paper: a hairline edge and a soft shadow keep a dark page apart from the dark stage.
+                // Sheets of paper: a hairline edge keeps a dark page apart from the dark stage.
                 val edge = palette.paperBorder.toComposeColor().copy(alpha = 0.7f)
-                val paper = Modifier.shadow(3.dp, RectangleShape).border(1.dp, edge)
+                val paper = Modifier.border(1.dp, edge)
                 Sheet(stringResource(if (hasCover) R.string.cover else R.string.no_cover), face == Face.COVER, {
                     face = Face.COVER
                     aiOpen = false
@@ -540,7 +541,7 @@ internal fun NewNoteScreen(
                     } else {
                         Dashed(w, h) {
                             Icon(XnotesIcons.plus, null, tint = dim, modifier = Modifier.size(22.dp))
-                            Text(stringResource(R.string.add_cover), color = dim, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Text(stringResource(R.string.add_cover), color = dim, fontSize = TextSize.body, fontWeight = FontWeight.Medium)
                         }
                     }
                 }
@@ -561,10 +562,10 @@ internal fun NewNoteScreen(
 
         @Composable
         fun ColourRow(caption: String, role: SwatchRole, value: Rgba?, onDefault: () -> Unit, onPick: (Rgba) -> Unit) {
-            Spacer(Modifier.size(12.dp))
+            Spacer(Modifier.size(Space.s12))
             StyleCaption(caption)
-            Spacer(Modifier.size(6.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Spacer(Modifier.size(Space.s6))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s6), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
                 ModeChip(stringResource(R.string.default_choice), value == null, onDefault)
                 SwatchCircles(editor, role, value, onPick)
             }
@@ -578,21 +579,21 @@ internal fun NewNoteScreen(
                 val changed = if (face == Face.PAGES) style != start else hasCover && coverStyle != start
                 Row(Modifier.heightIn(min = 40.dp), verticalAlignment = Alignment.Top) {
                     Column(Modifier.weight(1f)) {
-                        Text(stringResource(if (face == Face.PAGES) R.string.every_page else R.string.cover), color = dim, fontSize = 12.sp)
+                        Text(stringResource(if (face == Face.PAGES) R.string.every_page else R.string.cover), color = dim, fontSize = TextSize.label)
                         Text(
                             when {
                                 face == Face.PAGES -> pageT?.name ?: stringResource(R.string.plain_paper)
                                 hasCover -> coverT!!.name
                                 else -> stringResource(R.string.no_cover)
                             },
-                            color = text, fontSize = 16.sp, fontWeight = FontWeight.Medium,
+                            color = text, fontSize = TextSize.title, fontWeight = FontWeight.Medium,
                         )
                         // What the template is for, or for a cover, whose picture it is.
                         val about = if (face == Face.PAGES) pageT?.description else coverT?.takeIf { hasCover }?.description
                         if (!about.isNullOrBlank()) {
                             Text(
-                                about, color = dim, fontSize = 13.sp, lineHeight = 19.sp, maxLines = 4, overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(top = 4.dp),
+                                about, color = dim, fontSize = TextSize.body, lineHeight = 19.sp, maxLines = 4, overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = Space.s4),
                             )
                         }
                     }
@@ -608,15 +609,15 @@ internal fun NewNoteScreen(
                         style = style.copy(pageColor = it)
                     }
                     if (pageT == null) {
-                        Spacer(Modifier.size(12.dp))
-                        Text(stringResource(R.string.pick_template_hint), color = dim, fontSize = 13.sp)
+                        Spacer(Modifier.size(Space.s12))
+                        Text(stringResource(R.string.pick_template_hint), color = dim, fontSize = TextSize.body)
                     } else {
                         if (pageT.usesInk) {
                             // Circles hold the hue at full strength; the opacity slider sets the alpha.
                             ColourRow(stringResource(R.string.caption_pattern_colour), SwatchRole.LINES, style.patternColor?.copy(a = 255), {
                                 style = style.copy(patternColor = null)
                             }) { style = style.copy(patternColor = it.copy(a = look.ink.a)) }
-                            Spacer(Modifier.size(12.dp))
+                            Spacer(Modifier.size(Space.s12))
                             val pct = look.ink.a * 100f / 255f
                             StyleCaption(stringResource(R.string.caption_opacity_percent, pct.roundToInt()))
                             Slider(
@@ -635,10 +636,10 @@ internal fun NewNoteScreen(
                 } else if (hasCover) {
                     TemplateParamControls(coverT!!, coverStyle, null, DPI, editor, captionGap = 6.dp) { coverStyle = it }
                 } else {
-                    Spacer(Modifier.size(12.dp))
-                    Text(stringResource(R.string.pick_cover_hint), color = dim, fontSize = 13.sp)
+                    Spacer(Modifier.size(Space.s12))
+                    Text(stringResource(R.string.pick_cover_hint), color = dim, fontSize = TextSize.body)
                 }
-                Spacer(Modifier.size(24.dp))
+                Spacer(Modifier.size(Space.s24))
             }
         }
 
@@ -656,14 +657,14 @@ internal fun NewNoteScreen(
                         }
                     }
                     .clickable(onClick = onClick)
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = Space.s16),
                 contentAlignment = Alignment.Center,
-            ) { Text(label, color = if (on) accent else dim, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1) }
+            ) { Text(label, color = if (on) accent else dim, fontSize = TextSize.title, fontWeight = FontWeight.Medium, maxLines = 1) }
         }
 
         @Composable
         fun Tabs() {
-            Row(Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 12.dp)) {
+            Row(Modifier.fillMaxWidth().height(52.dp).padding(horizontal = Space.s12)) {
                 // The cover picker of an open note styles its cover alone, so it has no Pages tab.
                 if (!coverOnly) Tab(stringResource(R.string.pages), !aiOpen && face == Face.PAGES) { face = Face.PAGES; aiOpen = false }
                 Tab(stringResource(R.string.cover), !aiOpen && face == Face.COVER) { face = Face.COVER; aiOpen = false }
@@ -699,15 +700,15 @@ internal fun NewNoteScreen(
                     ) { thumb(w - 2.dp, h - 2.dp) }
                     if (selected) {
                         Box(
-                            Modifier.align(Alignment.TopEnd).padding(6.dp).size(22.dp).background(accent, CircleShape),
+                            Modifier.align(Alignment.TopEnd).padding(Space.s6).size(22.dp).background(accent, CircleShape),
                             contentAlignment = Alignment.Center,
                         ) { Icon(XnotesIcons.check, null, tint = palette.onAccent.toComposeColor(), modifier = Modifier.size(14.dp)) }
                     }
                 }
-                Spacer(Modifier.size(8.dp))
+                Spacer(Modifier.size(Space.s8))
                 Text(
                     label, color = if (selected) palette.selectionForeground.toComposeColor() else text,
-                    fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    fontSize = TextSize.label, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(text = { Text(stringResource(R.string.remove_template)) }, onClick = { menu = false; onRemove?.invoke() })
@@ -721,8 +722,8 @@ internal fun NewNoteScreen(
                 BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio((pageMm.first / pageMm.second).toFloat())) {
                     Dashed(maxWidth, maxHeight) { Icon(icon, null, tint = dim, modifier = Modifier.size(26.dp)) }
                 }
-                Spacer(Modifier.size(8.dp))
-                Text(label, color = text, fontSize = 12.sp, maxLines = 2)
+                Spacer(Modifier.size(Space.s8))
+                Text(label, color = text, fontSize = TextSize.label, maxLines = 2)
             }
         }
 
@@ -735,12 +736,12 @@ internal fun NewNoteScreen(
 
         fun LazyGridScope.heading(title: String, count: Int?, help: String? = null) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Column(Modifier.padding(top = 18.dp, bottom = 2.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(title, color = dim, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                        if (count != null) Text(count.toString(), color = dim.copy(alpha = 0.75f), fontSize = 13.sp)
+                Column(Modifier.padding(top = Space.s20, bottom = Space.s2)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+                        Text(title, color = dim, fontSize = TextSize.body, fontWeight = FontWeight.Medium)
+                        if (count != null) Text(count.toString(), color = dim.copy(alpha = 0.75f), fontSize = TextSize.body)
                     }
-                    if (help != null) Text(help, color = dim, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                    if (help != null) Text(help, color = dim, fontSize = TextSize.label, modifier = Modifier.padding(top = Space.s2))
                 }
             }
         }
@@ -750,7 +751,7 @@ internal fun NewNoteScreen(
                 val tags = pages.flatMap { it.template.tags }.groupingBy { it }.eachCount().filter { it.value >= 2 }
                     .entries.sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key }).map { it.key }
                 item(span = { GridItemSpan(maxLineSpan) }) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                         ModeChip(stringResource(R.string.tag_all), tag == null) { tag = null }
                         for (t in tags) ModeChip(t.replaceFirstChar { it.uppercase() }, tag == t) { tag = t }
                     }
@@ -879,16 +880,16 @@ internal fun NewNoteScreen(
                 val wide = screenW >= 720.dp
                 Column(Modifier.fillMaxSize()) {
                     Row(
-                        Modifier.fillMaxWidth().height(76.dp).padding(start = 8.dp, end = 20.dp),
+                        Modifier.fillMaxWidth().height(76.dp).padding(start = Space.s8, end = Space.s20),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(Space.s8),
                     ) {
                         IconButton(onClick = onClose) { Icon(XnotesIcons.close, stringResource(R.string.close_new_note), tint = text) }
                         if (coverOnly) {
-                            Text(stringResource(if (coverEdit?.current == null) R.string.add_cover else R.string.change_cover_title), color = text, fontSize = 22.sp, modifier = Modifier.weight(1f))
+                            Text(stringResource(if (coverEdit?.current == null) R.string.add_cover else R.string.change_cover_title), color = text, fontSize = TextSize.display, modifier = Modifier.weight(1f))
                         } else Column(Modifier.weight(1f)) {
-                            Text(stringResource(R.string.new_note_in, folderName), color = dim, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            val nameStyle = TextStyle(color = text, fontSize = 22.sp)
+                            Text(stringResource(R.string.new_note_in, folderName), color = dim, fontSize = TextSize.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            val nameStyle = TextStyle(color = text, fontSize = TextSize.display)
                             BasicTextField(
                                 value = name,
                                 onValueChange = { v ->
@@ -912,7 +913,7 @@ internal fun NewNoteScreen(
                                 },
                                 modifier = Modifier.widthIn(max = 480.dp).fillMaxWidth()
                                     .onGloballyPositioned { fieldBounds["name"] = it.boundsInRoot() }
-                                    .padding(vertical = 4.dp)
+                                    .padding(vertical = Space.s4)
                                     .onFocusChanged {
                                     nameFocused = it.isFocused
                                     if (it.isFocused && !selectedOnce) {
@@ -926,7 +927,7 @@ internal fun NewNoteScreen(
                             Box(Modifier.widthIn(max = 480.dp).fillMaxWidth().height(2.dp), contentAlignment = Alignment.BottomStart) {
                                 Box(Modifier.fillMaxWidth().height(if (nameFocused) 2.dp else 1.dp).background(if (nameFocused) accent else dim.copy(alpha = 0.4f)))
                             }
-                            if (error != null) Text(error, color = palette.danger.toComposeColor(), fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                            if (error != null) Text(error, color = palette.danger.toComposeColor(), fontSize = TextSize.label, modifier = Modifier.padding(top = Space.s2))
                         }
                         Button(
                             onClick = { create() },
@@ -939,7 +940,7 @@ internal fun NewNoteScreen(
                             } else {
                                 Icon(XnotesIcons.check, null, modifier = Modifier.size(18.dp))
                             }
-                            Spacer(Modifier.size(8.dp))
+                            Spacer(Modifier.size(Space.s8))
                             Text(stringResource(if (coverOnly) R.string.done else R.string.create), fontWeight = FontWeight.Medium)
                         }
                     }
@@ -948,8 +949,8 @@ internal fun NewNoteScreen(
                         val stageW = (screenW * 0.38f).coerceIn(340.dp, 520.dp)
                         Row(Modifier.weight(1f).fillMaxWidth()) {
                             Column(
-                                Modifier.width(stageW).fillMaxHeight().background(palette.bg.toComposeColor()).padding(horizontal = 24.dp, vertical = 20.dp),
-                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                                Modifier.width(stageW).fillMaxHeight().background(palette.bg.toComposeColor()).padding(horizontal = Space.s24, vertical = Space.s20),
+                                verticalArrangement = Arrangement.spacedBy(Space.s16),
                             ) {
                                 Sheets(260.dp, 300.dp)
                                 if (!coverOnly) FormatRow()
@@ -983,7 +984,7 @@ internal fun NewNoteScreen(
                                 if (aiOpen) {
                                     AiTemplateTab(
                                         coverOnly, wide = true, onImport = onImportTemplate,
-                                        modifier = Modifier.fillMaxSize().verticalScroll(aiScroll).padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 40.dp),
+                                        modifier = Modifier.fillMaxSize().verticalScroll(aiScroll).padding(start = Space.s24, end = Space.s24, top = Space.s20, bottom = Space.s40),
                                     )
                                 } else {
                                     // Each tab keeps its own scroll, and the first time one shows, its picked tile comes into view.
@@ -1003,9 +1004,9 @@ internal fun NewNoteScreen(
                                             columns = GridCells.Adaptive(112.dp),
                                             modifier = Modifier.fillMaxSize(),
                                             state = grid,
-                                            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 40.dp),
-                                            horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                                            contentPadding = PaddingValues(start = Space.s24, end = Space.s24, top = Space.s16, bottom = Space.s40),
+                                            horizontalArrangement = Arrangement.spacedBy(Space.s16),
+                                            verticalArrangement = Arrangement.spacedBy(Space.s16),
                                         ) { gallery() }
                                     }
                                 }
@@ -1017,14 +1018,14 @@ internal fun NewNoteScreen(
                             LazyVerticalGrid(
                                 columns = GridCells.Adaptive(100.dp),
                                 modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 96.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(14.dp),
+                                contentPadding = PaddingValues(start = Space.s16, end = Space.s16, bottom = 96.dp),
+                                horizontalArrangement = Arrangement.spacedBy(Space.s12),
+                                verticalArrangement = Arrangement.spacedBy(Space.s16),
                             ) {
                                 item(span = { GridItemSpan(maxLineSpan) }) {
                                     Column(
-                                        Modifier.fillMaxWidth().padding(top = 12.dp).background(palette.bg.toComposeColor(), RoundedCornerShape(12.dp)).padding(14.dp),
-                                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                                        Modifier.fillMaxWidth().padding(top = Space.s12).background(palette.bg.toComposeColor(), RoundedCornerShape(12.dp)).padding(Space.s16),
+                                        verticalArrangement = Arrangement.spacedBy(Space.s12),
                                     ) {
                                         Sheets(120.dp, 170.dp)
                                         if (!coverOnly) FormatRow()
@@ -1033,7 +1034,7 @@ internal fun NewNoteScreen(
                                 item(span = { GridItemSpan(maxLineSpan) }) { Tabs() }
                                 if (aiOpen) {
                                     item(span = { GridItemSpan(maxLineSpan) }) {
-                                        AiTemplateTab(coverOnly, wide = false, onImport = onImportTemplate, modifier = Modifier.padding(top = 12.dp))
+                                        AiTemplateTab(coverOnly, wide = false, onImport = onImportTemplate, modifier = Modifier.padding(top = Space.s12))
                                     }
                                 } else gallery()
                             }
@@ -1043,7 +1044,7 @@ internal fun NewNoteScreen(
                                     .fillMaxWidth()
                                     .background(palette.menuBg.toComposeColor(), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
                                     .clickable { tuneOpen = true }
-                                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                                    .padding(horizontal = Space.s20, vertical = Space.s16),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Column(Modifier.weight(1f)) {
@@ -1053,16 +1054,16 @@ internal fun NewNoteScreen(
                                             hasCover -> coverT!!.name
                                             else -> stringResource(R.string.no_cover)
                                         },
-                                        color = text, fontSize = 15.sp, fontWeight = FontWeight.Medium,
+                                        color = text, fontSize = TextSize.title, fontWeight = FontWeight.Medium,
                                     )
-                                    Text(stringResource(if (face == Face.PAGES) R.string.every_page else R.string.cover), color = dim, fontSize = 12.sp)
+                                    Text(stringResource(if (face == Face.PAGES) R.string.every_page else R.string.cover), color = dim, fontSize = TextSize.label)
                                 }
-                                Text(stringResource(R.string.customize), color = accent, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Text(stringResource(R.string.customize), color = accent, fontSize = TextSize.bodyLarge, fontWeight = FontWeight.Medium)
                             }
                         }
                         if (tuneOpen) {
                             ModalBottomSheet(onDismissRequest = { tuneOpen = false }, containerColor = palette.menuBg.toComposeColor()) {
-                                Column(Modifier.padding(horizontal = 20.dp).verticalScroll(rememberScrollState())) { Tune() }
+                                Column(Modifier.padding(horizontal = Space.s20).verticalScroll(rememberScrollState())) { Tune() }
                             }
                         }
                     }
