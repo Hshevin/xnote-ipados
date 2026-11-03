@@ -151,7 +151,8 @@ private fun AskAiWindow(sessions: AiSessions, chat: AiChat, floating: Boolean = 
                                     bitmap?.let { Image(it.asImageBitmap(), "会话截图", Modifier.fillMaxWidth().heightIn(max = 180.dp)) }
                                 }
                                 turn.user.pdf?.let { Text("PDF：${it.name} · ${it.pageCount} 页", color = palette.text.toComposeColor()) }
-                                Text("AI：${turn.answer}", color = palette.text.toComposeColor())
+                                Text("AI", color = palette.text.toComposeColor())
+                                AiMarkdownText(turn.answer)
                                 var details by remember(chat.id, index) { mutableStateOf(false) }
                                 if (turn.state == "生成中" && turn.progress.isNotBlank()) Text(turn.progress, color = palette.text.toComposeColor())
                                 if (turn.steps.isNotEmpty() || turn.user.searchContext.isNotBlank()) {
