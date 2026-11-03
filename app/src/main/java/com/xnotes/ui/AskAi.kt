@@ -441,8 +441,9 @@ private fun AiSettings(close: () -> Unit) {
 // --- entry and host ------------------------------------------------------------------------
 
 /**
- * The screenshot menu's AI action for one document. While that document's floating chat is open,
- * [addsToOpenChat] is true and a capture joins the chat's next question; otherwise it starts a new chat.
+ * The screenshot menu's AI action for one document. While the floating chat is open — over this
+ * document or, in split screen, the other one — [addsToOpenChat] is true and a capture joins that
+ * chat's next question; otherwise it starts a new chat from this document.
  */
 internal class AskAiAction(val addsToOpenChat: Boolean, val take: (File) -> Unit)
 
@@ -451,30 +452,31 @@ internal class AskAiAction(val addsToOpenChat: Boolean, val take: (File) -> Unit
 internal fun rememberAskAi(source: String, sourceUri: String?, currentPdf: File? = null, documentId: String = "", onCapture: () -> Unit = {}): AskAiAction {
     val context = LocalContext.current
     val sessions = AiSessions.get(context)
-    val owner = documentId.ifBlank { sourceUri ?: source }
+    val owner = documentId.ifBlank { sourceUri.orEmpty().ifBlank { source } }
     val capture by rememberUpdatedState(onCapture)
-    DisposableEffect(sessions, owner) {
-        val handler: () -> Unit = { capture() }
-        sessions.captureHandlers[owner] = handler
-        onDispose { if (sessions.captureHandlers[owner] === handler) sessions.captureHandlers.remove(owner) }
+    val pdfUri = currentPdf?.let { android.net.Uri.fromFile(it).toString() }
+    DisposableEffect(sessions, owner, source, sourceUri, pdfUri) {
+        val document = AiDocument(source, sourceUri.orEmpty(), documentId, pdfUri?.let { it to "$source.pdf" }) { capture() }
+        sessions.documents[owner] = document
+        onDispose { if (sessions.documents[owner] === document) sessions.documents.remove(owner) }
     }
     var failure by remember { mutableStateOf("") }
     if (failure.isNotEmpty()) AlertDialog(onDismissRequest = { failure = "" }, text = { Text(failure) },
         confirmButton = { TextButton(onClick = { failure = "" }) { Text(stringResource(R.string.ai_ok)) } })
-    val openChat = sessions.activeId?.takeIf { sessions.floatingOwner == owner && sessions.chats.containsKey(it) }
+    val openChat = sessions.activeId?.takeIf { sessions.floatingOwner != null && sessions.chats.containsKey(it) }
     return AskAiAction(openChat != null) { file ->
         runCatching {
             check(sessions.ready) { context.getString(R.string.ai_history_loading) }
             require(file.length() in 1..(6 * 1024 * 1024)) { context.getString(R.string.ai_screenshot_too_large) }
             val bytes = file.readBytes()
             if (openChat != null) {
-                check(sessions.addScreenshot(openChat, bytes)) { context.getString(R.string.ai_screenshot_limit, AiProtocol.MAX_IMAGES) }
+                check(sessions.addScreenshot(openChat, bytes, fromDocument = owner)) { context.getString(R.string.ai_screenshot_limit, AiProtocol.MAX_IMAGES) }
                 sessions.floatingCollapsed = false
             } else {
                 val id = sessions.newChat(source, sourceUri.orEmpty(), owner, documentId)
                 sessions.addScreenshot(id, bytes)
                 sessions.floatingCollapsed = false
-                currentPdf?.let { sessions.offerCurrentPdf(id, android.net.Uri.fromFile(it).toString(), "$source.pdf") }
+                pdfUri?.let { sessions.offerCurrentPdf(id, it, "$source.pdf") }
             }
         }.onFailure { failure = it.message ?: context.getString(R.string.ai_screenshot_failed) }
     }
@@ -521,7 +523,7 @@ private fun AskAiWindow(
     var history by remember { mutableStateOf(false) }
     val collapsed = floating && sessions.floatingCollapsed
     val owner = sessions.floatingOwner
-    val capture = owner?.let { sessions.captureHandlers[it] }
+    val capture = owner?.let { sessions.documents[it]?.capture }
     // Unplaced until first moved: the card then opens at the right edge below the document toolbar,
     // not over the toolbar's first tools. Once moved, every chat (a new one too) opens where it was left.
     val x = sessions.windowOffset?.first ?: Float.NaN

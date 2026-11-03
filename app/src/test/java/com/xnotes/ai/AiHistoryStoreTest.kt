@@ -41,6 +41,20 @@ class AiHistoryStoreTest {
         assertTrue(AiChat(sourceUri = "uri", source = "t").belongsTo("uri"))
         assertTrue(AiChat(source = "t").belongsTo("t"))
         assertFalse(AiChat().belongsTo(""))
+        val joined = AiChat(sourceDocumentId = "doc-a", relatedDocuments = listOf("doc-b"))
+        assertTrue(joined.belongsTo("doc-a")); assertTrue(joined.belongsTo("doc-b")); assertFalse(joined.belongsTo("doc-c"))
+        assertEquals("doc-a", joined.documentKey); assertEquals("uri", AiChat(sourceUri = "uri", source = "t").documentKey)
+    }
+    @Test fun relatedDocumentsRoundTripAndOldRecordsHaveNone() {
+        val dir = Files.createTempDirectory("ai-history").toFile()
+        try {
+            val chat = AiChat(sourceDocumentId = "doc-a", relatedDocuments = listOf("doc-b"))
+            AiHistoryStore(dir).write(chat)
+            assertEquals(chat, AiHistoryStore(dir).readAll().first.single())
+            val id = java.util.UUID.randomUUID().toString()
+            java.io.File(dir, "$id.json").writeText("""{"version":1,"id":"$id","title":"旧","updated":1,"turns":[]}""")
+            assertEquals(emptyList<String>(), AiHistoryStore(dir).readAll().first.single { it.id == id }.relatedDocuments)
+        } finally { dir.deleteRecursively() }
     }
     @Test fun damagedRecordIsPreservedAndDoesNotHideHealthyRecords() {
         val dir = Files.createTempDirectory("ai-history").toFile()

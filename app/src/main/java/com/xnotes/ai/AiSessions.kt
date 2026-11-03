@@ -35,8 +35,8 @@ class AiSessions(
     var windowOffset by mutableStateOf<Pair<Float, Float>?>(null)
     /** The floating card folded to its title strip; kept here so a new capture can unfold it. */
     var floatingCollapsed by mutableStateOf(false)
-    /** Per floating owner (document key), arms that document's screenshot tool. Registered by the open editors. */
-    val captureHandlers = mutableStateMapOf<String, () -> Unit>()
+    /** Documents open in panes, by document key, registered by their editors while composed. */
+    val documents = mutableStateMapOf<String, AiDocument>()
     /** Bumped when AI settings are saved, so open chats re-read their model choices. */
     var configRevision by mutableStateOf(0)
     val followLatest = mutableMapOf<String, Boolean>()
@@ -83,12 +83,18 @@ class AiSessions(
         text?.let { drafts[id] = it.take(16000) }; search?.let { searchEnabled[id] = it }
         saveDraft(id)
     }
-    /** Adds a screenshot to the chat's next question; false when it already holds [AiProtocol.MAX_IMAGES]. */
-    fun addScreenshot(id: String, bytes: ByteArray): Boolean {
-        if (!chats.containsKey(id)) return false
+    /**
+     * Adds a screenshot to the chat's next question; false when it already holds [AiProtocol.MAX_IMAGES].
+     * A capture from another document ([fromDocument], its key) records that document on the chat, so
+     * the chat also appears in that document's floating history; it still belongs to its source.
+     */
+    fun addScreenshot(id: String, bytes: ByteArray, fromDocument: String = ""): Boolean {
+        val chat = chats[id] ?: return false
         val current = attachments[id].orEmpty()
         if (current.size >= AiProtocol.MAX_IMAGES) return false
         attachments[id] = current + bytes
+        if (fromDocument.isNotBlank() && fromDocument != chat.documentKey && fromDocument !in chat.relatedDocuments)
+            chats[id] = chat.copy(relatedDocuments = chat.relatedDocuments + fromDocument)
         saveDraft(id)
         return true
     }
@@ -149,9 +155,14 @@ class AiSessions(
     fun retrySave() { storageError = ""; chats.values.forEach { persist(it) } }
     fun newChat(source: String = "", sourceUri: String = "", floatingOwner: String? = null, sourceDocumentId: String = ""): String {
         check(ready)
-        val previous=if(floatingOwner!=null && this.floatingOwner==floatingOwner) activeId?.let { chats[it] } else null
-        val chat = AiChat(source = source.ifBlank { previous?.source.orEmpty() }, sourceUri = sourceUri.ifBlank { previous?.sourceUri.orEmpty() }, sourceDocumentId = sourceDocumentId.ifBlank { previous?.sourceDocumentId.orEmpty() })
-        val previousPdf = if (floatingOwner != null && this.floatingOwner == floatingOwner) activeId?.let { currentPdfs[it] } else null
+        // The floating card's own "new chat" names only its document: take that document's details from
+        // its open editor, else from the card's chat when that chat was started there (not merely joined).
+        val bare = source.isBlank() && sourceUri.isBlank() && sourceDocumentId.isBlank()
+        val open = if (bare) floatingOwner?.let { documents[it] } else null
+        val previous = if (floatingOwner != null && this.floatingOwner == floatingOwner) activeId?.let { chats[it] }?.takeIf { it.documentKey.isBlank() || it.documentKey == floatingOwner } else null
+        val chat = if (open != null) AiChat(source = open.source, sourceUri = open.uri, sourceDocumentId = open.documentId)
+            else AiChat(source = source.ifBlank { previous?.source.orEmpty() }, sourceUri = sourceUri.ifBlank { previous?.sourceUri.orEmpty() }, sourceDocumentId = sourceDocumentId.ifBlank { previous?.sourceDocumentId.orEmpty() })
+        val previousPdf = open?.pdf ?: previous?.let { currentPdfs[it.id] }
         this.floatingOwner = floatingOwner
         // Unreadable settings only lose the defaults; the chat itself still opens.
         val defaults = runCatching { config() }.getOrNull()
@@ -168,14 +179,22 @@ class AiSessions(
         if (defaults?.attachPdfByDefault == true && pdfAttachments[id] == null && importStates[id] == null) importPdf(id, uri, name)
     }
     fun close() { activeId = null; floatingOwner = null }
+    /**
+     * Hides the card when its document leaves the screen. A chat that also holds screenshots from a
+     * still-visible document moves over to that one instead of closing.
+     */
     fun reconcileFloating(visibleDocuments: Set<String>) {
-        if (floatingOwner != null && floatingOwner !in visibleDocuments) close()
+        val owner = floatingOwner ?: return
+        if (owner in visibleDocuments) return
+        val chat = activeId?.let { chats[it] }
+        val next = chat?.let { c -> (listOf(c.documentKey) + c.relatedDocuments).firstOrNull { it in visibleDocuments } }
+        if (next != null) floatingOwner = next else close()
     }
     fun open(id: String) { if (chats.containsKey(id)) { activeId = id; floatingOwner = null } }
     /** Switch the floating card to another chat of the same document; the document's PDF stays on offer. */
     fun openFloating(id: String) {
         if (!chats.containsKey(id) || floatingOwner == null) return
-        val offer = activeId?.let { currentPdfs[it] }
+        val offer = floatingOwner?.let { documents[it]?.pdf } ?: activeId?.let { currentPdfs[it] }
         activeId = id
         if (offer != null && currentPdfs[id] == null) currentPdfs[id] = offer
     }
@@ -311,5 +330,11 @@ class AiSessions(
         }
     }
 }
+
+/**
+ * A document open in a pane, as its editor registers it under its key: what a chat started from it
+ * records, its PDF to offer in ＋ (URI and name), and how to arm its screenshot tool.
+ */
+class AiDocument(val source: String, val uri: String, val documentId: String, val pdf: Pair<String, String>?, val capture: () -> Unit)
 
 data class AiImportState(val uri: String, val name: String?, val loading: Boolean = false, val error: String = "", val token: Any = Any())

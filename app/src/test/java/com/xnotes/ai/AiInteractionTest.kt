@@ -139,6 +139,33 @@ class AiInteractionTest {
             assertNull(sessions.activeId)
         }
     }
+    @Test fun splitScreenCapturesJoinTheOpenChatWhichKeepsItsSource() = runBlocking {
+        fixture { store, scope ->
+            val sessions = AiSessions(store, scope, { settings })
+            until { sessions.ready }
+            sessions.documents["doc-a"] = AiDocument("A", "uri-a", "doc-a", "file:///a.pdf" to "A.pdf") {}
+            sessions.documents["doc-b"] = AiDocument("B", "uri-b", "doc-b", "file:///b.pdf" to "B.pdf") {}
+            val id = sessions.newChat("A", "uri-a", "doc-a", "doc-a")
+            assertTrue(sessions.addScreenshot(id, byteArrayOf(1), fromDocument = "doc-a"))
+            assertTrue(sessions.addScreenshot(id, byteArrayOf(2), fromDocument = "doc-b"))
+            assertTrue(sessions.addScreenshot(id, byteArrayOf(3), fromDocument = "doc-b"))
+            val chat = sessions.chats[id]!!
+            assertEquals("doc-a", chat.sourceDocumentId); assertEquals(listOf("doc-b"), chat.relatedDocuments)
+            assertEquals(3, sessions.attachments[id]!!.size)
+            assertEquals(listOf(id), sessions.chatsOf("doc-a").map { it.id }); assertEquals(listOf(id), sessions.chatsOf("doc-b").map { it.id })
+            sessions.flush()
+            assertEquals(listOf("doc-b"), store.readAll().first.single().relatedDocuments)
+            // A's pane closes: the card moves to B, which this chat also drew from, rather than closing.
+            sessions.reconcileFloating(setOf("doc-b"))
+            assertEquals("doc-b", sessions.floatingOwner); assertEquals(id, sessions.activeId)
+            // Its "new chat" now starts a chat of B, offering B's PDF, not one inherited from A's chat.
+            val fresh = sessions.newChat(floatingOwner = sessions.floatingOwner)
+            assertEquals("doc-b", sessions.chats[fresh]!!.sourceDocumentId); assertEquals("B", sessions.chats[fresh]!!.source)
+            assertEquals("file:///b.pdf" to "B.pdf", sessions.currentPdfs[fresh])
+            sessions.reconcileFloating(setOf("doc-c"))
+            assertNull(sessions.activeId); assertNull(sessions.floatingOwner)
+        }
+    }
     @Test fun configurationFailureKeepsComposer() = runBlocking {
         fixture { store, scope ->
             val sessions = AiSessions(store, scope, { AiConfig() })
