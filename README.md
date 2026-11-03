@@ -39,7 +39,9 @@ This fork targets Wacom MovinkPad Pro 14 and Pro Pen 3. Three-button mappings an
 - 测试包名 `com.xnotes.movinkpad.splitpreview`，与正式包名 `com.xnotes.movinkpad` 分开安装。用户已确认该版本满足当前需求，并要求打包原应用覆盖升级版；当前维护入口为 `master`。
 - 本轮验证：2462 项 JVM 测试、39 项 Android 模拟器测试通过。测试数量是本次记录，不代表后续版本已验证。
 
-当前覆盖升级版为 **0.9.7-movinkpad / versionCode 81**，使用原应用身份和历史签名。交付与验证见 [Release 记录](docs/movinkpad/release-2026-11-02.md)。测试版的数据不会自动迁入原应用。版本 79 修复返回主菜单后打开普通文件仍保留分屏的问题，普通文件进入单文档，显式恢复分屏不受影响。
+[下载 Release 82 ARM64 APK](build/xnotes/XNotes-0.9.7-movinkpad-release82-arm64.apk)。
+
+当前覆盖升级版为 **0.9.7-movinkpad / versionCode 82**，使用原应用身份和历史签名。交付与验证见 [Release 记录](docs/movinkpad/release-2026-11-02.md)。测试版的数据不会自动迁入原应用。版本 79 修复返回主菜单后打开普通文件仍保留分屏的问题，普通文件进入单文档，显式恢复分屏不受影响。
 
 构建覆盖升级 Release（须保留本机原签名密钥）：
 
@@ -59,7 +61,7 @@ Release 80 包含实时笔迹刷新调整、分屏关闭先回到窗格首页再
 
 Release 81（2026-11-03，仅本地打包）加入黑白灰阶层级、统一字号和间距规范，以及 48 dp 触控区。已知在 1280 dp 宽的分屏下工具栏会溢出到滚动区；真机验收待执行。
 
-当前未发布的工具栏调整统一按文档能力分配：插入空白在笔记/PDF 工作区置顶；PDF 文本标注在全 PDF 工作区置顶；混合不支持的文档时下放对应文档栏。缩放/导航/视图等独立设置保持在文档栏。新按钮必须显式分类。按用户要求暂不打包。
+当前未发布的工具栏调整统一按文档能力分配：插入空白在笔记/PDF 工作区置顶；PDF 文本标注在全 PDF 工作区置顶；混合不支持的文档时下放对应文档栏。缩放/导航/视图等独立设置保持在文档栏。新按钮必须显式分类。本轮随 Release 82 交付。
 
 每个功能阶段或交付前检查本文件与 [AGENTS.md](AGENTS.md)，同步状态、构建入口及维护约定；详细历史和证据保存在 `docs/movinkpad/`。
 

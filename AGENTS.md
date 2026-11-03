@@ -72,3 +72,5 @@
 - 2026-11-03：用户要求将 AI 工作树合入主工作区，保留主分支已有 UI（灰阶、字号/间距 tokens、工具栏分配）；本轮不开始 UI 大改，不打包或推送。
 
 - 用户随后于 2026-11-03 授权导出 AI preview3 覆盖测试包：`com.xnotes.movinkpad.aipreview` / versionCode 3，沿用 preview2 签名；不覆盖正式版，不包含设备安装或推送授权。
+
+- 用户随后于 2026-11-03 授权制作正式 Release 82：包名 `com.xnotes.movinkpad`、versionCode 82，沿用正式版历史签名，启用 R8/资源压缩且关闭 debuggable。仅本地交付，不安装、不推送或发布 GitHub Release；继续保留现有 UI。
