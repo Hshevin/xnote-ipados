@@ -162,12 +162,14 @@ class AiSettingsOptionsTest {
             until { sessions.pdfAttachments[id] != null }
             assertEquals(listOf("file:///a.pdf"), imported)
             // A new chat from the same floating window carries the PDF on and attaches it again.
+            sessions.chats[id] = sessions.chats.getValue(id).copy(turns = listOf(AiTurn(AiMessage("user", "question"), "answer", "已完成")))
             val next = sessions.newChat(floatingOwner = "doc")
             until { sessions.pdfAttachments[next] != null }
             assertEquals(2, imported.size)
             sessions.flush()
             assertTrue(AiHistoryStore(dir).readAll().first.first { it.id == id }.draft.search)
             // With the defaults off, the PDF is only offered and search starts off.
+            sessions.chats[next] = sessions.chats.getValue(next).copy(turns = listOf(AiTurn(AiMessage("user", "question"), "answer", "已完成")))
             defaults = defaults.copy(searchByDefault = false, attachPdfByDefault = false)
             val plain = sessions.newChat(floatingOwner = "doc")
             assertNotEquals(true, sessions.searchEnabled[plain])

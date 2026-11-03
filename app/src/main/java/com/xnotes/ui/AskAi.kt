@@ -713,9 +713,11 @@ private fun AiComposer(sessions: AiSessions, chat: AiChat, modifier: Modifier, o
     fun attachPdf(uri: android.net.Uri, name: String? = null) { clipboardError = false; sessions.importPdf(chat.id, uri.toString(), name) }
     // Capture the requesting chat: picker results must never attach to a newly selected conversation.
     var pickerChat by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+    var pickerVersion by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0L) }
     val pdfPicker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
         val target = pickerChat; pickerChat = null
-        if (uri != null && target != null) sessions.importPdf(target, uri.toString())
+        if (uri != null && target != null && sessions.composerVersion(target) == pickerVersion)
+            sessions.importPdf(target, uri.toString())
     }
     val canSend = prompt.isNotBlank() && !importing && importState?.error.isNullOrEmpty()
     val shape = MaterialTheme.shapes.large
@@ -767,7 +769,7 @@ private fun AiComposer(sessions: AiSessions, chat: AiChat, modifier: Modifier, o
                                 onClick = { attachMenu = false; attachPdf(android.net.Uri.parse(uri), name) })
                         }
                         DropdownMenuItem(text = { Text(stringResource(R.string.ai_attach_pick_pdf)) }, leadingIcon = { Icon(XnotesIcons.folder, null, Modifier.size(18.dp)) },
-                            onClick = { attachMenu = false; pickerChat = chat.id; pdfPicker.launch(arrayOf("application/pdf")) })
+                            onClick = { attachMenu = false; pickerChat = chat.id; pickerVersion = sessions.composerVersion(chat.id); pdfPicker.launch(arrayOf("application/pdf")) })
                         DropdownMenuItem(text = { Text(stringResource(R.string.ai_attach_paste_pdf)) }, leadingIcon = { Icon(XnotesIcons.paste, null, Modifier.size(18.dp)) }, onClick = {
                             attachMenu = false
                             val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
@@ -928,7 +930,7 @@ private fun AiHistoryList(onShowSidebar: (() -> Unit)?, onOpenSource: (String) -
                 sessions.chats[sourceErrorChat]?.let { relocating = it; relocatePicker.launch(arrayOf("*/*")) }
             }
         }
-        val chats = sessions.chats.values.filter { it.matches(query) }.sortedByDescending { it.updated }
+        val chats = sessions.chats.values.filter { it.turns.isNotEmpty() && it.matches(query) }.sortedByDescending { it.updated }
         if (!sessions.ready || chats.isEmpty()) Text(stringResource(if (!sessions.ready) R.string.ai_loading else if (query.isNotBlank()) R.string.ai_no_matches else R.string.ai_no_chats),
             Modifier.padding(Space.s12), color = palette.textDim.toComposeColor(), fontSize = TextSize.body)
         androidx.compose.foundation.lazy.LazyColumn(Modifier.weight(1f).padding(top = Space.s4), verticalArrangement = Arrangement.spacedBy(Space.s2)) {

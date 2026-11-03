@@ -68,6 +68,8 @@
 
 - AI chat interaction (2026-11-03): drafts and ready attachments belong to a chat, not its window. Preserve per-chat search selection, keep imports running on navigation, and guard late import callbacks after deletion/replacement. Clear a submitted draft only after its question is saved, without erasing newer input. Generation progress is factual stage text, not invented percentages. This interaction stage is code/test only; do not package APKs without a new request.
 
+- AI 未开始对话的输入区（2026-11-04）：关闭窗口或点击「新会话」时，只要尚无任何对话轮次且未在发送，就清空提示词、截图、附件及其导入任务，不留下或累积空白历史会话；不能用提示词是否为空判断。已有对话保留草稿与附件，关闭/新会话仍不取消生成。清空后必须拒绝旧文件选择器与附件导入的迟到结果。
+
 - Document registry migration (2026-11-03, in progress): preserve legacy ink and original PDF payload bytes during import/format upgrade; this is not authorization to change ordinary stroke simplification. Migration must stage and verify before publication, never reuse model re-encoding to upgrade metadata. Keep document UUID separate from resource fingerprints. Registry/SAF recovery and ID-based split restoration are integrated in source, with device acceptance pending. Missing/duplicate IDs require explicit recovery, never arbitrary selection. Shared immutable PDF objects use indexed references, active leases and delayed collection; portable note bundles retain their embedded original. No APK/install/push for this stage; the user subsequently authorized local integration into master.
 - 2026-11-03 用户授权将黑白层级与字号、间距规范打包为 Release 81（本地交付，同一身份和签名）；不包括推送或 GitHub Release。Release 构建的 buildDirectory 放到 iCloud 同步目录之外（见 Release 记录），避免出现 `… 2.*` 重复文件。
 

@@ -35,6 +35,7 @@ class AiSessions(
     /** Bumped when AI settings are saved, so open chats re-read their model choices. */
     var configRevision by mutableStateOf(0)
     val followLatest = mutableMapOf<String, Boolean>()
+    private val composerVersions = mutableMapOf<String, Long>()
     private val imports = mutableMapOf<String, Job>()
     private val draftSaves = mutableMapOf<String, Job>()
     private val requests = mutableStateMapOf<String, Pair<AiTransport, Job>>()
@@ -127,21 +128,57 @@ class AiSessions(
         imports[id] = job; job.start()
     }
     fun retryImport(id: String) { importStates[id]?.let { importPdf(id, it.uri, it.name) } }
+    fun composerVersion(id: String): Long = composerVersions[id] ?: 0L
+    /** Also invalidates picker/import results belonging to the discarded composer. */
+    private fun discardUnstartedChat(id: String, keepOpen: Boolean = false) {
+        val chat = chats[id] ?: return
+        if (chat.turns.isNotEmpty() || isRunning(id)) return
+        composerVersions[id] = composerVersion(id) + 1L
+        imports.remove(id)?.cancel()
+        importStates.remove(id)
+        attachments.remove(id)
+        pdfAttachments.remove(id)
+        drafts.remove(id)
+        draftSaves.remove(id)?.cancel()
+        val cleared = chat.copy(draft = AiDraft(search = searchEnabled[id] ?: false))
+        if (keepOpen) chats[id] = cleared else {
+            chats.remove(id)
+            searchEnabled.remove(id); currentPdfs.remove(id)
+        }
+        scrollPositions.remove(id); followLatest.remove(id)
+        // Unlike deleting a conversation, abandoning an empty input has no undo entry.
+        val op = Disk(delete = id)
+        disk.trySend(op)
+        scope.launch {
+            if (op.done.await()) withContext(Dispatchers.IO) { store.forgetDeleted(id) }
+            else if (!keepOpen) { chats[id] = cleared; restoreDraft(cleared) }
+        }
+    }
     private suspend fun progress(id: String, label: String) = withContext(scope.coroutineContext.minusKey(Job)) {
         update(id) { c -> c.copy(turns = c.turns.dropLast(1) + c.turns.last().let { it.copy(progress = label, steps = (it.steps + label).takeLast(20)) }) }?.let { persist(it) }
     }
     fun retrySave() { storageError = ""; chats.values.forEach { persist(it) } }
     fun newChat(source: String = "", sourceUri: String = "", floatingOwner: String? = null, sourceDocumentId: String = ""): String {
         check(ready)
+        val current = activeId?.let { chats[it] }
+        if (current != null && current.turns.isEmpty() && !isRunning(current.id) &&
+            this.floatingOwner == floatingOwner &&
+            (source.isBlank() || source == current.source) &&
+            (sourceUri.isBlank() || sourceUri == current.sourceUri) &&
+            (sourceDocumentId.isBlank() || sourceDocumentId == current.sourceDocumentId)) {
+            discardUnstartedChat(current.id, keepOpen = true)
+            return current.id
+        }
         val previous=if(floatingOwner!=null && this.floatingOwner==floatingOwner) activeId?.let { chats[it] } else null
         val chat = AiChat(source = source.ifBlank { previous?.source.orEmpty() }, sourceUri = sourceUri.ifBlank { previous?.sourceUri.orEmpty() }, sourceDocumentId = sourceDocumentId.ifBlank { previous?.sourceDocumentId.orEmpty() })
         val previousPdf = if (floatingOwner != null && this.floatingOwner == floatingOwner) activeId?.let { currentPdfs[it] } else null
+        current?.let { discardUnstartedChat(it.id) }
         this.floatingOwner = floatingOwner
         // Unreadable settings only lose the defaults; the chat itself still opens.
         val defaults = runCatching { config() }.getOrNull()
         val started = if (defaults?.searchByDefault == true) chat.copy(draft = chat.draft.copy(search = true)) else chat
         if (started.draft.search) searchEnabled[chat.id] = true
-        chats[chat.id] = started; activeId = chat.id; persist(started)
+        chats[chat.id] = started; activeId = chat.id
         previousPdf?.let { (uri, name) -> offerCurrentPdf(chat.id, uri, name, defaults) }
         return chat.id
     }
@@ -151,7 +188,10 @@ class AiSessions(
         currentPdfs[id] = uri to name
         if (defaults?.attachPdfByDefault == true && pdfAttachments[id] == null && importStates[id] == null) importPdf(id, uri, name)
     }
-    fun close() { activeId = null; floatingOwner = null }
+    fun close() {
+        activeId?.let { discardUnstartedChat(it) }
+        activeId = null; floatingOwner = null
+    }
     fun reconcileFloating(visibleDocuments: Set<String>) {
         if (floatingOwner != null && floatingOwner !in visibleDocuments) close()
     }
@@ -251,6 +291,7 @@ class AiSessions(
         stop(id)
         imports.remove(id)?.cancel(); importStates.remove(id); draftSaves.remove(id)?.cancel()
         searchEnabled.remove(id); scrollPositions.remove(id); followLatest.remove(id)
+        composerVersions.remove(id)
         attachments.remove(id); drafts.remove(id); pdfAttachments.remove(id); currentPdfs.remove(id)
         chats.remove(id) // Late callbacks cannot recreate a deleted record.
         if (activeId == id) close()
