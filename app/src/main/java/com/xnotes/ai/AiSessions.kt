@@ -14,7 +14,7 @@ class AiSessions(
     private val transport: () -> AiTransport = { AiConnection() },
     private val pdfAccess: AiPdfAccess? = null,
     private val holdPdfs: (Set<String>) -> AutoCloseable = { AutoCloseable {} },
-    private val preparePdf: suspend (String, String?) -> AiPdf = { _, _ -> error("PDF 读取服务不可用") },
+    private val preparePdf: suspend (String, String?) -> AiPdf = { _, _ -> error(AiText.t(AiMsg.PDF_SERVICE_UNAVAILABLE)) },
 ) {
     val attachments = mutableStateMapOf<String, ByteArray>()
     val pdfAttachments = mutableStateMapOf<String, AiPdf>()
@@ -41,9 +41,9 @@ class AiSessions(
             try {
                 val (loaded, damaged) = withContext(Dispatchers.IO) { store.readAll() }
                 loaded.forEach { chat -> chats[chat.id] = chat.recover(); restoreDraft(chat) }
-                if (damaged > 0) storageError = "$damaged 条历史或附件记录异常，原文件已保留"
+                if (damaged > 0) storageError = AiText.t(AiMsg.HISTORY_DAMAGED, damaged)
                 loaded.filter { it != it.recover() }.forEach { persist(it.recover()) }
-            } catch (_: Exception) { storageError = "历史记录读取失败" }
+            } catch (_: Exception) { storageError = AiText.t(AiMsg.HISTORY_READ_FAILED) }
             ready = true
             for (operation in disk) {
                 val ok = try {
@@ -52,7 +52,7 @@ class AiSessions(
                         operation.delete?.let(store::delete)
                     }
                     true
-                } catch (_: Exception) { storageError = "历史保存或删除失败，请重试；不要退出应用"; false }
+                } catch (_: Exception) { storageError = AiText.t(AiMsg.HISTORY_SAVE_FAILED); false }
                 operation.done.complete(ok)
             }
         }
@@ -66,7 +66,7 @@ class AiSessions(
         drafts[chat.id] = chat.draft.text
         searchEnabled[chat.id] = chat.draft.search
         chat.draft.image?.let { encoded ->
-            runCatching { java.util.Base64.getDecoder().decode(encoded) }.onSuccess { attachments[chat.id] = it }.onFailure { storageError = "草稿截图无法读取，原记录已保留" }
+            runCatching { java.util.Base64.getDecoder().decode(encoded) }.onSuccess { attachments[chat.id] = it }.onFailure { storageError = AiText.t(AiMsg.DRAFT_SCREENSHOT_UNREADABLE) }
         }
         chat.draft.pdf?.let { pdfAttachments[chat.id] = it }
     }
@@ -117,7 +117,7 @@ class AiSessions(
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 if (chats.containsKey(id) && importStates[id]?.token === token)
-                    importStates[id] = AiImportState(uri, name, error = if (e is IllegalArgumentException) e.message ?: "PDF 无法读取" else "PDF 无法读取，请检查文件和权限", token = token)
+                    importStates[id] = AiImportState(uri, name, error = if (e is IllegalArgumentException) e.message ?: AiText.t(AiMsg.PDF_UNREADABLE) else AiText.t(AiMsg.PDF_UNREADABLE_CHECK), token = token)
             } finally { if (importStates[id]?.token === token || importStates[id] == null) imports.remove(id) }
         }
         imports[id] = job; job.start()
@@ -156,14 +156,14 @@ class AiSessions(
             var pdfLease: AutoCloseable? = null
             try {
                 val settings = config()
-                require(settings.key.isNotBlank()) { "请先配置供应商" }
+                require(settings.key.isNotBlank()) { AiText.t(AiMsg.PROVIDER_NOT_CONFIGURED) }
                 AiProtocol.endpoint(settings.url)
                 AiProtocol.request(settings.model, original.context() + user)
-                if (useSearch) { require(settings.searchKey.isNotBlank()) { "请配置 DeepSeek 搜索密钥" } }
+                if (useSearch) { require(settings.searchKey.isNotBlank()) { AiText.t(AiMsg.SEARCH_KEY_NOT_CONFIGURED) } }
                 val next = original.copy(draft = chats[id]?.draft ?: original.draft, title = if (original.turns.isEmpty() && original.title == "新会话") user.text.take(40) else original.title,
                     updated = System.currentTimeMillis(), turns = original.turns + AiTurn(user))
                 chats[id] = next; started = true
-                check(persist(next).await()) { "未能保存问题，已取消发送" }
+                check(persist(next).await()) { AiText.t(AiMsg.QUESTION_SAVE_FAILED) }
                 // Clear only the submitted composer; edits made while saving belong to the next turn.
                 if (drafts[id].orEmpty().trim() == user.text && pdfAttachments[id] == user.pdf &&
                     attachments[id]?.let { java.util.Base64.getEncoder().encodeToString(it) } == user.image) {
@@ -171,18 +171,18 @@ class AiSessions(
                 }
                 val pdfIds=(original.context()+user).mapNotNull { it.pdf?.id?.takeIf(String::isNotBlank) }.toSet()
                 pdfLease=withContext(Dispatchers.IO) { holdPdfs(pdfIds) }
-                progress(id, "正在准备回答")
+                progress(id, AiText.t(AiMsg.PROGRESS_PREPARING))
                 val prepared = if ((original.context() + user).any { !it.pdf?.id.isNullOrEmpty() }) {
-                    withContext(Dispatchers.IO) { AiPdfTools.prepare(settings, client, original.context(), user, checkNotNull(pdfAccess) { "PDF 读取服务不可用" }) { label -> progress(id, label) } }
+                    withContext(Dispatchers.IO) { AiPdfTools.prepare(settings, client, original.context(), user, checkNotNull(pdfAccess) { AiText.t(AiMsg.PDF_SERVICE_UNAVAILABLE) }) { label -> progress(id, label) } }
                 } else user
                 var outgoing = prepared
                 if (useSearch) {
-                    progress(id, "正在识别检索对象")
+                    progress(id, AiText.t(AiMsg.PROGRESS_RESOLVING_SEARCH))
                     val resolvedQuery = run {
                         val planned = StringBuilder()
                         withContext(Dispatchers.IO) {
                             client.stream(settings, AiSearchQuery.messages(original.context(), prepared)) { chunk ->
-                                require(planned.length + chunk.length <= 4096) { "无法识别搜索对象，请补充清晰截图或具体标题" }
+                                require(planned.length + chunk.length <= 4096) { AiText.t(AiMsg.SEARCH_TARGET_TOO_LONG) }
                                 planned.append(chunk)
                             }
                         }
@@ -190,12 +190,12 @@ class AiSessions(
                     }
                     outgoing = prepared.copy(searchContext = "本次搜索词：$resolvedQuery\n正在检索…")
                     update(id) { c -> c.copy(turns = c.turns.dropLast(1) + c.turns.last().copy(user = user.copy(searchContext = outgoing.searchContext))) }?.let { persist(it) }
-                    progress(id, "正在联网搜索：$resolvedQuery")
+                    progress(id, AiText.t(AiMsg.PROGRESS_SEARCHING_WEB, resolvedQuery))
                     val sources = withContext(Dispatchers.IO) { client.search(settings.searchKey, resolvedQuery) }
                     outgoing = prepared.copy(searchContext = "本次搜索词：$resolvedQuery\n$sources")
                     update(id) { c -> c.copy(turns = c.turns.dropLast(1) + c.turns.last().copy(user = user.copy(searchContext = outgoing.searchContext))) }?.let { persist(it) }
                 }
-                progress(id, "正在生成回答")
+                progress(id, AiText.t(AiMsg.PROGRESS_GENERATING))
                 var lastSave = System.nanoTime()
                 withContext(Dispatchers.IO) {
                     client.stream(settings, original.context() + outgoing) { chunk ->
@@ -205,13 +205,13 @@ class AiSessions(
                         }
                     }
                 }
-                check(chats[id]?.turns?.lastOrNull()?.answer?.isNotBlank() == true) { "模型未返回文字" }
+                check(chats[id]?.turns?.lastOrNull()?.answer?.isNotBlank() == true) { AiText.t(AiMsg.NO_TEXT_RETURNED) }
                 finish(id, "已完成", "")
             } catch (e: CancellationException) {
-                if (started) finish(id, "已停止", "已主动停止生成")
+                if (started) finish(id, "已停止", AiText.t(AiMsg.STOPPED_BY_USER))
                 throw e
             } catch (e: Exception) {
-                val message = if (e is IllegalArgumentException || e is IllegalStateException) e.message ?: "请求失败" else "网络或响应异常，请检查配置"
+                val message = if (e is IllegalArgumentException || e is IllegalStateException) e.message ?: AiText.t(AiMsg.REQUEST_FAILED) else AiText.t(AiMsg.NETWORK_ERROR)
                 if (started) finish(id, "生成失败", message)
                 else update(id) { c -> c.copy(turns = c.turns + AiTurn(user, state = "生成失败", error = message)) }?.let { persist(it) }
             } finally {

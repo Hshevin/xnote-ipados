@@ -8,12 +8,12 @@ object DeepSeekSearch {
     const val ENDPOINT = "https://api.deepseek.com/v1/tools/search"
     fun request(query: String): JSONObject {
         val value = query.trim()
-        require(value.isNotEmpty() && value.codePointCount(0, value.length) <= 128) { "请输入 1–128 个字符的搜索词" }
+        require(value.isNotEmpty() && value.codePointCount(0, value.length) <= 128) { AiText.t(AiMsg.SEARCH_QUERY_LENGTH) }
         return JSONObject().put("query", value).put("count", 5).put("need_content", false)
     }
     fun context(response: String): String {
         val json = JSONObject(response)
-        check(!json.has("error")) { "DeepSeek 搜索返回错误" }
+        check(!json.has("error")) { AiText.t(AiMsg.SEARCH_RETURNED_ERROR) }
         val results = json.getJSONArray("results")
         val items = (0 until minOf(results.length(), 5)).mapNotNull { index ->
             val item = results.getJSONObject(index)

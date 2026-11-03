@@ -14,7 +14,7 @@ object AiSearchQuery {
     fun parse(raw: String): String {
         val value = raw.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
         val query = try { JSONObject(value).opt("query") as? String } catch (_: Exception) { null }
-        require(!query.isNullOrBlank()) { "无法从截图和问题确定搜索对象，请补充清晰截图或具体标题后重试" }
+        require(!query.isNullOrBlank()) { AiText.t(AiMsg.SEARCH_TARGET_UNRESOLVED) }
         val trimmed = query.trim()
         DeepSeekSearch.request(trimmed)
         return trimmed

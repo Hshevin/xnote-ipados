@@ -81,6 +81,9 @@ private class NoBringIntoViewNode : Modifier.Node(), BringIntoViewModifierNode {
 
 /** What the text overlay and its style bar drive: a note's text boxes and labels, or a canvas's labels. */
 interface TextEditHost {
+    /** Colours for chrome drawn on the page itself (contrasting with the page in view), or null for the theme's. */
+    val overlayPalette: com.xnotes.ui.theme.Palette? get() = null
+
     /** Where the style bar sits and what it shows, or null to hide it. */
     val textBar: com.xnotes.canvas.TextBar?
 
@@ -115,7 +118,8 @@ interface TextEditHost {
 @Composable
 fun TextEditorOverlay(editor: TextEditHost, field: EditingField) {
     val density = LocalDensity.current
-    val palette = LocalPalette.current
+    // The box border and caret sit on the page, so they take the page-aware overlay colours.
+    val palette = editor.overlayPalette ?: LocalPalette.current
     var value by remember { mutableStateOf(TextFieldValue(field.text, TextRange(field.text.length))) }
     var coords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val focusRequester = remember { FocusRequester() }

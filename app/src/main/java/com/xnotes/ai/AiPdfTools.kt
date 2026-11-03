@@ -40,30 +40,30 @@ object AiPdfTools {
             coroutineContext.ensureActive()
             val reply = StringBuilder()
             client.stream(config, loop) { chunk ->
-                require(reply.length + chunk.length <= 4096) { "PDF 工具请求过长" }; reply.append(chunk)
+                require(reply.length + chunk.length <= 4096) { AiText.t(AiMsg.PDF_TOOL_REQUEST_TOO_LONG) }; reply.append(chunk)
             }
             val raw = reply.toString().trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
-            val call = try { JSONObject(raw) } catch (_: Exception) { throw IllegalStateException("模型未返回有效 PDF 工具请求，请使用支持指令和图片的模型重试") }
+            val call = try { JSONObject(raw) } catch (_: Exception) { throw IllegalStateException(AiText.t(AiMsg.PDF_TOOL_INVALID_REPLY)) }
             if (call.optString("tool") == "done") {
-                require(it > 0) { "模型尚未读取 PDF 内容，请重试" }
+                require(it > 0) { AiText.t(AiMsg.PDF_TOOL_NOTHING_READ) }
                 return grounded(user, evidence.toString(), images)
             }
-            val pdf = files[call.optString("id")] ?: throw IllegalArgumentException("模型请求了未附加的 PDF")
+            val pdf = files[call.optString("id")] ?: throw IllegalArgumentException(AiText.t(AiMsg.PDF_TOOL_UNKNOWN_ATTACHMENT))
             progress(when (call.optString("tool")) {
-                "read" -> "正在读取 ${pdf.name} 第 ${call.optInt("start")}–${call.optInt("end")} 页"
-                "search" -> "正在搜索 PDF：${call.optString("query")}"
-                "image" -> "正在查看 ${pdf.name} 第 ${call.optInt("page")} 页"
-                else -> "正在读取 PDF"
+                "read" -> AiText.t(AiMsg.PROGRESS_READING_PAGES, pdf.name, call.optInt("start"), call.optInt("end"))
+                "search" -> AiText.t(AiMsg.PROGRESS_SEARCHING_PDF, call.optString("query"))
+                "image" -> AiText.t(AiMsg.PROGRESS_VIEWING_PAGE, pdf.name, call.optInt("page"))
+                else -> AiText.t(AiMsg.PROGRESS_READING_PDF)
             })
             val result = when (call.optString("tool")) {
                 "read" -> {
                     val start = call.getInt("start"); val end = call.getInt("end")
-                    require(start >= 1 && end >= start && end <= pdf.pageCount && end - start < 5) { "PDF 读取页码无效" }
+                    require(start >= 1 && end >= start && end <= pdf.pageCount && end - start < 5) { AiText.t(AiMsg.PDF_TOOL_READ_RANGE_INVALID) }
                     access.read(pdf, start, end)
                 }
                 "search" -> {
                     val start = call.getInt("start"); val end = call.getInt("end"); val query = call.getString("query").trim()
-                    require(query.isNotEmpty() && query.length <= 200 && start >= 1 && end >= start && end <= pdf.pageCount && end - start < 50) { "PDF 搜索范围无效" }
+                    require(query.isNotEmpty() && query.length <= 200 && start >= 1 && end >= start && end <= pdf.pageCount && end - start < 50) { AiText.t(AiMsg.PDF_TOOL_SEARCH_RANGE_INVALID) }
                     val hits = StringBuilder("搜索 $query，第 $start–$end 页：\n")
                     var matches = 0
                     for (page in start..end) {
@@ -81,13 +81,13 @@ object AiPdfTools {
                 }
                 "image" -> {
                     val page = call.getInt("page")
-                    require(page in 1..pdf.pageCount && images.size < 4) { "页码无效或已达4张页图上限" }
+                    require(page in 1..pdf.pageCount && images.size < 4) { AiText.t(AiMsg.PDF_TOOL_IMAGE_LIMIT) }
                     images.add(access.image(pdf, page))
                     "已查看第 $page 页，见本次工具结果页图。"
                 }
-                else -> throw IllegalArgumentException("不支持的 PDF 工具")
+                else -> throw IllegalArgumentException(AiText.t(AiMsg.PDF_TOOL_UNSUPPORTED))
             }
-            require(result.length <= 24000 && evidence.length + result.length <= 64000) { "PDF 读取内容超出本轮预算，请缩小问题范围" }
+            require(result.length <= 24000 && evidence.length + result.length <= 64000) { AiText.t(AiMsg.PDF_TOOL_BUDGET_EXCEEDED) }
             val label = "附件 ${pdf.name}（${pdf.id}）：\n$result"
             evidence.append(label).append('\n')
             loop.add(AiMessage("assistant", raw))

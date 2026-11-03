@@ -168,6 +168,7 @@ class MainActivity : ComponentActivity() {
         com.xnotes.platform.TemplateLibrary.init(this)
         com.xnotes.ui.AudioPlayback.init(this)
         com.xnotes.ui.AudioRecording.init(this)
+        com.xnotes.ui.installAiText(this) // before any AiSessions/AI backend message is produced
         setTheme(com.xnotes.R.style.Theme_Xnotes) // leave the dark launch/splash theme behind
         applyFullscreen(!deviceHasDisplayCutout(this)) // provisional; reconciled once the editor loads prefs
         // The intent that started the task comes back whenever Android rebuilds it, from a saved state
@@ -386,22 +387,22 @@ private fun EditorScreen(
         var working by remember(pane) { mutableStateOf(false) }
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { if (!working) pane.storageProblemUri = null },
-            title = { androidx.compose.material3.Text("文档需要处理") },
+            title = { androidx.compose.material3.Text(stringResource(R.string.recovery_title)) },
             text = { androidx.compose.material3.Text(pane.storageProblemText) },
             confirmButton = {
                 androidx.compose.foundation.layout.Column {
                     if (pane.storageCanRecover) androidx.compose.material3.TextButton(enabled = !working, onClick = {
                         working = true; scope.launch { pane.recoverStorageProblem(restore = true); working = false }
-                    }) { androidx.compose.material3.Text("恢复升级前的备份") }
+                    }) { androidx.compose.material3.Text(stringResource(R.string.recovery_restore_backup)) }
                     if (pane.storageDuplicate) androidx.compose.material3.TextButton(enabled = !working, onClick = {
                         working = true; scope.launch { pane.recoverStorageProblem(copy = true); working = false }
-                    }) { androidx.compose.material3.Text("将此文件设为独立副本") }
+                    }) { androidx.compose.material3.Text(stringResource(R.string.recovery_make_copy_independent)) }
                     if (pane.storageCanRecover) androidx.compose.material3.TextButton(enabled = !working, onClick = {
                         working = true; scope.launch { pane.recoverStorageProblem(); working = false }
-                    }) { androidx.compose.material3.Text("保留当前文件，放弃备份") }
+                    }) { androidx.compose.material3.Text(stringResource(R.string.recovery_keep_current)) }
                 }
             },
-            dismissButton = { androidx.compose.material3.TextButton(enabled = !working, onClick = { pane.storageProblemUri = null }) { androidx.compose.material3.Text("稍后处理") } },
+            dismissButton = { androidx.compose.material3.TextButton(enabled = !working, onClick = { pane.storageProblemUri = null }) { androidx.compose.material3.Text(stringResource(R.string.recovery_later)) } },
         )
     }
     val resolver = context.contentResolver
@@ -1833,15 +1834,15 @@ private fun EditorPane(
             }
         }
         Column(modifier.fillMaxSize().padding(Space.s24), verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
-            Text("文档暂时无法打开")
-            Text("窗格及阅读位置已保留。请恢复文件授权，或重新定位原笔记。")
+            Text(stringResource(R.string.missing_title))
+            Text(stringResource(R.string.missing_body))
             Text(missing.uri.substringAfterLast('/'), maxLines = 2)
             var searching by remember(editor) { mutableStateOf(false) }
-            if(searching) Text("正在检查已授权文件夹…")
-            androidx.compose.material3.TextButton(enabled = !searching,onClick = { scope.launch { searching=true; try { editor.rediscoverMissing() } finally { searching=false } } }) { Text("在已授权文件夹查找") }
-            androidx.compose.material3.TextButton(onClick = { picker.launch(arrayOf("*/*")) }) { Text("重新定位文件") }
-            androidx.compose.material3.TextButton(onClick = { scope.launch { editor.relocateMissing(missing.uri) } }) { Text("重试") }
-            androidx.compose.material3.TextButton(onClick = { actions.onClosePane(editor) }) { Text("关闭窗格") }
+            if(searching) Text(stringResource(R.string.missing_searching))
+            androidx.compose.material3.TextButton(enabled = !searching,onClick = { scope.launch { searching=true; try { editor.rediscoverMissing() } finally { searching=false } } }) { Text(stringResource(R.string.missing_search)) }
+            androidx.compose.material3.TextButton(onClick = { picker.launch(arrayOf("*/*")) }) { Text(stringResource(R.string.missing_locate)) }
+            androidx.compose.material3.TextButton(onClick = { scope.launch { editor.relocateMissing(missing.uri) } }) { Text(stringResource(R.string.missing_retry)) }
+            androidx.compose.material3.TextButton(onClick = { actions.onClosePane(editor) }) { Text(stringResource(R.string.missing_close_pane)) }
         }
         return
     }

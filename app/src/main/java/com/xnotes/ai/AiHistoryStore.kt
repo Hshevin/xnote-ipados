@@ -12,7 +12,7 @@ data class AiDraft(val text: String = "", val image: String? = null, val pdf: Ai
 data class AiTurn(val user: AiMessage, val answer: String = "", val state: String = "生成中", val error: String = "", val progress: String = "", val steps: List<String> = emptyList())
 data class AiChat(val id: String = UUID.randomUUID().toString(), val title: String = "新会话", val source: String = "", val updated: Long = System.currentTimeMillis(), val turns: List<AiTurn> = emptyList(), val sourceUri: String = "", val draft: AiDraft = AiDraft(), val sourceDocumentId: String = "") {
     fun context(): List<AiMessage> = turns.filter { it.state == "已完成" }.flatMap { listOf(it.user, AiMessage("assistant", it.answer)) }
-    fun recover(): AiChat = copy(turns = turns.map { if (it.state == "生成中") it.copy(state = "已中断", error = "应用退出或进程中断，已保留上次保存的内容") else it })
+    fun recover(): AiChat = copy(turns = turns.map { if (it.state == "生成中") it.copy(state = "已中断", error = AiText.t(AiMsg.RECOVERED_INTERRUPTED)) else it })
     fun matches(query: String): Boolean = title.contains(query, true) || source.contains(query, true) || turns.any { it.user.text.contains(query, true) || it.answer.contains(query, true) }
 }
 
@@ -24,7 +24,7 @@ class AiHistoryStore(private val directory: File, private val resources: com.xno
         return File(directory, "$id.json")
     }
     fun write(chat: AiChat) {
-        check(directory.isDirectory || directory.mkdirs()) { "无法创建 AI 历史目录" }
+        check(directory.isDirectory || directory.mkdirs()) { AiText.t(AiMsg.HISTORY_DIR_CREATE_FAILED) }
         val destination = file(chat.id)
         val temp = File(directory, "${chat.id}.tmp")
         val turns = JSONArray()
@@ -33,7 +33,7 @@ class AiHistoryStore(private val directory: File, private val resources: com.xno
             .put("sources", turn.user.searchContext).put("answer", turn.answer).put("state", turn.state).put("error", turn.error).put("progress", turn.progress).put("steps", JSONArray(turn.steps))) }
         val json = JSONObject().put("version", 1).put("id", chat.id).put("title", chat.title).put("source", chat.source).put("updated", chat.updated).put("sourceUri", chat.sourceUri).put("sourceDocumentId", chat.sourceDocumentId).put("turns", turns).put("draft", JSONObject().put("text", chat.draft.text).put("image", chat.draft.image ?: JSONObject.NULL).put("pdf", pdfJson(chat.draft.pdf)).put("search", chat.draft.search))
         val bytes = json.toString().toByteArray(Charsets.UTF_8)
-        require(bytes.size <= 64 * 1024 * 1024) { "会话记录过大，请新建会话" }
+        require(bytes.size <= 64 * 1024 * 1024) { AiText.t(AiMsg.CHAT_TOO_LARGE) }
         val ids = (chat.turns.mapNotNull { it.user.pdf?.id } + listOfNotNull(chat.draft.pdf?.id)).filter { it.isNotBlank() }.toSet()
         resources?.let { it.pin("chat:${chat.id}", it.references("chat:${chat.id}") + ids) }
         try {
@@ -45,8 +45,8 @@ class AiHistoryStore(private val directory: File, private val resources: com.xno
     fun readAll(): Pair<List<AiChat>, Int> {
         var damaged = 0
         val files = if (!directory.exists()) emptyArray() else {
-            check(directory.isDirectory) { "历史目录不可读" }
-            checkNotNull(directory.listFiles { f -> f.extension == "json" }) { "历史目录不可读" }
+            check(directory.isDirectory) { AiText.t(AiMsg.HISTORY_DIR_UNREADABLE) }
+            checkNotNull(directory.listFiles { f -> f.extension == "json" }) { AiText.t(AiMsg.HISTORY_DIR_UNREADABLE) }
         }
         val chats = files.mapNotNull { f ->
             try {

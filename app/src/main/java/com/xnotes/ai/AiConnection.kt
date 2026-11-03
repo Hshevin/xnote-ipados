@@ -38,9 +38,9 @@ class AiConfigStore(context: Context) {
     }
     fun save(config: AiConfig) {
         AiProtocol.endpoint(config.url)
-        require(config.model.isNotBlank() && config.key.isNotBlank()) { "请填写模型名称和 API Key" }
-        require(!config.key.contains('\n') && !config.key.contains('\r')) { "API Key 格式无效" }
-        require(!config.searchKey.contains('\n') && !config.searchKey.contains('\r')) { "搜索 API Key 格式无效" }
+        require(config.model.isNotBlank() && config.key.isNotBlank()) { AiText.t(AiMsg.CONFIG_MODEL_KEY_REQUIRED) }
+        require(!config.key.contains('\n') && !config.key.contains('\r')) { AiText.t(AiMsg.CONFIG_KEY_INVALID) }
+        require(!config.searchKey.contains('\n') && !config.searchKey.contains('\r')) { AiText.t(AiMsg.CONFIG_SEARCH_KEY_INVALID) }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, key())
         val json = JSONObject().put("url", config.url.trim()).put("model", config.model.trim()).put("key", config.key.trim()).put("searchKey", config.searchKey.trim())
@@ -63,13 +63,13 @@ class AiConnection(private val openConnection: (String) -> HttpURLConnection = {
     @Volatile private var cancelled = false
     override fun cancel() { cancelled = true; connection?.disconnect() }
     override fun search(key: String, query: String): String {
-        require(key.isNotBlank() && !key.contains('\n') && !key.contains('\r')) { "请先填写 DeepSeek 搜索 API Key" }
+        require(key.isNotBlank() && !key.contains('\n') && !key.contains('\r')) { AiText.t(AiMsg.SEARCH_KEY_REQUIRED) }
         val bytes = DeepSeekSearch.request(query).toString().toByteArray(Charsets.UTF_8)
-        check(!cancelled) { "已停止" }
+        check(!cancelled) { AiText.t(AiMsg.CONNECTION_STOPPED) }
         val conn = openConnection(DeepSeekSearch.ENDPOINT)
         connection = conn
         try {
-            check(!cancelled) { "已停止" }
+            check(!cancelled) { AiText.t(AiMsg.CONNECTION_STOPPED) }
             conn.instanceFollowRedirects = false
             conn.connectTimeout = 15000
             conn.readTimeout = 30000
@@ -79,18 +79,18 @@ class AiConnection(private val openConnection: (String) -> HttpURLConnection = {
             conn.setRequestProperty("Content-Type", "application/json")
             conn.setFixedLengthStreamingMode(bytes.size)
             conn.outputStream.use { it.write(bytes) }
-            check(conn.responseCode == 200) { "DeepSeek 搜索失败（HTTP ${conn.responseCode}），请检查搜索密钥与额度；未继续生成回答" }
+            check(conn.responseCode == 200) { AiText.t(AiMsg.SEARCH_HTTP_FAILED, conn.responseCode) }
             val result = StringBuilder()
             conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
                 val buffer = CharArray(4096)
                 while (!cancelled) {
                     val count = reader.read(buffer)
                     if (count < 0) break
-                    check(result.length + count <= 1024 * 1024) { "搜索响应过大" }
+                    check(result.length + count <= 1024 * 1024) { AiText.t(AiMsg.SEARCH_RESPONSE_TOO_LARGE) }
                     result.append(buffer, 0, count)
                 }
             }
-            check(!cancelled) { "已停止" }
+            check(!cancelled) { AiText.t(AiMsg.CONNECTION_STOPPED) }
             return DeepSeekSearch.context(result.toString())
         } finally { conn.disconnect(); connection = null }
     }
@@ -98,7 +98,7 @@ class AiConnection(private val openConnection: (String) -> HttpURLConnection = {
         val conn = openConnection(AiProtocol.endpoint(config.url))
         connection = conn
         try {
-            check(!cancelled) { "已停止" }
+            check(!cancelled) { AiText.t(AiMsg.CONNECTION_STOPPED) }
             conn.instanceFollowRedirects = false
             conn.connectTimeout = 15000
             conn.readTimeout = 60000
@@ -108,10 +108,10 @@ class AiConnection(private val openConnection: (String) -> HttpURLConnection = {
             conn.setRequestProperty("Content-Type", "application/json")
             conn.setRequestProperty("Accept", "text/event-stream")
             val bytes = AiProtocol.request(config.model, messages).toString().toByteArray(Charsets.UTF_8)
-            require(bytes.size <= 12 * 1024 * 1024) { "截图或会话过大，请新建会话并缩小截图" }
+            require(bytes.size <= 12 * 1024 * 1024) { AiText.t(AiMsg.REQUEST_TOO_LARGE) }
             conn.setFixedLengthStreamingMode(bytes.size)
             conn.outputStream.use { it.write(bytes) }
-            check(conn.responseCode in 200..299) { "请求失败（HTTP ${conn.responseCode}），请检查接口、密钥、模型及额度" }
+            check(conn.responseCode in 200..299) { AiText.t(AiMsg.REQUEST_HTTP_FAILED, conn.responseCode) }
             var received = 0
             var finished = false
             conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
@@ -120,7 +120,7 @@ class AiConnection(private val openConnection: (String) -> HttpURLConnection = {
                     val ch = reader.read()
                     if (ch < 0) break
                     received++
-                    check(received <= 1024 * 1024 && line.length < 65536) { "回答超出长度限制" }
+                    check(received <= 1024 * 1024 && line.length < 65536) { AiText.t(AiMsg.ANSWER_TOO_LONG) }
                     if (ch == 10) {
                         val value = line.toString().trimEnd('\r'); line.setLength(0)
                         if (value.startsWith("data:")) {
@@ -128,14 +128,14 @@ class AiConnection(private val openConnection: (String) -> HttpURLConnection = {
                             if (data == "[DONE]") { finished = true; break }
                             if (data.isNotEmpty()) {
                                 val json = JSONObject(data)
-                                check(!json.has("error")) { "供应商返回错误，请检查模型配置" }
+                                check(!json.has("error")) { AiText.t(AiMsg.PROVIDER_ERROR) }
                                 delta(AiProtocol.delta(data))
                             }
                         }
                     } else line.append(ch.toChar())
                 }
             }
-            check(!cancelled && finished) { if (cancelled) "已停止" else "连接提前结束，请重试" }
+            check(!cancelled && finished) { if (cancelled) AiText.t(AiMsg.CONNECTION_STOPPED) else AiText.t(AiMsg.CONNECTION_ENDED_EARLY) }
         } finally { conn.disconnect(); connection = null }
     }
 }

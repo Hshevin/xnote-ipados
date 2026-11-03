@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Document upgrade recovery dialog -->
+    <string name="recovery_title">This document needs attention</string>
+    <string name="recovery_restore_backup">Restore the backup from before the upgrade</string>
+    <string name="recovery_make_copy_independent">Make this file an independent copy</string>
+    <string name="recovery_keep_current">Keep the current file and discard the backup</string>
+    <string name="recovery_later">Later</string>
+    <string name="recovery_duplicate_id">Several files share this document ID. Give this copy a new identity or cancel opening it.</string>
+    <string name="recovery_register_failed">The document could not be registered.</string>
+    <string name="recovery_not_writable">The file is read-only or access has expired, so the upgrade could not finish. The original file or its recovery backup is kept. Grant access again or save a copy.</string>
+    <string name="recovery_restore_first">Recover the interrupted upgrade first.</string>
+    <string name="recovery_failed">Recovery failed. The backup is kept.</string>
+    <string name="recovery_index_failed_after_save">The note was saved, but it could not be added to the document index. Reopen this file.</string>
+
+    <!-- Missing document placeholder in a pane -->
+    <string name="missing_title">This document cannot be opened right now</string>
+    <string name="missing_body">The pane and your reading position are kept. Restore access to the file, or locate the original note.</string>
+    <string name="missing_searching">Checking authorized folders…</string>
+    <string name="missing_search">Search authorized folders</string>
+    <string name="missing_locate">Locate the file</string>
+    <string name="missing_retry">Retry</string>
+    <string name="missing_close_pane">Close pane</string>
+    <string name="missing_not_found">The original document was not found in the authorized folders. Locate it manually.</string>
+    <string name="missing_search_failed">The search failed. Check folder access.</string>
+    <string name="missing_wrong_file">The selected file is not the original document. Choose the file with the same document ID.</string>
+    <string name="missing_relocate_failed">Could not locate the document.</string>
+</resources>

@@ -27,61 +27,61 @@ data class AiPdf(
 object AiPdfReader {
     const val MAX_BYTES = 200 * 1024 * 1024
     private fun directory(context: Context) = File(context.noBackupFilesDir, "ai-pdfs").apply {
-        check(isDirectory || mkdirs()) { "无法创建 PDF 附件目录" }
+        check(isDirectory || mkdirs()) { AiText.t(AiMsg.PDF_DIR_CREATE_FAILED) }
     }
     private fun file(context: Context, pdf: AiPdf): File {
-        require(pdf.id.matches(Regex("[a-f0-9]{64}"))) { "PDF 附件标识无效" }
-        return File(directory(context), "${pdf.id}.pdf").also { check(it.isFile) { "PDF 附件丢失，请重新附加" } }
+        require(pdf.id.matches(Regex("[a-f0-9]{64}"))) { AiText.t(AiMsg.PDF_ID_INVALID) }
+        return File(directory(context), "${pdf.id}.pdf").also { check(it.isFile) { AiText.t(AiMsg.PDF_MISSING) } }
     }
     suspend fun read(context: Context, uri: Uri, suggestedName: String? = null): AiPdf {
-        require(uri.scheme in listOf("content", "file")) { "请选择本机 PDF 文件" }
+        require(uri.scheme in listOf("content", "file")) { AiText.t(AiMsg.PDF_LOCAL_ONLY) }
         if (uri.scheme == "file") {
             val selected=File(requireNotNull(uri.path))
             val resources=com.xnotes.storage.PdfResources.get(context)
             if (resources.isOwned(selected)) {
-                resources.register(selected,suggestedName ?: "附件.pdf")
+                resources.register(selected,suggestedName ?: AiText.t(AiMsg.PDF_DEFAULT_NAME))
                 PDFBoxResourceLoader.init(context.applicationContext)
                 val count=PDDocument.load(selected,MemoryUsageSetting.setupMixed(8L*1024*1024).setTempDir(context.cacheDir)).use {
-                    require(!it.isEncrypted && it.numberOfPages > 0) { "PDF 无法读取" }; it.numberOfPages
+                    require(!it.isEncrypted && it.numberOfPages > 0) { AiText.t(AiMsg.PDF_UNREADABLE) }; it.numberOfPages
                 }
-                return AiPdf(suggestedName ?: "附件.pdf",id=selected.nameWithoutExtension,pageCount=count)
+                return AiPdf(suggestedName ?: AiText.t(AiMsg.PDF_DEFAULT_NAME),id=selected.nameWithoutExtension,pageCount=count)
             }
         }
         val temp = File.createTempFile("pending-", ".tmp", directory(context))
         try {
             val digest = java.security.MessageDigest.getInstance("SHA-256")
             val input = if (uri.scheme == "file") File(requireNotNull(uri.path)).inputStream() else context.contentResolver.openInputStream(uri)
-            requireNotNull(input) { "无法读取 PDF" }.use { source ->
+            requireNotNull(input) { AiText.t(AiMsg.PDF_CANNOT_OPEN) }.use { source ->
                 java.io.FileOutputStream(temp).use { out ->
                     val buffer = ByteArray(16384); var count = 0
                     while (true) {
                         coroutineContext.ensureActive()
                         val size = source.read(buffer); if (size < 0) break
-                        count += size; require(count <= MAX_BYTES) { "PDF 超过 200 MB" }
+                        count += size; require(count <= MAX_BYTES) { AiText.t(AiMsg.PDF_TOO_LARGE) }
                         digest.update(buffer, 0, size); out.write(buffer, 0, size)
                     }
                     out.fd.sync()
                 }
             }
             val header = ByteArray(5)
-            temp.inputStream().use { require(it.read(header) == 5 && String(header, Charsets.US_ASCII) == "%PDF-") { "不是有效 PDF 文件" } }
+            temp.inputStream().use { require(it.read(header) == 5 && String(header, Charsets.US_ASCII) == "%PDF-") { AiText.t(AiMsg.PDF_INVALID) } }
             val name = suggestedName ?: if (uri.scheme == "content") {
                 context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
             } else uri.lastPathSegment
             PDFBoxResourceLoader.init(context.applicationContext)
             val count = PDDocument.load(temp, MemoryUsageSetting.setupMixed(8L * 1024 * 1024).setTempDir(context.cacheDir)).use {
-                require(!it.isEncrypted) { "请先解密 PDF 后再附加" }
-                require(it.numberOfPages > 0) { "PDF 没有页面" }; it.numberOfPages
+                require(!it.isEncrypted) { AiText.t(AiMsg.PDF_ENCRYPTED) }
+                require(it.numberOfPages > 0) { AiText.t(AiMsg.PDF_NO_PAGES) }; it.numberOfPages
             }
             val id = digest.digest().joinToString("") { "%02x".format(it) }
             java.nio.file.Files.move(temp.toPath(), File(directory(context), "$id.pdf").toPath(),
                 java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
-            com.xnotes.storage.PdfResources.get(context).register(File(directory(context), "$id.pdf"), name ?: "附件.pdf")
-            return AiPdf(name?.take(200) ?: "附件.pdf", id = id, pageCount = count)
+            com.xnotes.storage.PdfResources.get(context).register(File(directory(context), "$id.pdf"), name ?: AiText.t(AiMsg.PDF_DEFAULT_NAME))
+            return AiPdf(name?.take(200) ?: AiText.t(AiMsg.PDF_DEFAULT_NAME), id = id, pageCount = count)
         } finally { temp.delete() }
     }
     suspend fun text(context: Context, pdf: AiPdf, start: Int, end: Int): String {
-        require(start >= 1 && end >= start && end <= pdf.pageCount && end - start < 5) { "每次可读取 1–5 页" }
+        require(start >= 1 && end >= start && end <= pdf.pageCount && end - start < 5) { AiText.t(AiMsg.PDF_PAGE_RANGE_LIMIT) }
         PDFBoxResourceLoader.init(context.applicationContext)
         val result = StringBuilder()
         val task = coroutineContext
@@ -92,7 +92,7 @@ object AiPdfReader {
                 stripper.writeText(doc, object : java.io.Writer() {
                     override fun write(chars: CharArray, offset: Int, count: Int) {
                         task.ensureActive()
-                        require(result.length + count <= 24000) { "页面文字过多，请缩小页码范围或查看页图" }
+                        require(result.length + count <= 24000) { AiText.t(AiMsg.PDF_PAGE_TEXT_TOO_LONG) }
                         result.append(chars, offset, count)
                     }
                     override fun flush() {}
@@ -103,7 +103,7 @@ object AiPdfReader {
         return result.toString()
     }
     suspend fun image(context: Context, pdf: AiPdf, number: Int): String {
-        require(number in 1..pdf.pageCount) { "页码超出范围" }; coroutineContext.ensureActive()
+        require(number in 1..pdf.pageCount) { AiText.t(AiMsg.PDF_PAGE_OUT_OF_RANGE) }; coroutineContext.ensureActive()
         ParcelFileDescriptor.open(file(context, pdf), ParcelFileDescriptor.MODE_READ_ONLY).use { descriptor ->
             PdfRenderer(descriptor).use { renderer ->
                 renderer.openPage(number - 1).use { page ->

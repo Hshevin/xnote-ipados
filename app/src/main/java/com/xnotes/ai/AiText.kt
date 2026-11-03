@@ -1,0 +1,81 @@
+package com.xnotes.ai
+
+/**
+ * User-visible AI backend messages. [zh] is the canonical Simplified Chinese text and the JVM default;
+ * the app installs an Android resource lookup at startup (see ui/AiMessageResources.kt).
+ * Model-facing prompts, tool text and persisted state keys are intentionally not here.
+ */
+enum class AiMsg(val zh: String) {
+    CONFIG_MODEL_KEY_REQUIRED("请填写模型名称和 API Key"),
+    CONFIG_KEY_INVALID("API Key 格式无效"),
+    CONFIG_SEARCH_KEY_INVALID("搜索 API Key 格式无效"),
+    SEARCH_KEY_REQUIRED("请先填写 DeepSeek 搜索 API Key"),
+    CONNECTION_STOPPED("已停止"),
+    SEARCH_HTTP_FAILED("DeepSeek 搜索失败（HTTP %1\$d），请检查搜索密钥与额度；未继续生成回答"),
+    SEARCH_RESPONSE_TOO_LARGE("搜索响应过大"),
+    REQUEST_TOO_LARGE("截图或会话过大，请新建会话并缩小截图"),
+    REQUEST_HTTP_FAILED("请求失败（HTTP %1\$d），请检查接口、密钥、模型及额度"),
+    ANSWER_TOO_LONG("回答超出长度限制"),
+    PROVIDER_ERROR("供应商返回错误，请检查模型配置"),
+    CONNECTION_ENDED_EARLY("连接提前结束，请重试"),
+    RECOVERED_INTERRUPTED("应用退出或进程中断，已保留上次保存的内容"),
+    HISTORY_DIR_CREATE_FAILED("无法创建 AI 历史目录"),
+    CHAT_TOO_LARGE("会话记录过大，请新建会话"),
+    HISTORY_DIR_UNREADABLE("历史目录不可读"),
+    PDF_DIR_CREATE_FAILED("无法创建 PDF 附件目录"),
+    PDF_ID_INVALID("PDF 附件标识无效"),
+    PDF_MISSING("PDF 附件丢失，请重新附加"),
+    PDF_LOCAL_ONLY("请选择本机 PDF 文件"),
+    PDF_DEFAULT_NAME("附件.pdf"),
+    PDF_UNREADABLE("PDF 无法读取"),
+    PDF_CANNOT_OPEN("无法读取 PDF"),
+    PDF_TOO_LARGE("PDF 超过 200 MB"),
+    PDF_INVALID("不是有效 PDF 文件"),
+    PDF_ENCRYPTED("请先解密 PDF 后再附加"),
+    PDF_NO_PAGES("PDF 没有页面"),
+    PDF_PAGE_RANGE_LIMIT("每次可读取 1–5 页"),
+    PDF_PAGE_TEXT_TOO_LONG("页面文字过多，请缩小页码范围或查看页图"),
+    PDF_PAGE_OUT_OF_RANGE("页码超出范围"),
+    PDF_TOOL_REQUEST_TOO_LONG("PDF 工具请求过长"),
+    PDF_TOOL_INVALID_REPLY("模型未返回有效 PDF 工具请求，请使用支持指令和图片的模型重试"),
+    PDF_TOOL_NOTHING_READ("模型尚未读取 PDF 内容，请重试"),
+    PDF_TOOL_UNKNOWN_ATTACHMENT("模型请求了未附加的 PDF"),
+    PROGRESS_READING_PAGES("正在读取 %1\$s 第 %2\$d–%3\$d 页"),
+    PROGRESS_SEARCHING_PDF("正在搜索 PDF：%1\$s"),
+    PROGRESS_VIEWING_PAGE("正在查看 %1\$s 第 %2\$d 页"),
+    PROGRESS_READING_PDF("正在读取 PDF"),
+    PDF_TOOL_READ_RANGE_INVALID("PDF 读取页码无效"),
+    PDF_TOOL_SEARCH_RANGE_INVALID("PDF 搜索范围无效"),
+    PDF_TOOL_IMAGE_LIMIT("页码无效或已达4张页图上限"),
+    PDF_TOOL_UNSUPPORTED("不支持的 PDF 工具"),
+    PDF_TOOL_BUDGET_EXCEEDED("PDF 读取内容超出本轮预算，请缩小问题范围"),
+    ENDPOINT_INVALID("请填写 HTTPS 接口地址，不含账号、查询参数或片段"),
+    MODEL_REQUIRED("请填写支持图片的模型名称"),
+    CHAT_TOO_LONG("会话过长，请新建会话"),
+    SEARCH_TARGET_UNRESOLVED("无法从截图和问题确定搜索对象，请补充清晰截图或具体标题后重试"),
+    SEARCH_QUERY_LENGTH("请输入 1–128 个字符的搜索词"),
+    SEARCH_RETURNED_ERROR("DeepSeek 搜索返回错误"),
+    PDF_SERVICE_UNAVAILABLE("PDF 读取服务不可用"),
+    HISTORY_DAMAGED("%1\$d 条历史或附件记录异常，原文件已保留"),
+    HISTORY_READ_FAILED("历史记录读取失败"),
+    HISTORY_SAVE_FAILED("历史保存或删除失败，请重试；不要退出应用"),
+    DRAFT_SCREENSHOT_UNREADABLE("草稿截图无法读取，原记录已保留"),
+    PDF_UNREADABLE_CHECK("PDF 无法读取，请检查文件和权限"),
+    PROVIDER_NOT_CONFIGURED("请先配置供应商"),
+    SEARCH_KEY_NOT_CONFIGURED("请配置 DeepSeek 搜索密钥"),
+    QUESTION_SAVE_FAILED("未能保存问题，已取消发送"),
+    PROGRESS_PREPARING("正在准备回答"),
+    PROGRESS_RESOLVING_SEARCH("正在识别检索对象"),
+    SEARCH_TARGET_TOO_LONG("无法识别搜索对象，请补充清晰截图或具体标题"),
+    PROGRESS_SEARCHING_WEB("正在联网搜索：%1\$s"),
+    PROGRESS_GENERATING("正在生成回答"),
+    NO_TEXT_RETURNED("模型未返回文字"),
+    STOPPED_BY_USER("已主动停止生成"),
+    REQUEST_FAILED("请求失败"),
+    NETWORK_ERROR("网络或响应异常，请检查配置");
+}
+
+object AiText {
+    @Volatile var lookup: (AiMsg, Array<out Any>) -> String = { m, a -> String.format(m.zh, *a) }
+    fun t(m: AiMsg, vararg args: Any): String = lookup(m, args)
+}

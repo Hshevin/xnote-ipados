@@ -33,6 +33,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -72,7 +73,8 @@ import com.xnotes.ui.theme.TextSize
 /** Table chrome over the canvas: the edit-mode handles and the restyle dialog. */
 @Composable
 fun TableChrome(editor: Editor) {
-    editor.editingTable?.let { TableEditOverlay(editor, it) }
+    // The outline, handles and + buttons sit on the page: give them the page-aware overlay accent.
+    editor.editingTable?.let { CompositionLocalProvider(LocalPalette provides editor.state.palette) { TableEditOverlay(editor, it) } }
     editor.tableStyling?.let { TableDialog(editor, it) { editor.closeTableStyle() } }
 }
 

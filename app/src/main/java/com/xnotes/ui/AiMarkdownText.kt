@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import android.content.ClipData
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.ClipEntry
@@ -50,10 +52,16 @@ internal fun AiMarkdownText(source: String) {
                         MarkdownParagraph(p, Modifier.weight(1f))
                     }
                 }
-                is AiMarkdown.Block.Code -> Column(Modifier.fillMaxWidth().background(palette.surface.toComposeColor()).padding(Space.s8)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(block.language.ifBlank { "代码" }, fontSize = TextSize.caption, color = palette.textDim.toComposeColor())
-                        TextButton(onClick = { copy(block.text) }) { Text("复制代码") }
+                is AiMarkdown.Block.Code -> Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)
+                    .background(palette.surface.toComposeColor()).padding(start = Space.s12, end = Space.s4, bottom = Space.s12)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Text(block.language.ifBlank { stringResource(com.xnotes.R.string.ai_code) }, fontSize = TextSize.caption, color = palette.textDim.toComposeColor())
+                        val copyLabel = stringResource(com.xnotes.R.string.ai_copy_code)
+                        Tooltip(copyLabel) {
+                            IconButton(onClick = { copy(block.text) }, Modifier.size(MinTouchTarget)) {
+                                Icon(com.xnotes.ui.icons.XnotesIcons.copy, copyLabel, Modifier.size(16.dp), tint = palette.textDim.toComposeColor())
+                            }
+                        }
                     }
                     Text(block.text, Modifier.horizontalScroll(rememberScrollState()), softWrap = false,
                         fontFamily = FontFamily.Monospace, fontSize = TextSize.body, color = palette.text.toComposeColor())
@@ -72,7 +80,6 @@ internal fun AiMarkdownText(source: String) {
                 }
             }
         }
-        if (source.isNotBlank()) TextButton(onClick = { copy(source) }) { Text("复制 Markdown") }
     }
 }
 
@@ -105,6 +112,6 @@ private fun MarkdownParagraph(p: Paragraph, modifier: Modifier = Modifier, heade
     Text(text, modifier, color = palette.text.toComposeColor(),
         fontSize = when (p.headingLevel) { 1 -> TextSize.display; 2 -> TextSize.headline; 3 -> TextSize.heading; 4, 5, 6 -> TextSize.title; else -> TextSize.bodyLarge },
         textAlign = when (p.align) { ParaAlign.CENTER -> TextAlign.Center; ParaAlign.RIGHT -> TextAlign.Right; else -> TextAlign.Start })
-    if (linkError) AlertDialog(onDismissRequest = { linkError = false }, text = { Text("无法打开此链接") },
-        confirmButton = { TextButton(onClick = { linkError = false }) { Text("确定") } })
+    if (linkError) AlertDialog(onDismissRequest = { linkError = false }, text = { Text(stringResource(com.xnotes.R.string.ai_link_failed)) },
+        confirmButton = { TextButton(onClick = { linkError = false }) { Text(stringResource(com.xnotes.R.string.ai_ok)) } })
 }

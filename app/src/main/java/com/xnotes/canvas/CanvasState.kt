@@ -106,8 +106,48 @@ sealed class InitialView {
 class CanvasState(
     var document: Document,
     private val surfaceFactory: SurfaceFactory,
-    var palette: Palette,
+    palette: Palette,
 ) {
+    /** The chrome palette as the theme sets it. */
+    var themePalette: Palette = palette
+
+    /**
+     * What the canvas draws with: the theme palette, except that the accent every tool overlay uses
+     * (marquee, lasso, handles, caret, text selection, guides) is turned to black or white so it
+     * contrasts with the page in view. A PDF page stays white in night mode, where a white accent
+     * would vanish on it; a dark page in the light theme gets the opposite. Paper and backdrop are
+     * untouched. Setting it sets the theme palette.
+     */
+    var palette: Palette
+        get() {
+            // Read many times per frame: recompute only when the theme, document or page in view changes.
+            val theme = themePalette
+            val page = if (pageRects.isEmpty()) -1 else currentPageIndex()
+            val cached = overlayPalette
+            if (cached == null || overlayTheme !== theme || overlayDocument !== document || overlayPage != page) {
+                overlayTheme = theme; overlayDocument = document; overlayPage = page
+                return overlayPaletteFor(theme, page).also { overlayPalette = it }
+            }
+            return cached
+        }
+        set(value) { themePalette = value }
+
+    private var overlayTheme: Palette? = null
+    private var overlayDocument: Document? = null
+    private var overlayPage = -1
+    private var overlayPalette: Palette? = null
+
+    private fun overlayPaletteFor(theme: Palette, pageIndex: Int): Palette {
+        val page = document.pages.getOrNull(pageIndex) ?: return theme
+        val pageLight = page.pdfPage != null || (effectivePageColor(page) ?: theme.paper).luminance() > 0.5
+        if (pageLight != (theme.accent.luminance() > 0.5)) return theme
+        val black = com.xnotes.core.model.Rgba(0, 0, 0, 255)
+        val white = com.xnotes.core.model.Rgba(255, 255, 255, 255)
+        val accent = if (pageLight) black else white
+        val onAccent = if (pageLight) white else black
+        return theme.copy(accent = accent, materialColors = theme.materialColors.copy(primary = accent, onPrimary = onAccent))
+    }
+
     var zoom: Double = 1.0
     var scrollX: Double = 0.0
     var scrollY: Double = 0.0

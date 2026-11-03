@@ -6,17 +6,18 @@ import kotlin.math.roundToInt
 /**
  * Neutral steps between the background and the foreground, as the share of foreground mixed in.
  * Every step is opaque and achromatic (r == g == b): hierarchy comes from tone, never from hue.
- * Dark steps sit a little further out because equal mixes read weaker on black.
+ * Dark steps sit much further out: equal mixes read far weaker on black, and the black paper,
+ * panels and menus need a backdrop, fills and hairlines that visibly step away from them.
  */
 internal object MonoTone {
     const val BACKDROP_LIGHT = 0.04
-    const val BACKDROP_DARK = 0.06
+    const val BACKDROP_DARK = 0.12
     const val FILL_LIGHT = 0.06
-    const val FILL_DARK = 0.10
+    const val FILL_DARK = 0.18
     const val FILL_HI_LIGHT = 0.10
-    const val FILL_HI_DARK = 0.15
+    const val FILL_HI_DARK = 0.26
     const val HAIRLINE_LIGHT = 0.14
-    const val HAIRLINE_DARK = 0.20
+    const val HAIRLINE_DARK = 0.30
     const val OUTLINE = 0.54
     const val SECONDARY = 0.62
 }

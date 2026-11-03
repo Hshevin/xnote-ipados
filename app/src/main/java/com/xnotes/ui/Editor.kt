@@ -686,6 +686,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     /** The floating text style bar's target (active box rect + style), or null when no box is active. */
     override var textBar by mutableStateOf<TextBar?>(null)
         private set
+    override val overlayPalette: Palette get() = state.palette
 
     /** Viewport rect to anchor the on-selection menu, or null when hidden. */
     var selectionMenu by mutableStateOf<com.xnotes.core.geometry.Rect?>(null)
@@ -825,14 +826,14 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         return try {
             withContext(Dispatchers.IO) {
                 val id = notebookStorage.ensure(uri, name ?: queryDisplayName(android.net.Uri.parse(uri)).orEmpty(), kind)
-                check(notebookStorage.registry.locations(id.documentId).size <= 1) { "发现相同文档 ID 的多份文件，请为此副本分配新身份或取消打开" }
+                check(notebookStorage.registry.locations(id.documentId).size <= 1) { appContext.getString(R.string.recovery_duplicate_id) }
             }
             true
         } catch (e: Exception) {
             storageCanRecover = withContext(Dispatchers.IO) { notebookStorage.hasRecovery(uri) }
             storageDuplicate = withContext(Dispatchers.IO) { notebookStorage.registry.idAt(uri)?.let { notebookStorage.registry.locations(it).size > 1 } == true }
             storageProblemUri = uri
-            storageProblemText = if (e is IllegalStateException || e is IllegalArgumentException) e.message ?: "文档登记失败" else "文件不可写或授权失效，无法完成升级；原文件或恢复备份已保留，请重新授权或另存副本"
+            storageProblemText = if (e is IllegalStateException || e is IllegalArgumentException) e.message ?: appContext.getString(R.string.recovery_register_failed) else appContext.getString(R.string.recovery_not_writable)
             false
         }
     }
@@ -842,12 +843,12 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             withContext(Dispatchers.IO) {
                 if (restore) notebookStorage.restore(uri)
                 else if (copy) {
-                    check(!notebookStorage.hasRecovery(uri)) { "请先恢复中断的升级" }
+                    check(!notebookStorage.hasRecovery(uri)) { appContext.getString(R.string.recovery_restore_first) }
                     notebookStorage.assignCopy(uri)
                 } else if (notebookStorage.hasRecovery(uri)) notebookStorage.keepCurrent(uri)
             }
             storageProblemUri = null; true
-        } catch (e: Exception) { storageProblemText = e.message ?: "恢复失败，备份已保留"; false }
+        } catch (e: Exception) { storageProblemText = e.message ?: appContext.getString(R.string.recovery_failed); false }
     }
 
     suspend fun openCanvasAsync(uri: String, name: String?): Boolean {
@@ -1021,22 +1022,22 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         val missing=missingDocument ?: return false
         return try {
             val uri=withContext(Dispatchers.IO) { notebookStorage.rediscover(missing.id,workspaceRoots()) }
-            if(uri==null) { message="未在已授权文件夹找到原文档，请手动重新定位"; false } else relocateMissing(uri)
-        } catch(e: Exception) { message=e.message ?: "查找失败，请检查文件夹授权"; false }
+            if(uri==null) { message=appContext.getString(R.string.missing_not_found); false } else relocateMissing(uri)
+        } catch(e: Exception) { message=e.message ?: appContext.getString(R.string.missing_search_failed); false }
     }
     suspend fun relocateMissing(uri: String): Boolean {
         val missing = missingDocument ?: return false
         return try {
             withContext(Dispatchers.IO) {
                 val identity = notebookStorage.ensure(uri, "", if (missing.snapshot.optBoolean(missing.prefix + "Canvas")) "xcanvas" else "xnote")
-                require(missing.id.isBlank() || identity.documentId == missing.id) { "所选文件不是原文档，请选择具有相同文档 ID 的文件" }
+                require(missing.id.isBlank() || identity.documentId == missing.id) { appContext.getString(R.string.missing_wrong_file) }
                 if (missing.uri != uri) notebookStorage.registry.markUnavailable(missing.uri)
             }
             if (missing.snapshot.optBoolean(missing.prefix + "Canvas")) openCanvasAsync(uri,null) else openAsync(uri)
             if (missingDocument != null) return false
             restorePanePosition(missing.snapshot,missing.prefix)
             true
-        } catch (e: Exception) { message = e.message ?: "无法重新定位文档"; false }
+        } catch (e: Exception) { message = e.message ?: appContext.getString(R.string.missing_relocate_failed); false }
     }
     private fun restorePanePosition(json: org.json.JSONObject, prefix: String) {
         if (missingDocument != null) return
@@ -3918,7 +3919,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             val saved=state.document.snapshot()
             autosaveScope.launch(Dispatchers.IO) {
                 runCatching { notebookStorage.registry.register(saved.identity.documentId,"xnote",name ?: saved.title,uri); pinPdfForWrite(saved) }
-                    .onFailure { message="笔记已保存，但文档索引登记失败；请重新打开此文件" }
+                    .onFailure { message=appContext.getString(R.string.recovery_index_failed_after_save) }
             }
             maybeBindAutosave(uri) // saving into the folder makes it autosave thereafter
             refreshContent()
@@ -3961,7 +3962,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
                 val written = writeNoteSafely(uri, snapshot)
                 if (written) runCatching {
                     notebookStorage.registry.register(snapshot.identity.documentId, "xnote", snapshot.title, uri)
-                }.onFailure { message = "笔记已保存，但文档索引登记失败；请重新打开此文件" }
+                }.onFailure { message = appContext.getString(R.string.recovery_index_failed_after_save) }
                 written
             }
             savingNote = false

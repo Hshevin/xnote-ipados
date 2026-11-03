@@ -564,7 +564,7 @@ fun ScreenshotMenu(editor: Editor, onShare: (java.io.File) -> Unit) {
     val density = LocalDensity.current
 
     val barHeightPx = with(density) { 44.dp.toPx() }
-    val barWidthPx = with(density) { 300.dp.toPx() }
+    val barWidthPx = with(density) { 340.dp.toPx() }
     val gap = with(density) { 10.dp.toPx() }
     val centerX = ((rect.left + rect.right) / 2.0).toFloat()
     val xPx = (centerX - barWidthPx / 2f).coerceIn(0f, (editor.state.viewportW - barWidthPx).coerceAtLeast(0f))
@@ -600,7 +600,14 @@ fun ScreenshotMenu(editor: Editor, onShare: (java.io.File) -> Unit) {
         }
         Box(Modifier.width(1.dp).height(24.dp).background(palette.border.toComposeColor()))
         ActionIcon(XnotesIcons.share, stringResource(R.string.share)) { editor.screenshotImageForShare()?.let(onShare) }
-        TextButton(onClick = { editor.screenshotImageForShare()?.let(askAi) }) { Text("AI", color = palette.text.toComposeColor()) }
+        Box(Modifier.width(1.dp).height(24.dp).background(palette.border.toComposeColor()))
+        Row(
+            Modifier.clickable { editor.screenshotImageForShare()?.let(askAi) }.padding(horizontal = Space.s16, vertical = Space.s12),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(XnotesIcons.ai, null, tint = palette.text.toComposeColor(), modifier = Modifier.size(20.dp))
+            Text(stringResource(R.string.ai_label), color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge, modifier = Modifier.padding(start = Space.s8))
+        }
     }
 }
 
@@ -612,7 +619,7 @@ fun ScreenshotMenu(editor: InfiniteEditor, onShare: (java.io.File) -> Unit) {
     val density = LocalDensity.current
 
     val barHeightPx = with(density) { 44.dp.toPx() }
-    val barWidthPx = with(density) { 300.dp.toPx() }
+    val barWidthPx = with(density) { 340.dp.toPx() }
     val gap = with(density) { 10.dp.toPx() }
     val centerX = ((rect.left + rect.right) / 2.0).toFloat()
     val xPx = (centerX - barWidthPx / 2f).coerceIn(0f, (editor.viewport.widthPx - barWidthPx).coerceAtLeast(0f))
@@ -648,7 +655,14 @@ fun ScreenshotMenu(editor: InfiniteEditor, onShare: (java.io.File) -> Unit) {
         }
         Box(Modifier.width(1.dp).height(24.dp).background(palette.border.toComposeColor()))
         ActionIcon(XnotesIcons.share, stringResource(R.string.share)) { editor.screenshotImageForShare()?.let(onShare) }
-        TextButton(onClick = { editor.screenshotImageForShare()?.let(askAi) }) { Text("AI", color = palette.text.toComposeColor()) }
+        Box(Modifier.width(1.dp).height(24.dp).background(palette.border.toComposeColor()))
+        Row(
+            Modifier.clickable { editor.screenshotImageForShare()?.let(askAi) }.padding(horizontal = Space.s16, vertical = Space.s12),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(XnotesIcons.ai, null, tint = palette.text.toComposeColor(), modifier = Modifier.size(20.dp))
+            Text(stringResource(R.string.ai_label), color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge, modifier = Modifier.padding(start = Space.s8))
+        }
     }
 }
 
