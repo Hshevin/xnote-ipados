@@ -30,3 +30,31 @@ ANDROID_HOME=/home/empathless/Android/Sdk \
 记录 Wacom MovinkPad Pro 14 的系统构建、Android 版本、GPU、刷新率及 Pro Pen 3 型号。对 PDF 分别执行单页书写、左右分屏、取消左/右窗格后持续书写，确认 MOVE 阶段就能看到笔迹；反复切换并检查原分屏区域和扩展区域。补测上下分屏、同 PDF 共享视图、不同 PDF、分页笔记及无限画布混合分屏、横竖屏和侧栏尺寸变化。
 
 比较前缓冲开/关；检查快写、长笔画、荧光笔、取消事件、撤销、保存重开以及是否有闪烁、双重笔迹、错位或明显帧耗时增加。只有目标设备结果才能确认本轮是否解决用户报告的问题。
+
+## Release 85 后的用户反馈与继续调查
+
+Release 85 交付后，用户确认上述队列重建调整未解决问题，并补充更小的复现路径：打开 PDF → 打开分屏文件选择首页 → 不打开任何文件就退出分屏 → 笔迹进入原空窗格区域时不能立即显示，提笔后才刷新。用户要求先确定根因再修复。本轮曾准备的整层 SurfaceView 重建及配套测试已撤回；没有提交这些行为改动，也没有据此构建新交付 APK。
+
+用户对照结果：
+
+- 勾选「禁用前缓冲绘制」后正常。
+- 随后重新开启前缓冲并再次走空分屏流程，用户确认从第一笔起也全部正常。这是一次恢复正常的观察，不能证明永久修复，也不能解释为「第一笔延迟、后续正常」。
+- 无法将目标设备接入当前开发机的 ADB；本机 `adb devices` 无设备，亦未安装 Android 模拟器或系统镜像。本轮没有取得故障时的 GPU/合成器状态。
+
+### 源码中已确认的流程
+
+1. `MainActivity.onSplitDocument` 创建第二 Editor 并将其加入 `paneHomes`，不打开第二份文档。`SplitHost` 根据 `homes` 判断两侧可见，因此即便 `Editor.inSplit`（要求两个文档均已打开）为 false，实际也已经执行分屏布局。这条路径不经过第二份 PDF 的打开/共享。
+2. `PaneToolbarAround` 在单文档时调用 `ToolbarAround`，分屏时切换到另一 Compose 分支；分页内容中的 `AndroidView.factory` 使用 `detached(editor.surfaces)`，明确把同一个 FrameLayout 从旧父节点移到新父节点。因此需要调查的不仅是 EGL 尺寸变化，还包括原 SurfaceView 的拆挂与系统绘制节点生命周期。
+3. `GlWetPad.surfaceDestroyed` 排队销毁 EGL，清空 handler/thread 引用，`quitSafely()` 后只 `join(500)`，无论线程是否仍存活都调用 `closeLayer()`。下一次 `surfaceCreated` 会在同一对象上启动新线程，EGL、layer、target 等字段仍属于该对象。若旧线程未在 500 ms 内退出，代码没有提供阻止跨代资源访问的保证。这个风险可由控制流确认；目前没有故障设备日志证明它实际触发，更不能直接把它认定为半屏现象的根因。
+4. `InteractionController.drawOverlay` 在 `frontInk.live == true` 时跳过普通画布的实时笔画。因此前缓冲接管成功但显示不完整时，普通窗口不会在 MOVE 阶段补画；提笔后正常提交路径仍可能显示完整笔画。这说明现象可以由显示移交产生，但不能区分未绘制、应用裁剪和系统合成裁剪。
+
+### 尚未证实
+
+- 故障时 `FrontInk` 的页面裁剪是否仍为半屏；或裁剪已为全屏、却受系统 SurfaceControl 父层裁剪影响。
+- 故障时 EGL 宽高、实际缓冲内容、窗口/Surface 父层裁剪是否一致。
+- 旧线程是否跨过 500 ms 等待界限，或旧的布局/渲染事务是否迟到并覆盖新状态。
+- 前缓冲开关恢复正常究竟来自哪一级状态重建；不能据此判定重建整个 View 就是正确修复。
+
+交叉核对了 [Android 15 SurfaceView 源码](https://raw.githubusercontent.com/aosp-mirror/platform_frameworks_base/android-15.0.0_r1/core/java/android/view/SurfaceView.java)：父层几何与裁剪由框架和 RenderThread 管理，并与窗口绘制事务合并；[HandlerThread 源码](https://raw.githubusercontent.com/aosp-mirror/platform_frameworks_base/android-15.0.0_r1/core/java/android/os/HandlerThread.java)中 `quitSafely()` 只发出退出请求。另有 [AndroidX 的 Compose/SurfaceView 裁剪问题讨论](https://github.com/androidx/media/issues/2158)，但平台版本与设备情况不同，不能作为本设备已命中同一系统缺陷的证据。
+
+本阶段结论：问题已缩小到前缓冲启用时的显示/生命周期路径，具体根因尚未确认。保留 Release 85 源码行为，不继续套用重建方案；后续需要能区分上述原因的证据或可控复现。未运行新的通过性测试；中止了撤回方案的构建，不把它计为验证结果。
