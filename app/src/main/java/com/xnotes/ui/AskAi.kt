@@ -447,18 +447,29 @@ private fun AiSettings(close: () -> Unit) {
  */
 internal class AskAiAction(val addsToOpenChat: Boolean, val take: (File) -> Unit)
 
-/** [onCapture] arms this document's screenshot tool, for the floating chat's own screenshot button. */
+/**
+ * [onCapture] arms this pane's screenshot tool and [onRelease] restores the tool it had, for the
+ * floating chat's capture mode, which drives every pane at once.
+ */
 @Composable
-internal fun rememberAskAi(source: String, sourceUri: String?, currentPdf: File? = null, documentId: String = "", onCapture: () -> Unit = {}): AskAiAction {
+internal fun rememberAskAi(source: String, sourceUri: String?, currentPdf: File? = null, documentId: String = "",
+                           onCapture: () -> Unit = {}, onRelease: () -> Unit = {}): AskAiAction {
     val context = LocalContext.current
     val sessions = AiSessions.get(context)
     val owner = documentId.ifBlank { sourceUri.orEmpty().ifBlank { source } }
     val capture by rememberUpdatedState(onCapture)
+    val release by rememberUpdatedState(onRelease)
     val pdfUri = currentPdf?.let { android.net.Uri.fromFile(it).toString() }
     DisposableEffect(sessions, owner, source, sourceUri, pdfUri) {
-        val document = AiDocument(source, sourceUri.orEmpty(), documentId, pdfUri?.let { it to "$source.pdf" }) { capture() }
+        val document = AiDocument(source, sourceUri.orEmpty(), documentId, pdfUri?.let { it to "$source.pdf" })
         sessions.documents[owner] = document
         onDispose { if (sessions.documents[owner] === document) sessions.documents.remove(owner) }
+    }
+    // Per pane, not per document: the same document in both panes is two places to capture from.
+    DisposableEffect(sessions) {
+        val token = Any()
+        sessions.registerCapture(token, AiCaptureTarget({ capture() }, { release() }))
+        onDispose { sessions.unregisterCapture(token) }
     }
     var failure by remember { mutableStateOf("") }
     if (failure.isNotEmpty()) AlertDialog(onDismissRequest = { failure = "" }, text = { Text(failure) },
@@ -471,7 +482,8 @@ internal fun rememberAskAi(source: String, sourceUri: String?, currentPdf: File?
             val bytes = file.readBytes()
             if (openChat != null) {
                 check(sessions.addScreenshot(openChat, bytes, fromDocument = owner)) { context.getString(R.string.ai_screenshot_limit, AiProtocol.MAX_IMAGES) }
-                sessions.floatingCollapsed = false
+                // In capture mode the card stays folded for the next capture; it shows the count.
+                if (!sessions.capturing) sessions.floatingCollapsed = false
             } else {
                 val id = sessions.newChat(source, sourceUri.orEmpty(), owner, documentId)
                 sessions.addScreenshot(id, bytes)
@@ -523,7 +535,7 @@ private fun AskAiWindow(
     var history by remember { mutableStateOf(false) }
     val collapsed = floating && sessions.floatingCollapsed
     val owner = sessions.floatingOwner
-    val capture = owner?.let { sessions.documents[it]?.capture }
+
     // Unplaced until first moved: the card then opens at the right edge below the document toolbar,
     // not over the toolbar's first tools. Once moved, every chat (a new one too) opens where it was left.
     val x = sessions.windowOffset?.first ?: Float.NaN
@@ -572,7 +584,7 @@ private fun AskAiWindow(
                             sessions.windowOffset = (lastX.coerceIn(0f, maxX) + drag.x).coerceIn(0f, maxX) to (lastY.coerceIn(0f, maxY) + drag.y).coerceIn(0f, maxY)
                         }
                     }
-                    .then(if (collapsed) Modifier.clickable { sessions.floatingCollapsed = false } else Modifier)
+                    .then(if (collapsed) Modifier.clickable { sessions.expand() } else Modifier)
                     .padding(horizontal = Space.s4),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -580,15 +592,18 @@ private fun AskAiWindow(
                 onHistory?.let { AiIconButton(XnotesIcons.list, stringResource(R.string.ai_history), onClick = it) }
                 if (floating) Icon(XnotesIcons.ai, null, Modifier.padding(horizontal = Space.s12).size(18.dp), tint = palette.text.toComposeColor())
                 else Spacer(Modifier.width(Space.s8))
-                Text(chat.displayTitle(), Modifier.weight(1f), color = palette.text.toComposeColor(), fontSize = if (floating) TextSize.bodyLarge else TextSize.title,
+                // Folded for capturing, the strip says what to do and how many captures have joined.
+                if (collapsed && sessions.capturing) Text(stringResource(R.string.ai_capturing, screenshots.size), Modifier.weight(1f),
+                    color = palette.text.toComposeColor(), fontSize = TextSize.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                else Text(chat.displayTitle(), Modifier.weight(1f), color = palette.text.toComposeColor(), fontSize = if (floating) TextSize.bodyLarge else TextSize.title,
                     fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (busy) Box(Modifier.padding(horizontal = Space.s8)) { AiSpinner() }
                 if (!collapsed) {
                     if (floating && owner != null) {
                         AiIconButton(XnotesIcons.list, stringResource(R.string.ai_history)) { history = !history }
-                        // Folds the card out of the way and arms the document's screenshot tool; the capture unfolds it.
-                        if (capture != null) AiIconButton(XnotesIcons.scissors, stringResource(R.string.ai_take_screenshot)) {
-                            history = false; sessions.floatingCollapsed = true; capture()
+                        // Folds the card and arms the screenshot tool in every pane; unfolding the card ends it.
+                        if (sessions.canCapture) AiIconButton(XnotesIcons.scissors, stringResource(R.string.ai_take_screenshot)) {
+                            history = false; sessions.startCapture()
                         }
                     }
                     AiIconButton(XnotesIcons.edit, stringResource(R.string.ai_new_chat), enabled = sessions.ready) {
@@ -599,7 +614,7 @@ private fun AskAiWindow(
                 }
                 if (floating) {
                     AiIconButton(if (collapsed) XnotesIcons.chevronUp else XnotesIcons.chevronDown,
-                        stringResource(if (collapsed) R.string.ai_expand else R.string.ai_collapse)) { sessions.floatingCollapsed = !collapsed }
+                        stringResource(if (collapsed) R.string.ai_expand else R.string.ai_collapse)) { if (collapsed) sessions.expand() else sessions.floatingCollapsed = true }
                     AiIconButton(XnotesIcons.close, stringResource(R.string.ai_close)) { sessions.close() }
                 }
             }

@@ -29,6 +29,7 @@
     <string name="ai_retry_attachment">Retry attachment</string>
     <string name="ai_screenshot_numbered">Screenshot %d</string>
     <string name="ai_screenshot_limit">A question can carry up to %d screenshots. Remove one first.</string>
+    <string name="ai_capturing">Drag over any pane to capture · %1$d added</string>
     <string name="ai_take_screenshot">Take screenshot</string>
     <string name="ai_add_screenshot">Add to AI</string>
     <string name="ai_document_history">Chats from this document</string>

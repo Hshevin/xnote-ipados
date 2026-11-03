@@ -143,8 +143,8 @@ class AiInteractionTest {
         fixture { store, scope ->
             val sessions = AiSessions(store, scope, { settings })
             until { sessions.ready }
-            sessions.documents["doc-a"] = AiDocument("A", "uri-a", "doc-a", "file:///a.pdf" to "A.pdf") {}
-            sessions.documents["doc-b"] = AiDocument("B", "uri-b", "doc-b", "file:///b.pdf" to "B.pdf") {}
+            sessions.documents["doc-a"] = AiDocument("A", "uri-a", "doc-a", "file:///a.pdf" to "A.pdf")
+            sessions.documents["doc-b"] = AiDocument("B", "uri-b", "doc-b", "file:///b.pdf" to "B.pdf")
             val id = sessions.newChat("A", "uri-a", "doc-a", "doc-a")
             assertTrue(sessions.addScreenshot(id, byteArrayOf(1), fromDocument = "doc-a"))
             assertTrue(sessions.addScreenshot(id, byteArrayOf(2), fromDocument = "doc-b"))
@@ -164,6 +164,31 @@ class AiInteractionTest {
             assertEquals("file:///b.pdf" to "B.pdf", sessions.currentPdfs[fresh])
             sessions.reconcileFloating(setOf("doc-c"))
             assertNull(sessions.activeId); assertNull(sessions.floatingOwner)
+        }
+    }
+    @Test fun captureModeArmsEveryPaneAndGivesToolsBackWhenUnfolded() = runBlocking {
+        fixture { store, scope ->
+            val sessions = AiSessions(store, scope, { settings })
+            until { sessions.ready }
+            val log = mutableListOf<String>()
+            val left = Any(); val right = Any()
+            sessions.registerCapture(left, AiCaptureTarget({ log += "arm A" }, { log += "release A" }))
+            sessions.registerCapture(right, AiCaptureTarget({ log += "arm B" }, { log += "release B" }))
+            assertTrue(sessions.canCapture)
+            sessions.startCapture() // no floating chat yet: nothing to capture for
+            assertFalse(sessions.capturing); assertTrue(log.isEmpty())
+            sessions.newChat("A", "uri-a", "doc-a", "doc-a")
+            sessions.startCapture()
+            assertTrue(sessions.capturing); assertTrue(sessions.floatingCollapsed)
+            assertEquals(listOf("arm A", "arm B"), log)
+            sessions.expand()
+            assertFalse(sessions.capturing); assertFalse(sessions.floatingCollapsed)
+            assertEquals(listOf("arm A", "arm B", "release A", "release B"), log)
+            sessions.expand() // already out of capture mode: nothing released twice
+            assertEquals(4, log.size)
+            sessions.startCapture(); sessions.unregisterCapture(right); sessions.close()
+            assertEquals(listOf("arm A", "arm B", "release A", "release B", "arm A", "arm B", "release A"), log)
+            assertFalse(sessions.capturing); assertTrue(sessions.canCapture)
         }
     }
     @Test fun configurationFailureKeepsComposer() = runBlocking {

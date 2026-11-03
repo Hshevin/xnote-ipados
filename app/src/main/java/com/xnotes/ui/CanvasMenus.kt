@@ -558,8 +558,17 @@ private fun StepDot(glyph: String, label: String, enabled: Boolean, onClick: () 
  */
 @Composable
 fun ScreenshotMenu(editor: Editor, onShare: (java.io.File) -> Unit) {
+    // The tool this pane had before the AI card's capture mode armed it; given back when the mode ends.
+    var toolBeforeAi by remember { mutableStateOf<com.xnotes.core.tools.Tool?>(null) }
     val askAi = rememberAskAi(editor.state.document.title, editor.currentUri, editor.state.document.pdfFile, editor.state.document.identity.documentId,
-        onCapture = { editor.selectTool(com.xnotes.core.tools.Tool.SCREENSHOT) })
+        onCapture = {
+            if (editor.tool != com.xnotes.core.tools.Tool.SCREENSHOT) toolBeforeAi = editor.tool
+            editor.selectTool(com.xnotes.core.tools.Tool.SCREENSHOT)
+        },
+        onRelease = {
+            val before = toolBeforeAi; toolBeforeAi = null
+            if (editor.tool == com.xnotes.core.tools.Tool.SCREENSHOT) { editor.dismissScreenshot(); before?.let(editor::selectTool) }
+        })
     val rect = editor.screenshotMenu ?: return
     val palette = LocalPalette.current
     val density = LocalDensity.current
@@ -614,8 +623,16 @@ fun ScreenshotMenu(editor: Editor, onShare: (java.io.File) -> Unit) {
 
 @Composable
 fun ScreenshotMenu(editor: InfiniteEditor, onShare: (java.io.File) -> Unit) {
+    var toolBeforeAi by remember { mutableStateOf<com.xnotes.core.tools.Tool?>(null) }
     val askAi = rememberAskAi(editor.document.title, editor.document.path, documentId = editor.document.identity.documentId,
-        onCapture = { editor.armTool(com.xnotes.core.tools.Tool.SCREENSHOT) })
+        onCapture = {
+            if (editor.tool != com.xnotes.core.tools.Tool.SCREENSHOT) toolBeforeAi = editor.tool
+            editor.armTool(com.xnotes.core.tools.Tool.SCREENSHOT)
+        },
+        onRelease = {
+            val before = toolBeforeAi; toolBeforeAi = null
+            if (editor.tool == com.xnotes.core.tools.Tool.SCREENSHOT) { editor.interaction.clearCapture(); before?.let(editor::armTool) }
+        })
     val rect = editor.screenshotMenu ?: return
     val palette = LocalPalette.current
     val density = LocalDensity.current

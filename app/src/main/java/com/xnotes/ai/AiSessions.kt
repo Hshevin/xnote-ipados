@@ -37,6 +37,11 @@ class AiSessions(
     var floatingCollapsed by mutableStateOf(false)
     /** Documents open in panes, by document key, registered by their editors while composed. */
     val documents = mutableStateMapOf<String, AiDocument>()
+    /** Every composed pane's screenshot tool, by a per-pane token: two panes may show one document. */
+    private val captureTargets = mutableStateMapOf<Any, AiCaptureTarget>()
+    val canCapture: Boolean get() = captureTargets.isNotEmpty()
+    /** The floating card's capture mode: every pane has its screenshot tool armed, the card is folded. */
+    var capturing by mutableStateOf(false); private set
     /** Bumped when AI settings are saved, so open chats re-read their model choices. */
     var configRevision by mutableStateOf(0)
     val followLatest = mutableMapOf<String, Boolean>()
@@ -178,7 +183,23 @@ class AiSessions(
         currentPdfs[id] = uri to name
         if (defaults?.attachPdfByDefault == true && pdfAttachments[id] == null && importStates[id] == null) importPdf(id, uri, name)
     }
-    fun close() { activeId = null; floatingOwner = null }
+    fun close() { endCapture(); activeId = null; floatingOwner = null }
+    fun registerCapture(token: Any, target: AiCaptureTarget) { captureTargets[token] = target }
+    fun unregisterCapture(token: Any) { captureTargets.remove(token) }
+    /** Fold the card and arm the screenshot tool in every pane, so either document can be captured. */
+    fun startCapture() {
+        if (floatingOwner == null || activeId == null) return
+        capturing = true; floatingCollapsed = true
+        captureTargets.values.toList().forEach { it.arm() }
+    }
+    /** Leave capture mode: each pane gets back the tool it had, unless the user has picked another since. */
+    fun endCapture() {
+        if (!capturing) return
+        capturing = false
+        captureTargets.values.toList().forEach { it.release() }
+    }
+    /** Unfold the card; ends capture mode, since the chat is about to be read or typed into. */
+    fun expand() { floatingCollapsed = false; endCapture() }
     /**
      * Hides the card when its document leaves the screen. A chat that also holds screenshots from a
      * still-visible document moves over to that one instead of closing.
@@ -333,8 +354,11 @@ class AiSessions(
 
 /**
  * A document open in a pane, as its editor registers it under its key: what a chat started from it
- * records, its PDF to offer in ＋ (URI and name), and how to arm its screenshot tool.
+ * records and its PDF to offer in ＋ (URI and name).
  */
-class AiDocument(val source: String, val uri: String, val documentId: String, val pdf: Pair<String, String>?, val capture: () -> Unit)
+class AiDocument(val source: String, val uri: String, val documentId: String, val pdf: Pair<String, String>?)
+
+/** One pane's screenshot tool as the floating card's capture mode drives it: [arm] it, then [release] it back. */
+class AiCaptureTarget(val arm: () -> Unit, val release: () -> Unit)
 
 data class AiImportState(val uri: String, val name: String?, val loading: Boolean = false, val error: String = "", val token: Any = Any())
