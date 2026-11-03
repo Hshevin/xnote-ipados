@@ -2154,7 +2154,7 @@ private val SEARCH_HEIGHT = 40.dp
  * and so does Back once the keyboard is down; the keyboard's Search key only hides the keyboard.
  */
 @Composable
-internal fun ExplorerSearchField(query: String, onQueryChange: (String) -> Unit, expandedWidth: Dp, lift: () -> Float = { 0f }) {
+internal fun ExplorerSearchField(query: String, onQueryChange: (String) -> Unit, expandedWidth: Dp, lift: () -> Float = { 0f }, onExpandedChange: (Boolean) -> Unit = {}) {
     val palette = LocalPalette.current
     val focus = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
@@ -2164,6 +2164,8 @@ internal fun ExplorerSearchField(query: String, onQueryChange: (String) -> Unit,
     var active by remember { mutableStateOf(false) }
     var focused by remember { mutableStateOf(false) }
     val expanded = active || focused
+    val reportExpanded by rememberUpdatedState(onExpandedChange)
+    LaunchedEffect(expanded) { reportExpanded(expanded) }
     // 0 is the bare icon, 1 the open pill; eased so it decelerates into place with no rebound.
     val open by animateFloatAsState(
         if (expanded) 1f else 0f,

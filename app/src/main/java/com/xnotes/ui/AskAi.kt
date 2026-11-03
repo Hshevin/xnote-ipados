@@ -1028,10 +1028,14 @@ private fun AiHistoryList(onShowSidebar: (() -> Unit)?, onOpenSource: (String) -
     Column(Modifier.fillMaxSize().padding(horizontal = Space.s12)) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val searchRoom = maxWidth - (if (onShowSidebar != null) 96.dp else 48.dp)
+            // The open search takes the title's place rather than squeezing it into a wrapped column.
+            var searching by remember { mutableStateOf(false) }
             Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
                 onShowSidebar?.let { AiIconButton(XnotesIcons.menu, stringResource(R.string.show_sidebar), onClick = it) }
-                Text(stringResource(R.string.ai_label), Modifier.weight(1f).padding(start = Space.s4), color = palette.text.toComposeColor(), fontSize = TextSize.headline, fontWeight = FontWeight.Bold)
-                ExplorerSearchField(query, { sessions.historyQuery = it }, expandedWidth = searchRoom.coerceIn(40.dp, 300.dp))
+                if (searching) Spacer(Modifier.weight(1f))
+                else Text(stringResource(R.string.ai_label), Modifier.weight(1f).padding(start = Space.s4), color = palette.text.toComposeColor(),
+                    fontSize = TextSize.headline, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip)
+                ExplorerSearchField(query, { sessions.historyQuery = it }, expandedWidth = searchRoom.coerceIn(40.dp, 300.dp), onExpandedChange = { searching = it })
                 AiIconButton(XnotesIcons.edit, stringResource(R.string.ai_new_chat), enabled = sessions.ready) { sessions.newChat(); onSelected() }
             }
         }
