@@ -49,9 +49,9 @@ Release 83 本地交付本轮 UI、Markdown 和中英文资源改动，并修复
 - 测试包名 `com.xnotes.movinkpad.splitpreview`，与正式包名 `com.xnotes.movinkpad` 分开安装。用户已确认该版本满足当前需求，并要求打包原应用覆盖升级版；当前维护入口为 `master`。
 - 本轮验证：2462 项 JVM 测试、39 项 Android 模拟器测试通过。测试数量是本次记录，不代表后续版本已验证。
 
-[下载本地 Release 85 ARM64 APK](build/xnotes/XNotes-0.9.7-movinkpad-release85-arm64.apk)。此前发布版仍见 [GitHub Release 84](https://github.com/Hshevin/xnotes-android/releases/tag/v0.9.7-movinkpad.84)，本次未推送或发布。
+[下载本地 Release 86 ARM64 APK](build/xnotes/XNotes-0.9.7-movinkpad-release86-arm64.apk)。沿用正式包名及 Release 85 签名，versionCode 86，可覆盖升级；包含湿墨生命周期候选修复，半屏实时笔迹效果待真机确认。2563 项 Release JVM 测试及 APK 身份、签名、对齐核验通过。此前发布版仍见 [GitHub Release 84](https://github.com/Hshevin/xnotes-android/releases/tag/v0.9.7-movinkpad.84)，本次未推送或发布。
 
-当前覆盖升级版为 **0.9.7-movinkpad / versionCode 85**，使用原应用身份和历史签名，包含退出 PDF 分屏的湿墨层调整及 AI 未开始对话输入区清理；2563 项 Release 单元测试通过，R8、资源压缩、lintVital 与 APK 身份/签名核验通过。本轮未执行设备安装或 Android 仪器测试，前缓冲实际显示、真实 AI 供应商及目标设备验收仍待完成。交付与验证见 [Release 记录](docs/movinkpad/release-2026-11-02.md)。测试版的数据不会自动迁入原应用。版本 79 修复返回主菜单后打开普通文件仍保留分屏的问题，普通文件进入单文档，显式恢复分屏不受影响。
+此前 Release 85 为 **0.9.7-movinkpad / versionCode 85**，使用原应用身份和历史签名，包含退出 PDF 分屏的湿墨层调整及 AI 未开始对话输入区清理；2563 项 Release 单元测试通过，R8、资源压缩、lintVital 与 APK 身份/签名核验通过。本轮未执行设备安装或 Android 仪器测试，前缓冲实际显示、真实 AI 供应商及目标设备验收仍待完成。交付与验证见 [Release 记录](docs/movinkpad/release-2026-11-02.md)。测试版的数据不会自动迁入原应用。版本 79 修复返回主菜单后打开普通文件仍保留分屏的问题，普通文件进入单文档，显式恢复分屏不受影响。
 
 构建覆盖升级 Release（须保留本机原签名密钥）：
 
@@ -75,7 +75,7 @@ Release 80 包含实时笔迹刷新调整、分屏关闭先回到窗格首页再
 
 随后已在新建 Android 15 模拟器实走 PDF 空分屏打开/退出，确认父 SurfaceView 层随拆挂重建；模拟器缺少 mutable render buffer 配置，未进入实际前缓冲，尚未复现半屏故障。此次仅记录调查证据，没有新的产品修复或正式交付包。
 
-用户随后授权按现有推断尝试修复：当前源码已串行化湿墨层销毁/重建，阻止旧渲染线程和迟到回调访问新一代资源。2563 项 JVM、49 项 Android 模拟器测试通过（含强制慢线程重挂测试）；属于待真机确认的候选修复，尚无新的正式交付包。详见上述调查记录。
+用户随后授权按现有推断尝试修复：当前源码已串行化湿墨层销毁/重建，阻止旧渲染线程和迟到回调访问新一代资源。2563 项 JVM、49 项 Android 模拟器测试通过（含强制慢线程重挂测试）；属于待真机确认的候选修复，随后已按用户要求随 Release 86 本地交付。详见上述调查记录。
 
 Release 81（2026-11-03，仅本地打包）加入黑白灰阶层级、统一字号和间距规范，以及 48 dp 触控区。已知在 1280 dp 宽的分屏下工具栏会溢出到滚动区；真机验收待执行。
 
