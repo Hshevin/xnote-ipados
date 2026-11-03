@@ -2319,7 +2319,7 @@ class InteractionController(
         for (d in shape.vertexDots()) {
             val c = state.fromPageSpace(sel.pageIndex, d.at)
             r.fillCircle(c, ot.VERTEX_DOT_PX / 2.0 / state.zoom, accent)
-            r.fillCircle(c, ot.VERTEX_CORE_PX / 2.0 / state.zoom, ot.DOT_CORE)
+            r.fillCircle(c, ot.VERTEX_CORE_PX / 2.0 / state.zoom, ot.coreFor(accent))
         }
         for (k in shape.knobDots()) {
             val diamond = ot.knobDiamond(state.fromPageSpace(sel.pageIndex, k), ot.KNOB_PX / 2.0 / state.zoom)
@@ -2681,7 +2681,7 @@ class InteractionController(
             if (state.pageRects.getOrNull(pi) == null) continue
             val c = state.fromPageSpace(pi, p)
             r.fillCircle(c, ot.HOT_PX / 2.0 / state.zoom, accent)
-            r.fillCircle(c, ot.HOT_CORE_PX / 2.0 / state.zoom, ot.DOT_CORE)
+            r.fillCircle(c, ot.HOT_CORE_PX / 2.0 / state.zoom, ot.coreFor(accent))
         }
     }
 
@@ -3227,12 +3227,12 @@ class InteractionController(
         }
         for (w in c.waypoints) {
             r.fillCircle(at(w), ot.VERTEX_DOT_PX / 2.0 / z, accent)
-            r.fillCircle(at(w), ot.VERTEX_CORE_PX / 2.0 / z, ot.DOT_CORE)
+            r.fillCircle(at(w), ot.VERTEX_CORE_PX / 2.0 / z, ot.coreFor(accent))
         }
         for (end in listOf(c.start, c.end)) {
             r.fillCircle(at(end.at), ot.END_PX / 2.0 / z, accent)
             val glued = end.target?.let { t -> page.items.any { it === t } } == true
-            if (!glued) r.fillCircle(at(end.at), ot.END_CORE_PX / 2.0 / z, ot.DOT_CORE)
+            if (!glued) r.fillCircle(at(end.at), ot.END_CORE_PX / 2.0 / z, ot.coreFor(accent))
         }
     }
 

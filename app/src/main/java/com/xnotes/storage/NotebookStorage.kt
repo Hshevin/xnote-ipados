@@ -24,9 +24,9 @@ class NotebookStorage private constructor(private val context: Context) {
         return MigrationPublication(File(context.noBackupFilesDir, "migrations/$id"))
     }
     private fun target(uri: String) = object : MigrationPublication.Target {
-        override fun read() = requireNotNull(context.contentResolver.openInputStream(Uri.parse(uri))) { "无法读取笔记" }
+        override fun read() = requireNotNull(context.contentResolver.openInputStream(Uri.parse(uri))) { StorageText.t(StorageMsg.NOTE_UNREADABLE) }
         override fun write(source: File) {
-            val descriptor = requireNotNull(context.contentResolver.openFileDescriptor(Uri.parse(uri), "rwt")) { "笔记不可写" }
+            val descriptor = requireNotNull(context.contentResolver.openFileDescriptor(Uri.parse(uri), "rwt")) { StorageText.t(StorageMsg.NOTE_NOT_WRITABLE) }
             android.os.ParcelFileDescriptor.AutoCloseOutputStream(descriptor).use { out ->
                 source.inputStream().use { it.copyTo(out) }
                 out.flush(); out.fd.sync()
@@ -56,12 +56,12 @@ class NotebookStorage private constructor(private val context: Context) {
     private fun migrate(uri: String, copy: Boolean): BundleIdentity {
         val local = ownedFile(uri)
         if (local != null) {
-            check(local.canWrite()) { "旧笔记为只读，原文件未修改；请保存可写副本后重试" }
+            check(local.canWrite()) { StorageText.t(StorageMsg.LEGACY_NOTE_READ_ONLY) }
             val staged = BundleMigration.prepare(local, requireNotNull(local.parentFile), copy = copy)
             try { BundleMigration.publish(staged, local); return staged.identity } finally { staged.file.delete() }
         }
         // Check write permission without truncation before making recovery files.
-        context.contentResolver.openFileDescriptor(Uri.parse(uri), "rw")?.use { } ?: error("文件为只读，无法升级；请保存可写副本")
+        context.contentResolver.openFileDescriptor(Uri.parse(uri), "rw")?.use { } ?: error(StorageText.t(StorageMsg.FILE_READ_ONLY_UPGRADE))
         val source = File.createTempFile("legacy-note-", ".zip", context.cacheDir)
         try {
             target(uri).read().use { input -> java.io.FileOutputStream(source).use { out -> input.copyTo(out); out.fd.sync() } }
@@ -83,7 +83,7 @@ class NotebookStorage private constructor(private val context: Context) {
     }
     /** Explicit user-triggered rediscovery, only inside granted workspace trees, with a bounded scan. */
     suspend fun rediscover(id: String, roots: List<String>): String? {
-        require(id.isNotBlank()) { "旧分屏没有文档 ID，请手动重新定位" }
+        require(id.isNotBlank()) { StorageText.t(StorageMsg.SPLIT_MISSING_DOCUMENT_ID) }
         val matches=linkedMapOf<String,String>()
         var inspected=0
         for(root in roots.distinct()) {
@@ -98,7 +98,7 @@ class NotebookStorage private constructor(private val context: Context) {
                 val children=DocumentsContract.buildChildDocumentsUriUsingTree(tree,parent)
                 context.contentResolver.query(children,arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID,DocumentsContract.Document.COLUMN_DISPLAY_NAME,DocumentsContract.Document.COLUMN_MIME_TYPE),null,null,null)?.use { c ->
                     while(c.moveToNext()) {
-                        check(++inspected<=5000) { "已检查5000个条目，请缩小授权文件夹范围或手动重新定位" }
+                        check(++inspected<=5000) { StorageText.t(StorageMsg.SEARCH_LIMIT_REACHED) }
                         val child=c.getString(0); val name=c.getString(1).orEmpty()
                         if(c.getString(2)==DocumentsContract.Document.MIME_TYPE_DIR) queue.add(child)
                         else if(name.endsWith(".xnote",true)||name.endsWith(".xcanvas",true)) {
@@ -111,7 +111,7 @@ class NotebookStorage private constructor(private val context: Context) {
                 }
             }
         }
-        check(matches.size<=1) { "找到多份相同ID的文档，请手动选择原件或将副本设为独立文档" }
+        check(matches.size<=1) { StorageText.t(StorageMsg.DUPLICATE_DOCUMENTS_FOUND) }
         return matches.values.singleOrNull()
     }
     fun ownedFile(uri: String): File? {
@@ -121,7 +121,7 @@ class NotebookStorage private constructor(private val context: Context) {
         if (!id.startsWith("root/")) return null
         val root = AppStorageDocumentsProvider.rootDir(context).canonicalFile
         val file = File(root, id.removePrefix("root/")).canonicalFile
-        require(file.path.startsWith(root.path + File.separator)) { "非法笔记路径" }
+        require(file.path.startsWith(root.path + File.separator)) { StorageText.t(StorageMsg.INVALID_NOTE_PATH) }
         return file
     }
     companion object {

@@ -169,6 +169,7 @@ class MainActivity : ComponentActivity() {
         com.xnotes.ui.AudioPlayback.init(this)
         com.xnotes.ui.AudioRecording.init(this)
         com.xnotes.ui.installAiText(this) // before any AiSessions/AI backend message is produced
+        com.xnotes.ui.installStorageText(this) // before any storage error message is produced
         setTheme(com.xnotes.R.style.Theme_Xnotes) // leave the dark launch/splash theme behind
         applyFullscreen(!deviceHasDisplayCutout(this)) // provisional; reconciled once the editor loads prefs
         // The intent that started the task comes back whenever Android rebuilds it, from a saved state

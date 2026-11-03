@@ -19,6 +19,54 @@ import com.xnotes.core.model.Rgba
  */
 object OverlayTessellator {
 
+    /**
+     * Width of the contrasting edge laid under every mark, per side, in device pixels.
+     *
+     * The canvas mixes black night paper with imported white PDFs and images in one view, so no
+     * single chrome colour reads everywhere: a white marquee vanishes on a white PDF, a black one
+     * on black paper. Every mark is drawn over a slightly wider copy of itself in the opposite
+     * tone, so it keeps an edge whatever it crosses.
+     */
+    const val HALO_PX = 1.0
+
+    /**
+     * The edge under [accent]: black under a light accent, white under a dark one. The black is
+     * (1, 1, 1), not pure black: night mode's ink shader repaints exactly (0, 0, 0) as white so
+     * black strokes show on black paper, and that would turn this edge white as well.
+     */
+    fun haloFor(accent: Rgba): Rgba =
+        if (accent.luminance() > 0.5) Rgba(NEAR_BLACK, NEAR_BLACK, NEAR_BLACK, accent.a) else Rgba(255, 255, 255, accent.a)
+
+    private const val NEAR_BLACK = 1
+
+    /** A mark and its halo, built side by side and emitted halo first. */
+    private class Haloed(private val grow: Double) {
+        val main = MeshBuilder()
+        private val halo = MeshBuilder()
+        val isEmpty: Boolean get() = main.isEmpty
+
+        fun ribbon(points: List<Pt>, half: Double, closed: Boolean, tolerance: Double) {
+            main.polylineRibbon(points, half, closed = closed, tolerance = tolerance)
+            halo.polylineRibbon(points, half + grow, closed = closed, tolerance = tolerance)
+        }
+
+        fun rect(x: Double, y: Double, w: Double, h: Double) {
+            main.rect(x, y, w, h)
+            halo.rect(x - grow, y - grow, w + 2 * grow, h + 2 * grow)
+        }
+
+        fun circle(cx: Double, cy: Double, r: Double, tolerance: Double) {
+            main.circle(cx, cy, r, tolerance)
+            halo.circle(cx, cy, r + grow, tolerance)
+        }
+
+        fun addTo(parts: MutableList<MeshPart>, color: Rgba) {
+            if (main.isEmpty) return
+            parts.add(MeshPart(halo.build(), haloFor(color), InkPass.OPAQUE))
+            parts.add(MeshPart(main.build(), color, InkPass.OPAQUE))
+        }
+    }
+
     /** Selection outline thickness, in device pixels. */
     const val OUTLINE_PX = 1.6
 
@@ -86,7 +134,8 @@ object OverlayTessellator {
         knobs: List<Pt> = emptyList(),
     ): List<MeshPart> {
         if (zoom <= 0.0) return emptyList()
-        val outline = MeshBuilder()
+        val grow = HALO_PX / zoom
+        val outline = Haloed(grow)
         val half = OUTLINE_PX / zoom / 2.0
         dashInto(outline, box.corners(), half, closed = true, zoom = zoom, devicePxPerDp = devicePxPerDp, tolerance = tolerance)
 
@@ -95,32 +144,32 @@ object OverlayTessellator {
         val arm = GRIP_ARM_PX / zoom
         val top = com.xnotes.canvas.ResizeMath.obbTopMid(box)
         val grip = com.xnotes.canvas.ResizeMath.obbRotateGrip(box, arm)
-        outline.polylineRibbon(listOf(top, grip), half, closed = false, tolerance = tolerance)
+        outline.ribbon(listOf(top, grip), half, closed = false, tolerance = tolerance)
 
-        val marks = MeshBuilder()
+        val marks = Haloed(grow)
         val handleHalf = HANDLE_PX / zoom / 2.0
         for (c in handles ?: com.xnotes.canvas.ResizeMath.obbHandles(box).map { it.content }) {
             marks.rect(c.x - handleHalf, c.y - handleHalf, handleHalf * 2, handleHalf * 2)
         }
         marks.circle(grip.x, grip.y, GRIP_PX / zoom / 2.0, tolerance)
 
-        val parts = ArrayList<MeshPart>(5)
-        if (!outline.isEmpty) parts.add(MeshPart(outline.build(), accent, InkPass.OPAQUE))
-        if (!marks.isEmpty) parts.add(MeshPart(marks.build(), accent, InkPass.OPAQUE))
+        val parts = ArrayList<MeshPart>(10)
+        outline.addTo(parts, accent)
+        marks.addTo(parts, accent)
         if (edgeDots.isNotEmpty()) {
-            val faint = MeshBuilder()
+            val faint = Haloed(grow)
             for (d in edgeDots) faint.circle(d.x, d.y, EDGE_DOT_PX / zoom / 2.0, tolerance)
-            parts.add(MeshPart(faint.build(), accent.withAlpha(EDGE_DOT_ALPHA), InkPass.OPAQUE))
+            faint.addTo(parts, accent.withAlpha(EDGE_DOT_ALPHA))
         }
         if (vertexDots.isNotEmpty()) {
-            val dots = MeshBuilder()
+            val dots = Haloed(grow)
             val cores = MeshBuilder()
             for (d in vertexDots) {
                 dots.circle(d.x, d.y, VERTEX_DOT_PX / zoom / 2.0, tolerance)
                 cores.circle(d.x, d.y, VERTEX_CORE_PX / zoom / 2.0, tolerance)
             }
-            parts.add(MeshPart(dots.build(), accent, InkPass.OPAQUE))
-            parts.add(MeshPart(cores.build(), DOT_CORE, InkPass.OPAQUE))
+            dots.addTo(parts, accent)
+            parts.add(MeshPart(cores.build(), coreFor(accent), InkPass.OPAQUE))
         }
         if (knobs.isNotEmpty()) {
             val fill = MeshBuilder()
@@ -152,26 +201,27 @@ object OverlayTessellator {
      */
     fun connectionMarks(points: List<Pt>, hot: List<Pt>, zoom: Double, accent: Rgba, tolerance: Double): List<MeshPart> {
         if (zoom <= 0.0) return emptyList()
-        val parts = ArrayList<MeshPart>(3)
+        val grow = HALO_PX / zoom
+        val parts = ArrayList<MeshPart>(6)
         if (points.isNotEmpty()) {
-            val b = MeshBuilder()
+            val b = Haloed(grow)
             val r = MARK_PX / zoom / 2.0
             val half = MARK_LINE_PX / zoom / 2.0
             for (p in points) {
-                b.polylineRibbon(listOf(Pt(p.x - r, p.y - r), Pt(p.x + r, p.y + r)), half, closed = false, tolerance = tolerance)
-                b.polylineRibbon(listOf(Pt(p.x - r, p.y + r), Pt(p.x + r, p.y - r)), half, closed = false, tolerance = tolerance)
+                b.ribbon(listOf(Pt(p.x - r, p.y - r), Pt(p.x + r, p.y + r)), half, closed = false, tolerance = tolerance)
+                b.ribbon(listOf(Pt(p.x - r, p.y + r), Pt(p.x + r, p.y - r)), half, closed = false, tolerance = tolerance)
             }
-            parts.add(MeshPart(b.build(), accent, InkPass.OPAQUE))
+            b.addTo(parts, accent)
         }
         if (hot.isNotEmpty()) {
-            val rings = MeshBuilder()
+            val rings = Haloed(grow)
             val cores = MeshBuilder()
             for (h in hot) {
                 rings.circle(h.x, h.y, HOT_PX / zoom / 2.0, tolerance)
                 cores.circle(h.x, h.y, HOT_CORE_PX / zoom / 2.0, tolerance)
             }
-            parts.add(MeshPart(rings.build(), accent, InkPass.OPAQUE))
-            parts.add(MeshPart(cores.build(), DOT_CORE, InkPass.OPAQUE))
+            rings.addTo(parts, accent)
+            parts.add(MeshPart(cores.build(), coreFor(accent), InkPass.OPAQUE))
         }
         return parts
     }
@@ -195,19 +245,20 @@ object OverlayTessellator {
         tolerance: Double,
     ): List<MeshPart> {
         if (zoom <= 0.0) return emptyList()
-        val parts = ArrayList<MeshPart>(6)
+        val grow = HALO_PX / zoom
+        val parts = ArrayList<MeshPart>(8)
         if (midpoints.isNotEmpty()) {
-            val faint = MeshBuilder()
+            val faint = Haloed(grow)
             for (d in midpoints) faint.circle(d.x, d.y, EDGE_DOT_PX / zoom / 2.0, tolerance)
-            parts.add(MeshPart(faint.build(), accent.withAlpha(EDGE_DOT_ALPHA), InkPass.OPAQUE))
+            faint.addTo(parts, accent.withAlpha(EDGE_DOT_ALPHA))
         }
         if (segments.isNotEmpty()) {
-            val squares = MeshBuilder()
+            val squares = Haloed(grow)
             val half = HANDLE_PX / zoom / 2.0
             for (c in segments) squares.rect(c.x - half, c.y - half, half * 2, half * 2)
-            parts.add(MeshPart(squares.build(), accent, InkPass.OPAQUE))
+            squares.addTo(parts, accent)
         }
-        val dots = MeshBuilder()
+        val dots = Haloed(grow)
         val cores = MeshBuilder()
         for (d in waypoints) {
             dots.circle(d.x, d.y, VERTEX_DOT_PX / zoom / 2.0, tolerance)
@@ -217,8 +268,8 @@ object OverlayTessellator {
             dots.circle(at.x, at.y, END_PX / zoom / 2.0, tolerance)
             if (!glued) cores.circle(at.x, at.y, END_CORE_PX / zoom / 2.0, tolerance)
         }
-        if (!dots.isEmpty) parts.add(MeshPart(dots.build(), accent, InkPass.OPAQUE))
-        if (!cores.isEmpty) parts.add(MeshPart(cores.build(), DOT_CORE, InkPass.OPAQUE))
+        dots.addTo(parts, accent)
+        if (!cores.isEmpty) parts.add(MeshPart(cores.build(), coreFor(accent), InkPass.OPAQUE))
         return parts
     }
 
@@ -231,7 +282,7 @@ object OverlayTessellator {
         devicePxPerDp: Double = 1.0,
     ): List<MeshPart> {
         if (zoom <= 0.0 || rect.w <= 0.0 && rect.h <= 0.0) return emptyList()
-        val b = MeshBuilder()
+        val b = Haloed(HALO_PX / zoom)
         val corners = listOf(
             Pt(rect.left, rect.top),
             Pt(rect.right, rect.top),
@@ -239,8 +290,7 @@ object OverlayTessellator {
             Pt(rect.left, rect.bottom),
         )
         dashInto(b, corners, MARQUEE_PX / zoom / 2.0, closed = true, zoom = zoom, devicePxPerDp = devicePxPerDp, tolerance = tolerance)
-        if (b.isEmpty) return emptyList()
-        return listOf(MeshPart(b.build(), accent, InkPass.OPAQUE))
+        return ArrayList<MeshPart>(2).also { b.addTo(it, accent) }
     }
 
     /**
@@ -278,12 +328,11 @@ object OverlayTessellator {
         devicePxPerDp: Double = 1.0,
     ): List<MeshPart> {
         if (zoom <= 0.0 || count < 2 || from < 0 || from + count > points.size) return emptyList()
-        val b = MeshBuilder()
+        val b = Haloed(HALO_PX / zoom)
         val half = MARQUEE_PX / zoom / 2.0
         val span = points.subList(from, from + count)
         dashInto(b, span, half, closed = false, zoom = zoom, devicePxPerDp = devicePxPerDp, tolerance = tolerance, phase = phase)
-        if (b.isEmpty) return emptyList()
-        return listOf(MeshPart(b.build(), accent, InkPass.OPAQUE))
+        return ArrayList<MeshPart>(2).also { b.addTo(it, accent) }
     }
 
     /** The moving end of the lasso, from [from] to the last point it has. */
@@ -305,7 +354,7 @@ object OverlayTessellator {
      * of the zoom into content px; [phase] lets a line split into runs keep one rhythm.
      */
     private fun dashInto(
-        b: MeshBuilder,
+        b: Haloed,
         points: List<Pt>,
         half: Double,
         closed: Boolean,
@@ -317,7 +366,7 @@ object OverlayTessellator {
         val on = DASH_ON_DP * devicePxPerDp / zoom
         val gap = DASH_GAP_DP * devicePxPerDp / zoom
         for (run in MeshBuilder.dashRuns(points, on, gap, closed = closed, phase = phase)) {
-            b.polylineRibbon(run, half, closed = false, tolerance = tolerance)
+            b.ribbon(run, half, closed = false, tolerance = tolerance)
         }
     }
 
@@ -327,6 +376,9 @@ object OverlayTessellator {
 
     /** The light core that makes a vertex dot read as a point rather than a handle. */
     val DOT_CORE = Rgba(255, 255, 255, 255)
+
+    /** The core inside an [accent] dot: white in a dark dot, black in a white one (night accent). */
+    fun coreFor(accent: Rgba): Rgba = haloFor(accent).let { Rgba(it.r, it.g, it.b, 255) }
 
     fun selectionBounds(box: Obb, zoom: Double): Rect {
         val pad = (GRIP_ARM_PX + GRIP_PX + HANDLE_PX) / maxOf(zoom, 1e-9)

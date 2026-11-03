@@ -34,7 +34,7 @@ class PdfResources private constructor(private val context: Context) {
             val id = digest.digest().joinToString("") { "%02x".format(it) }
             val dest = File(directory,"$id.pdf")
             if (dest.exists()) {
-                check(dest.length() == temp.length()) { "PDF 资源校验失败" }
+                check(dest.length() == temp.length()) { StorageText.t(StorageMsg.PDF_RESOURCE_VERIFY_FAILED) }
             } else Files.move(temp.toPath(),dest.toPath(),StandardCopyOption.ATOMIC_MOVE)
             register(dest,name); dest
         } finally { temp.delete() }
@@ -48,7 +48,7 @@ class PdfResources private constructor(private val context: Context) {
             require(id.matches(Regex("[a-f0-9]{64}")))
             val file = File(directory,"$id.pdf")
             if (registry.resource(id) == null) {
-                check(file.isFile && BundleMigration.hash(file) == id) { "PDF 资源丢失或损坏，请重新附加" }
+                check(file.isFile && BundleMigration.hash(file) == id) { StorageText.t(StorageMsg.PDF_RESOURCE_CORRUPT) }
                 register(file,"附件.pdf")
             }
         }

@@ -41,7 +41,7 @@ class DocumentRegistry(context: Context) : SQLiteOpenHelper(context, File(contex
     fun locations(id: String): List<String> = readableDatabase.rawQuery("SELECT uri FROM locations WHERE document_id=? AND available=1 ORDER BY uri", arrayOf(id)).use { c -> buildList { while (c.moveToNext()) add(c.getString(0)) } }
     fun resolve(id: String): String? {
         val found = locations(id)
-        check(found.size <= 1) { "文档 ID 存在多份文件，请先选择原件或为副本分配新身份" }
+        check(found.size <= 1) { StorageText.t(StorageMsg.DUPLICATE_DOCUMENT_ID) }
         return found.singleOrNull()
     }
     fun moved(old: String, new: String) = transaction { db ->
@@ -68,14 +68,14 @@ class DocumentRegistry(context: Context) : SQLiteOpenHelper(context, File(contex
     }
     /** Owner replacement is one transaction: no intermediate unreferenced window. */
     fun references(owner: String, resources: Set<String>) = transaction { db ->
-        for (id in resources) check(resource(id) != null) { "PDF 资源未登记" }
+        for (id in resources) check(resource(id) != null) { StorageText.t(StorageMsg.PDF_RESOURCE_UNREGISTERED) }
         val previous=referenceIds(owner)
         db.execSQL("DELETE FROM resource_refs WHERE owner=?", arrayOf(owner))
         for (id in resources) db.execSQL("INSERT INTO resource_refs(owner,resource_id) VALUES(?,?)", arrayOf(owner,id))
         for (id in previous-resources) db.execSQL("UPDATE resources SET created=? WHERE id=? AND NOT EXISTS(SELECT 1 FROM resource_refs WHERE resource_id=?)",arrayOf<Any>(System.currentTimeMillis(),id,id))
     }
     fun lease(resourceId: String, until: Long): String = transaction { db ->
-        check(resource(resourceId) != null) { "PDF 资源不存在" }
+        check(resource(resourceId) != null) { StorageText.t(StorageMsg.PDF_RESOURCE_MISSING) }
         UUID.randomUUID().toString().also { db.execSQL("INSERT INTO leases(token,resource_id,expires) VALUES(?,?,?)", arrayOf<Any>(it, resourceId, until)); liveLeases[it]=resourceId }
     }
     fun release(token: String) { liveLeases.remove(token); writableDatabase.execSQL("DELETE FROM leases WHERE token=?", arrayOf(token)) }

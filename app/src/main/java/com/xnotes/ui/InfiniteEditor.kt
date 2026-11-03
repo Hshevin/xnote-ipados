@@ -733,11 +733,18 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     private fun drawToolOverlay(canvas: android.graphics.Canvas) {
         interaction.rulerController.draw(canvas, devicePxPerDp, viewport.zoom, document.dpi.toDouble(), view.darkAppearance)
         val rect = interaction.captureRect?.let { viewport.contentToViewport(it) } ?: return
+        val line = (2 * devicePxPerDp).toFloat()
         val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            color = if (view.darkAppearance) android.graphics.Color.WHITE else android.graphics.Color.BLACK
             style = android.graphics.Paint.Style.STROKE
-            strokeWidth = (2 * devicePxPerDp).toFloat()
         }
+        // An opposite-tone edge under the frame, as for every overlay mark, so it reads on black
+        // paper and on an imported white PDF alike.
+        val dark = view.darkAppearance
+        p.color = if (dark) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+        p.strokeWidth = line + (2 * com.xnotes.core.infinite.OverlayTessellator.HALO_PX).toFloat()
+        canvas.drawRect(rect.left.toFloat(), rect.top.toFloat(), rect.right.toFloat(), rect.bottom.toFloat(), p)
+        p.color = if (dark) android.graphics.Color.WHITE else android.graphics.Color.BLACK
+        p.strokeWidth = line
         canvas.drawRect(rect.left.toFloat(), rect.top.toFloat(), rect.right.toFloat(), rect.bottom.toFloat(), p)
     }
 

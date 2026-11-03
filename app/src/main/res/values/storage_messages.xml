@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Storage messages; names mirror com.xnotes.storage.StorageMsg. -->
+<resources>
+    <string name="storage_msg_duplicate_document_id">Several files share this document ID. Choose the original or give the copy a new identity first</string>
+    <string name="storage_msg_pdf_resource_unregistered">PDF resource is not registered</string>
+    <string name="storage_msg_pdf_resource_missing">PDF resource does not exist</string>
+    <string name="storage_msg_migration_interrupted">The upgrade was interrupted or the file was changed elsewhere. The original note backup was kept; restore the backup or keep the current file</string>
+    <string name="storage_msg_migration_verify_failed">Upgrade write verification failed</string>
+    <string name="storage_msg_migration_write_incomplete">The upgrade write did not finish. The original note backup was kept; restore it and try again</string>
+    <string name="storage_msg_no_backup_to_restore">No previous note to restore</string>
+    <string name="storage_msg_restore_verify_failed">Restore verification failed; the backup is still kept</string>
+    <string name="storage_msg_migration_record_failed">Could not finish the migration record</string>
+    <string name="storage_msg_note_unreadable">Can\'t read the note</string>
+    <string name="storage_msg_note_not_writable">The note is not writable</string>
+    <string name="storage_msg_legacy_note_read_only">The old note is read-only and was not changed. Save a writable copy and try again</string>
+    <string name="storage_msg_file_read_only_upgrade">The file is read-only and can\'t be upgraded. Save a writable copy</string>
+    <string name="storage_msg_split_missing_document_id">The old split view has no document ID. Locate the document manually</string>
+    <string name="storage_msg_search_limit_reached">Checked 5000 items. Narrow the authorised folder or locate the document manually</string>
+    <string name="storage_msg_duplicate_documents_found">Found several documents with the same ID. Choose the original manually or make the copy an independent document</string>
+    <string name="storage_msg_invalid_note_path">Invalid note path</string>
+    <string name="storage_msg_pdf_resource_verify_failed">PDF resource verification failed</string>
+    <string name="storage_msg_pdf_resource_corrupt">PDF resource is missing or damaged. Attach it again</string>
+</resources>

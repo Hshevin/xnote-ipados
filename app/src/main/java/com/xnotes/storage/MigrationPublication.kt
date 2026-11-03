@@ -32,20 +32,20 @@ class MigrationPublication(private val directory: File) {
         check(pending && original.isFile && candidate.isFile) { "Migration recovery files missing" }
         val current = fingerprint(target)
         if (current == BundleMigration.hash(candidate)) { clear(); return }
-        if (current != BundleMigration.hash(original)) throw RecoveryRequired("升级曾被中断或文件已被外部修改；原笔记备份已保留，请选择恢复备份或保留当前文件")
+        if (current != BundleMigration.hash(original)) throw RecoveryRequired(StorageText.t(StorageMsg.MIGRATION_INTERRUPTED))
         try {
             target.write(candidate)
-            check(fingerprint(target) == BundleMigration.hash(candidate)) { "升级写入验证失败" }
+            check(fingerprint(target) == BundleMigration.hash(candidate)) { StorageText.t(StorageMsg.MIGRATION_VERIFY_FAILED) }
             clear()
         } catch (e: Exception) {
-            throw RecoveryRequired("升级写入未完成，原笔记备份已保留。请恢复备份后重试")
+            throw RecoveryRequired(StorageText.t(StorageMsg.MIGRATION_WRITE_INCOMPLETE))
         }
     }
     /** Explicit user action; never silently overwrite a concurrently edited external file. */
     fun restore(target: Target) {
-        check(pending && original.isFile) { "没有可恢复的旧笔记" }
+        check(pending && original.isFile) { StorageText.t(StorageMsg.NO_BACKUP_TO_RESTORE) }
         target.write(original)
-        check(fingerprint(target) == BundleMigration.hash(original)) { "恢复验证失败，备份仍保留" }
+        check(fingerprint(target) == BundleMigration.hash(original)) { StorageText.t(StorageMsg.RESTORE_VERIFY_FAILED) }
         clear()
     }
     /** User chose the external file over the backup. Caller validates that file before this action. */
@@ -64,7 +64,7 @@ class MigrationPublication(private val directory: File) {
     }
     private fun clear() {
         // Marker first: crashes during cleanup leave harmless retained bytes, never an incomplete transaction.
-        check(marker.delete() || !marker.exists()) { "无法完成迁移记录" }
+        check(marker.delete() || !marker.exists()) { StorageText.t(StorageMsg.MIGRATION_RECORD_FAILED) }
         original.delete(); candidate.delete()
     }
 }
