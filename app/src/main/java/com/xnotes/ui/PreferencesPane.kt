@@ -245,6 +245,7 @@ fun PreferencesPane(
             CheckRow(stringResource(R.string.pref_start_fullscreen), editor.fullscreen) { editor.setFullscreenPref(it) }
 
             HorizontalDivider(color = palette.border.toComposeColor())
+            AiSettingsButton()
             SectionTitle(stringResource(R.string.pref_input))
             CheckRow(stringResource(R.string.pref_finger_draws), prefs.fingerDraws) { update(prefs.copy(fingerDraws = it)) }
             FieldLabel(stringResource(R.string.pref_zoom_lock_pan))

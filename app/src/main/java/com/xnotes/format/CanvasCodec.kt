@@ -92,6 +92,7 @@ class CanvasCodec(private val imageCodec: ImageCodec, private val textMeasurer: 
             // the manifest means it can be replaced in place later without moving the assets.
             // Each image streams straight from its temp file into the bundle, never as a byte[].
             for ((name, file) in assets + audio) zos.putStored(name, file, isCancelled)
+            doc.identity.write(zos)
             // The manifest streams straight into the deflater, so a dense canvas's JSON is never
             // materialized as a DOM, a String, or a byte[].
             zos.putNextEntry(ZipEntry("manifest.json").apply { method = ZipEntry.DEFLATED })
@@ -492,6 +493,7 @@ class CanvasCodec(private val imageCodec: ImageCodec, private val textMeasurer: 
      */
     fun read(input: InputStream, imageDir: File? = null): InfiniteDocument {
         var manifest: ParsedManifest? = null
+        var identity: BundleIdentity? = null
         val imageFiles = HashMap<String, File>()
         val audioFiles = HashMap<String, File>()
         ZipInputStream(input).use { zis ->
@@ -499,7 +501,10 @@ class CanvasCodec(private val imageCodec: ImageCodec, private val textMeasurer: 
             while (entry != null) {
                 if (!entry.isDirectory) {
                     val name = entry.name
-                    if (name == "manifest.json") {
+                    if (name == BundleIdentity.ENTRY) {
+                        require(identity == null) { "Duplicate document identity" }
+                        identity = BundleIdentity.read(zis)
+                    } else if (name == "manifest.json") {
                         // Parsed straight off the zip stream, so a dense canvas's manifest is never
                         // materialized as bytes, a String, or a DOM.
                         if (manifest == null) {
@@ -534,6 +539,7 @@ class CanvasCodec(private val imageCodec: ImageCodec, private val textMeasurer: 
         if (!m.formatOk) throw XCanvasFormatException(NOT_XCANVAS)
 
         val doc = InfiniteDocument(dpi = m.dpi)
+        identity?.let { doc.identity = it }
         doc.created = m.created
         doc.background = m.background
         doc.lastView = m.view

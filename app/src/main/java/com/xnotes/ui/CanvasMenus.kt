@@ -556,12 +556,13 @@ private fun StepDot(glyph: String, label: String, enabled: Boolean, onClick: () 
  */
 @Composable
 fun ScreenshotMenu(editor: Editor, onShare: (java.io.File) -> Unit) {
+    val askAi = rememberAskAi(editor.state.document.title, editor.currentUri, editor.state.document.pdfFile, editor.state.document.identity.documentId)
     val rect = editor.screenshotMenu ?: return
     val palette = LocalPalette.current
     val density = LocalDensity.current
 
     val barHeightPx = with(density) { 44.dp.toPx() }
-    val barWidthPx = with(density) { 216.dp.toPx() }
+    val barWidthPx = with(density) { 300.dp.toPx() }
     val gap = with(density) { 10.dp.toPx() }
     val centerX = ((rect.left + rect.right) / 2.0).toFloat()
     val xPx = (centerX - barWidthPx / 2f).coerceIn(0f, (editor.state.viewportW - barWidthPx).coerceAtLeast(0f))
@@ -597,17 +598,19 @@ fun ScreenshotMenu(editor: Editor, onShare: (java.io.File) -> Unit) {
         }
         Box(Modifier.width(1.dp).height(24.dp).background(palette.border.toComposeColor()))
         ActionIcon(XnotesIcons.share, stringResource(R.string.share)) { editor.screenshotImageForShare()?.let(onShare) }
+        TextButton(onClick = { editor.screenshotImageForShare()?.let(askAi) }) { Text("AI", color = palette.text.toComposeColor()) }
     }
 }
 
 @Composable
 fun ScreenshotMenu(editor: InfiniteEditor, onShare: (java.io.File) -> Unit) {
+    val askAi = rememberAskAi(editor.document.title, editor.document.path, documentId = editor.document.identity.documentId)
     val rect = editor.screenshotMenu ?: return
     val palette = LocalPalette.current
     val density = LocalDensity.current
 
     val barHeightPx = with(density) { 44.dp.toPx() }
-    val barWidthPx = with(density) { 216.dp.toPx() }
+    val barWidthPx = with(density) { 300.dp.toPx() }
     val gap = with(density) { 10.dp.toPx() }
     val centerX = ((rect.left + rect.right) / 2.0).toFloat()
     val xPx = (centerX - barWidthPx / 2f).coerceIn(0f, (editor.viewport.widthPx - barWidthPx).coerceAtLeast(0f))
@@ -643,6 +646,7 @@ fun ScreenshotMenu(editor: InfiniteEditor, onShare: (java.io.File) -> Unit) {
         }
         Box(Modifier.width(1.dp).height(24.dp).background(palette.border.toComposeColor()))
         ActionIcon(XnotesIcons.share, stringResource(R.string.share)) { editor.screenshotImageForShare()?.let(onShare) }
+        TextButton(onClick = { editor.screenshotImageForShare()?.let(askAi) }) { Text("AI", color = palette.text.toComposeColor()) }
     }
 }
 

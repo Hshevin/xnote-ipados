@@ -204,6 +204,7 @@ class DocumentCodec(
         timing: WriteTiming? = null,
         audio: List<Pair<String, File>> = audioAssets(doc),
     ) {
+        doc.identity.write(zos)
         // The flow lives in its own ODF entry, written only when non-empty (or carrying
         // custom defaults) so untouched notes stay byte-identical to old readers.
         if (!doc.flow.isEmpty || !com.xnotes.core.text.FlowDefaults.of(doc.flow).isEmpty) {
@@ -750,8 +751,10 @@ class DocumentCodec(
         pdfDir: File? = null,
         imageDir: File? = null,
         timing: ReadTiming? = null,
+        pdfStore: ((InputStream) -> File)? = null,
     ): Document {
         var manifest: ParsedManifest? = null
+        var identity: BundleIdentity? = null
         var flowBytes: ByteArray? = null
         var markupBytes: ByteArray? = null
         val templates = HashMap<String, String>()
@@ -764,7 +767,10 @@ class DocumentCodec(
             while (entry != null) {
                 if (!entry.isDirectory) {
                     val name = entry.name
-                    if (name == "manifest.json") {
+                    if (name == BundleIdentity.ENTRY) {
+                        require(identity == null) { "Duplicate document identity" }
+                        identity = BundleIdentity.read(zis)
+                    } else if (name == "manifest.json") {
                         // Parsed straight off the zip stream: a dense note's manifest is never
                         // materialized as bytes, a String, or an org.json DOM (which held a boxed
                         // wrapper per number and made big notes cost minutes and ~3x their heap).
@@ -783,9 +789,11 @@ class DocumentCodec(
                         // Never slurp the PDF into memory: stream it to disk (or skip it).
                         if (pdfDir != null) {
                             val started = System.nanoTime()
-                            val f = File.createTempFile("src", ".pdf", pdfDir)
-                            FileOutputStream(f).use { zis.copyTo(it) }
-                            pdfFile = f
+                            pdfFile = if (pdfStore != null) pdfStore(zis) else {
+                                val f = File.createTempFile("src", ".pdf", pdfDir)
+                                FileOutputStream(f).use { zis.copyTo(it) }
+                                f
+                            }
                             timing?.assetsMs += (System.nanoTime() - started) / 1_000_000L
                         }
                     } else if (name.startsWith("assets/image-")) {
@@ -835,6 +843,7 @@ class DocumentCodec(
         if (!m.formatOk) throw XNoteFormatException(NOT_XNOTE)
 
         val doc = Document(dpi = m.dpi)
+        identity?.let { doc.identity = it }
         doc.bodyStartPage = m.bodyStartPage?.takeIf { it >= 0 }
         doc.created = m.created
         doc.templates = templates
@@ -846,7 +855,7 @@ class DocumentCodec(
         if (m.hasPdf) {
             doc.pdfFile = pdfFile
         } else {
-            pdfFile?.delete() // a stray PDF with no manifest flag: don't leak the temp file
+            if (pdfStore == null) pdfFile?.delete() // a stray PDF with no manifest flag: don't leak the temp file
         }
 
         doc.bookmarks.addAll(m.bookmarks)

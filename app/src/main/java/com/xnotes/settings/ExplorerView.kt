@@ -119,4 +119,4 @@ data class ExplorerView(
 }
 
 /** A note or canvas opened on this device, newest first in [Settings.recentDocs]. */
-data class RecentDoc(val uri: String, val name: String, val opened: Long)
+data class RecentDoc(val uri: String, val name: String, val opened: Long, val documentId: String = "")

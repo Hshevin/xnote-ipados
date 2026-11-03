@@ -378,6 +378,29 @@ private fun EditorScreen(
     // The pane whose page indices await a SAF "Save as" destination (side-panel page export).
     var pendingExportPages by remember { mutableStateOf<PendingPages?>(null) }
     val scope = rememberCoroutineScope()
+    val storageProblemPane = listOfNotNull(editor, editor.secondary).firstOrNull { it.storageProblemUri != null }
+    storageProblemPane?.let { pane ->
+        var working by remember(pane) { mutableStateOf(false) }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { if (!working) pane.storageProblemUri = null },
+            title = { androidx.compose.material3.Text("文档需要处理") },
+            text = { androidx.compose.material3.Text(pane.storageProblemText) },
+            confirmButton = {
+                androidx.compose.foundation.layout.Column {
+                    if (pane.storageCanRecover) androidx.compose.material3.TextButton(enabled = !working, onClick = {
+                        working = true; scope.launch { pane.recoverStorageProblem(restore = true); working = false }
+                    }) { androidx.compose.material3.Text("恢复升级前的备份") }
+                    if (pane.storageDuplicate) androidx.compose.material3.TextButton(enabled = !working, onClick = {
+                        working = true; scope.launch { pane.recoverStorageProblem(copy = true); working = false }
+                    }) { androidx.compose.material3.Text("将此文件设为独立副本") }
+                    if (pane.storageCanRecover) androidx.compose.material3.TextButton(enabled = !working, onClick = {
+                        working = true; scope.launch { pane.recoverStorageProblem(); working = false }
+                    }) { androidx.compose.material3.Text("保留当前文件，放弃备份") }
+                }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(enabled = !working, onClick = { pane.storageProblemUri = null }) { androidx.compose.material3.Text("稍后处理") } },
+        )
+    }
     val resolver = context.contentResolver
     val rwFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
 
@@ -459,8 +482,10 @@ private fun EditorScreen(
     ) { uri ->
         val src = pendingSaveCopyUri; pendingSaveCopyUri = null
         if (uri != null && src != null) {
-            runCatching { resolver.openOutputStream(uri)?.use { o -> editor.copyFileTo(src, o) } }
-                .onFailure { editor.message = context.getString(R.string.err_save_copy) }
+            scope.launch {
+                val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { checkNotNull(resolver.openOutputStream(uri)).use { o -> editor.copyFileTo(src, o, newIdentity = true) } }.isSuccess }
+                if(!ok) editor.message = context.getString(R.string.err_save_copy)
+            }
         }
     }
 
@@ -1399,6 +1424,9 @@ private fun EditorScreen(
         if (saving) { delay(160); showSaving = saving } else showSaving = false
     }
     if (showSaving && saving) SavingDialog()
+    com.xnotes.ui.AiChatHost(if (mainMenu) emptySet() else editor.openPanes
+        .filter { it.noteOpen && it.pane !in paneHomes }
+        .map { it.visibleDocumentId.ifBlank { it.visibleDocumentUri ?: if (it.canvasOpen) it.infinite.document.title else it.state.document.title } }.toSet())
 }
 
 /** A pending "unsaved changes" prompt: the pane it asks about, and what to run once it's settled. */
@@ -1784,6 +1812,28 @@ private fun EditorPane(
     onDocumentFocus: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    editor.missingDocument?.let { missing ->
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
+        val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if(uri != null) {
+                runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
+                scope.launch { editor.relocateMissing(uri.toString()) }
+            }
+        }
+        Column(modifier.fillMaxSize().padding(24.dp), verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
+            Text("文档暂时无法打开")
+            Text("窗格及阅读位置已保留。请恢复文件授权，或重新定位原笔记。")
+            Text(missing.uri.substringAfterLast('/'), maxLines = 2)
+            var searching by remember(editor) { mutableStateOf(false) }
+            if(searching) Text("正在检查已授权文件夹…")
+            androidx.compose.material3.TextButton(enabled = !searching,onClick = { scope.launch { searching=true; try { editor.rediscoverMissing() } finally { searching=false } } }) { Text("在已授权文件夹查找") }
+            androidx.compose.material3.TextButton(onClick = { picker.launch(arrayOf("*/*")) }) { Text("重新定位文件") }
+            androidx.compose.material3.TextButton(onClick = { scope.launch { editor.relocateMissing(missing.uri) } }) { Text("重试") }
+            androidx.compose.material3.TextButton(onClick = { actions.onClosePane(editor) }) { Text("关闭窗格") }
+        }
+        return
+    }
     val palette = LocalPalette.current
     val focusRequester = remember { FocusRequester() }
     val focused = app.active === editor

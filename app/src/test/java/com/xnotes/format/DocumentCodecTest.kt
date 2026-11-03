@@ -862,7 +862,7 @@ class DocumentCodecTest {
         val bundle = ByteArrayOutputStream().also { codec.write(doc, it) }.toByteArray()
 
         val names = entryNames(bundle)
-        assertEquals(listOf("assets/template-$key.xtemplate", "manifest.json"), names)
+        assertEquals(listOf("assets/template-$key.xtemplate", BundleIdentity.ENTRY, "manifest.json"), names)
         val method = ZipInputStream(ByteArrayInputStream(bundle)).use { it.nextEntry.method }
         assertEquals(java.util.zip.ZipEntry.STORED, method)
 

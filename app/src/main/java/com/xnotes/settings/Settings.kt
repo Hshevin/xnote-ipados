@@ -131,7 +131,7 @@ data class Settings(
             .put("pinned_folders", JSONArray().apply { pinnedFolders.forEach { put(JSONObject().put("uri", it.uri).put("name", it.name)) } })
             .put("explorer_view", explorerView.toJson())
             .put("folder_views", JSONObject().apply { folderViews.forEach { (k, v) -> put(k, v.toJson()) } })
-            .put("recent_docs", JSONArray().apply { recentDocs.forEach { put(JSONObject().put("uri", it.uri).put("name", it.name).put("opened", it.opened)) } })
+            .put("recent_docs", JSONArray().apply { recentDocs.forEach { put(JSONObject().put("uri", it.uri).put("name", it.name).put("opened", it.opened).put("documentId", it.documentId)) } })
             .apply { lastFolder?.let { put("last_folder", it) } }
             .put("render_scale", renderScale)
             .apply { if (!newNoteStyle.isEmpty) put("new_note_style", pageStyleJson(newNoteStyle)) }
@@ -214,7 +214,7 @@ data class Settings(
             return (0 until a.length()).mapNotNull { i ->
                 val o = a.optJSONObject(i) ?: return@mapNotNull null
                 val uri = o.optString("uri", "").ifEmpty { return@mapNotNull null }
-                RecentDoc(uri, o.optString("name", ""), o.optLong("opened", 0L))
+                RecentDoc(uri, o.optString("name", ""), o.optLong("opened", 0L), o.optString("documentId", ""))
             }
         }
 

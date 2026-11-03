@@ -53,6 +53,9 @@ class Document(
     /** The size of each page added from now on, or null to give it the size of the page before it. */
     var newPageSize: PageSizeChoice? = null,
 ) {
+    /** Stable identity; the ZIP metadata entry persists it independently of editable content. */
+    var identity: com.xnotes.format.BundleIdentity = com.xnotes.format.BundleIdentity()
+
     /** Null uses PDF labels or the first page; otherwise a zero-based body start. */
     var bodyStartPage: Int? = null
 

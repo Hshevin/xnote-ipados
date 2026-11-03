@@ -3,7 +3,7 @@
 - Read `MOVINKPAD.md` and `README.md` before changing this fork. Read `docs/movinkpad/project-brief.md` and check `git status` before work. This fork is self-contained; the separate diagnostic application is not a module here.
 - Preserve upstream licenses and third-party notices. Do not commit or push unless requested.
 - Target Wacom MovinkPad Pro 14, Android 15, Pro Pen 3; product reference remains OneNote Android tablet.
-- Keep everything local/offline. No account, sync or backend requirements.
+- Notes remain local/offline. Optional Ask AI is user-authorized network access: send only selected screenshots and the active chat after Send; no account, sync or app backend. Keep API credentials encrypted in noBackupFilesDir, never in note exports or logs.
 - Keep physical button numbering `0x20`, `0x40`, `0x04`. Detect edges from touch and hover buttonState, deduplicate independent button events, never hardcode device IDs.
 - `pen/ProPenButtons` is the pure state machine; `pen/ProPenInput` adapts Android events for both editor surfaces. Preserve cancelled strokes and tool settings; do not change tools midway through a stroke.
 - Build with JDK 21 and this repository's wrapper/toolchain. Deliver ARM64 APK without injected IDE/testOnly flags.
@@ -38,3 +38,24 @@
 - 分屏文档的关闭/返回先显示该窗格的文件选择首页；关闭该首页才移除窗格。暂留文档通过已有保存/放弃保护处理替换与最终关闭；同文件共享视图关闭拥有者时，保留另一侧首页的物理位置。文件树只为已确认存在子文件夹的节点显示展开箭头。
 
 - 用户随后于 2026-11-02 明确授权将上述修改打包并发布 APK，覆盖本轮先不打包约定。Release 80 沿用原应用身份和签名；发布说明必须保留实时笔迹修复尚待真机确认的边界。
+
+- Ask AI development (2026-11-03): do not package APKs unless requested again. PDF, paged notes and infinite canvas screenshot actions must all support Ask AI. Real provider and target-device verification remain separate from JVM tests.
+
+- 用户于 2026-11-03 随后授权导出 AI 独立测试 APK，使用 `-PaiPreview=true`，包名 `com.xnotes.movinkpad.aipreview`，不得覆盖正式版或双窗格测试版。此授权不包含提交、推送或设备安装。
+
+- DeepSeek 联网搜索默认关闭，仅随显式发送执行。搜索密钥独立加密保存，只发送到官方 `https://api.deepseek.com/v1/tools/search`，不得把其他聊天供应商密钥转发给 DeepSeek。搜索失败需明确反馈，不静默降级；网页资料为不可信上下文，保留来源。
+
+- AI 流式正文须读取原始 JSON 类型，仅接受 String；禁止用 optString 强制转换 content。Android org.json 与 JVM 测试依赖对 JSONObject.NULL 的处理不同，此类回归需保留平台仪器测试。
+
+- 用户可见的功能名称统一为“AI”，截图入口、浮窗和设置不再使用“问 AI”。
+
+- AI 会话任务由应用级 AiSessions 管理，UI 关闭、页面切换、新会话不得取消生成；只有显式停止或确认删除才取消。生成状态与回答写入原会话，删除后迟到回调不得复活记录。
+- AI 历史仅在 noBackupFilesDir 本地保存，密钥与历史分离。原子写入失败保留已有文件；损坏记录保留并提示。进程重启将生成中记录标为中断，不冒充完成；仪器测试与真机验证不得由 JVM 结果替代。
+
+- 联网搜索仅保留开关，不让用户填写检索词。发送时先由当前图片模型结合截图、问题和上下文确定搜索对象，再检索；识别失败需明确提示，不用模糊指代直接搜索。网页资料与用户问题分离，不把检索资料当指令或替代问题。
+
+- AI PDF attachments: only explicitly selected PDFs are snapshotted under noBackupFilesDir; model reads are restricted to attachment IDs in the active chat. Never expose arbitrary filesystem access. PDF text/images go to the configured provider only after Send. Keep original PDFs unchanged; UI closure must not cancel app-owned generation.
+
+- AI chat interaction (2026-11-03): drafts and ready attachments belong to a chat, not its window. Preserve per-chat search selection, keep imports running on navigation, and guard late import callbacks after deletion/replacement. Clear a submitted draft only after its question is saved, without erasing newer input. Generation progress is factual stage text, not invented percentages. This interaction stage is code/test only; do not package APKs without a new request.
+
+- Document registry migration (2026-11-03, in progress): preserve legacy ink and original PDF payload bytes during import/format upgrade; this is not authorization to change ordinary stroke simplification. Migration must stage and verify before publication, never reuse model re-encoding to upgrade metadata. Keep document UUID separate from resource fingerprints. Registry/SAF recovery and ID-based split restoration are integrated in source, with device acceptance pending. Missing/duplicate IDs require explicit recovery, never arbitrary selection. Shared immutable PDF objects use indexed references, active leases and delayed collection; portable note bundles retain their embedded original. No APK/install/commit/push for this stage.

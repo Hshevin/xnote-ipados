@@ -13,6 +13,8 @@ val keystorePropertiesFile = rootProject.file("keystore.properties")
 // Explicit opt-in for the existing locally installed preview upgrade chain.
 val previewUpgradeSigning = providers.gradleProperty("movinkpadPreviewSigning").orNull == "true"
 val splitPreview = providers.gradleProperty("splitPreview").orNull == "true"
+val aiPreview = providers.gradleProperty("aiPreview").orNull == "true"
+require(!(aiPreview && splitPreview)) { "Choose aiPreview or splitPreview, not both" }
 val hasReleaseSigning = keystorePropertiesFile.exists()
 val keystoreProperties = Properties().apply {
     if (hasReleaseSigning) keystorePropertiesFile.inputStream().use { load(it) }
@@ -25,12 +27,12 @@ android {
     ndkVersion = "27.0.12077973"
 
     defaultConfig {
-        applicationId = if (splitPreview) "com.xnotes.movinkpad.splitpreview" else "com.xnotes.movinkpad"
-        manifestPlaceholders["appLabel"] = if (splitPreview) "XNotes 双窗格测试版" else "@string/app_name"
+        applicationId = if (aiPreview) "com.xnotes.movinkpad.aipreview" else if (splitPreview) "com.xnotes.movinkpad.splitpreview" else "com.xnotes.movinkpad"
+        manifestPlaceholders["appLabel"] = if (aiPreview) "XNotes AI 测试版" else if (splitPreview) "XNotes 双窗格测试版" else "@string/app_name"
         minSdk = 26
         targetSdk = 36
         testInstrumentationRunner = "com.xnotes.pen.PenTestRunner"
-        versionCode = if (splitPreview) 79 else 80
+        versionCode = if (aiPreview) 2 else if (splitPreview) 79 else 80
         versionName = "0.9.7"
         ndk {
             // This preview targets the ARM64 MovinkPad and ARM64 test emulator.
@@ -77,7 +79,7 @@ android {
 
     buildTypes {
         debug {
-            versionNameSuffix = if (splitPreview) "-split-preview11" else "-movinkpad-preview1"
+            versionNameSuffix = if (aiPreview) "-ai-preview2" else if (splitPreview) "-split-preview11" else "-movinkpad-preview1"
         }
         release {
             versionNameSuffix = "-movinkpad"

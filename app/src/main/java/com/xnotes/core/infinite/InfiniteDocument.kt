@@ -56,6 +56,9 @@ class InfiniteDocument(
     /** When the canvas was created (epoch ms), or null for files written before this was recorded. */
     var created: Long? = null,
 ) {
+    /** Stable identity; the ZIP metadata entry persists it independently of editable content. */
+    var identity: com.xnotes.format.BundleIdentity = com.xnotes.format.BundleIdentity()
+
 
     /** Something that must be patched when the item list changes: the GL geometry store. */
     interface Listener {
@@ -112,6 +115,7 @@ class InfiniteDocument(
      */
     fun snapshotForWrite(): InfiniteDocument {
         val copy = InfiniteDocument(dpi, path, displayName, dirty, background, waypoints.toMutableList(), lastView, created)
+        copy.identity = identity
         copy.backing.addAll(backing)
         return copy
     }

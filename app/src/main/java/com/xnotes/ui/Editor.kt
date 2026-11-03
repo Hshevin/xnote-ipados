@@ -816,7 +816,42 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         return !doc.dirty
     }
 
+    private val notebookStorage by lazy { com.xnotes.storage.NotebookStorage.get(appContext) }
+    var storageProblemUri by mutableStateOf<String?>(null)
+    var storageProblemText by mutableStateOf("")
+    var storageCanRecover by mutableStateOf(false)
+    var storageDuplicate by mutableStateOf(false)
+    private suspend fun registerForOpen(uri: String, name: String?, kind: String): Boolean {
+        return try {
+            withContext(Dispatchers.IO) {
+                val id = notebookStorage.ensure(uri, name ?: queryDisplayName(android.net.Uri.parse(uri)).orEmpty(), kind)
+                check(notebookStorage.registry.locations(id.documentId).size <= 1) { "发现相同文档 ID 的多份文件，请为此副本分配新身份或取消打开" }
+            }
+            true
+        } catch (e: Exception) {
+            storageCanRecover = withContext(Dispatchers.IO) { notebookStorage.hasRecovery(uri) }
+            storageDuplicate = withContext(Dispatchers.IO) { notebookStorage.registry.idAt(uri)?.let { notebookStorage.registry.locations(it).size > 1 } == true }
+            storageProblemUri = uri
+            storageProblemText = if (e is IllegalStateException || e is IllegalArgumentException) e.message ?: "文档登记失败" else "文件不可写或授权失效，无法完成升级；原文件或恢复备份已保留，请重新授权或另存副本"
+            false
+        }
+    }
+    suspend fun recoverStorageProblem(restore: Boolean = false, copy: Boolean = false): Boolean {
+        val uri = storageProblemUri ?: return false
+        return try {
+            withContext(Dispatchers.IO) {
+                if (restore) notebookStorage.restore(uri)
+                else if (copy) {
+                    check(!notebookStorage.hasRecovery(uri)) { "请先恢复中断的升级" }
+                    notebookStorage.assignCopy(uri)
+                } else if (notebookStorage.hasRecovery(uri)) notebookStorage.keepCurrent(uri)
+            }
+            storageProblemUri = null; true
+        } catch (e: Exception) { storageProblemText = e.message ?: "恢复失败，备份已保留"; false }
+    }
+
     suspend fun openCanvasAsync(uri: String, name: String?): Boolean {
+        if (!registerForOpen(uri, name, "xcanvas")) return false
         val doc = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             runCatching {
                 appContext.contentResolver.openInputStream(android.net.Uri.parse(uri))?.use {
@@ -826,6 +861,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         } ?: return false
         if (!saveCanvasBeforeReplacement()) return false
         openCanvasDocument(doc, uri, name)
+        missingDocument = null
         rememberOpened(uri, name)
         return true
     }
@@ -977,7 +1013,44 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     /** The current document's storage location (a SAF content URI string), or null. */
     val currentUri: String? get() = state.document.path
-    val visibleDocumentUri: String? get() = if (canvasOpen) infinite.document.path else currentUri
+    data class MissingDocument(val id: String, val uri: String, val snapshot: org.json.JSONObject, val prefix: String)
+    var missingDocument by mutableStateOf<MissingDocument?>(null)
+    val visibleDocumentId: String get() = missingDocument?.id ?: if (canvasOpen) infinite.document.identity.documentId else documentOwner.state.document.identity.documentId
+    val visibleDocumentUri: String? get() = missingDocument?.uri ?: if (canvasOpen) infinite.document.path else currentUri
+    suspend fun rediscoverMissing(): Boolean {
+        val missing=missingDocument ?: return false
+        return try {
+            val uri=withContext(Dispatchers.IO) { notebookStorage.rediscover(missing.id,workspaceRoots()) }
+            if(uri==null) { message="未在已授权文件夹找到原文档，请手动重新定位"; false } else relocateMissing(uri)
+        } catch(e: Exception) { message=e.message ?: "查找失败，请检查文件夹授权"; false }
+    }
+    suspend fun relocateMissing(uri: String): Boolean {
+        val missing = missingDocument ?: return false
+        return try {
+            withContext(Dispatchers.IO) {
+                val identity = notebookStorage.ensure(uri, "", if (missing.snapshot.optBoolean(missing.prefix + "Canvas")) "xcanvas" else "xnote")
+                require(missing.id.isBlank() || identity.documentId == missing.id) { "所选文件不是原文档，请选择具有相同文档 ID 的文件" }
+                if (missing.uri != uri) notebookStorage.registry.markUnavailable(missing.uri)
+            }
+            if (missing.snapshot.optBoolean(missing.prefix + "Canvas")) openCanvasAsync(uri,null) else openAsync(uri)
+            if (missingDocument != null) return false
+            restorePanePosition(missing.snapshot,missing.prefix)
+            true
+        } catch (e: Exception) { message = e.message ?: "无法重新定位文档"; false }
+    }
+    private fun restorePanePosition(json: org.json.JSONObject, prefix: String) {
+        if (missingDocument != null) return
+        if (canvasOpen) {
+            val v = com.xnotes.core.infinite.Waypoint("",json.optDouble(prefix+"CX",0.0),json.optDouble(prefix+"CY",0.0),json.optDouble(prefix+"CZ",1.0).coerceIn(.05,20.0))
+            infinite.document.lastView=v; infinite.viewport.apply(v); infinite.view.publish()
+        } else {
+            val z=if(prefix=="primary") "primaryZoom" else "zoom"
+            val x=if(prefix=="primary") "primaryX" else "x"
+            val y=if(prefix=="primary") "primaryY" else "y"
+            state.pendingInitialView=InitialView.Restore(json.optDouble(z,1.0).coerceIn(.05,20.0),json.optDouble(x,0.0),json.optDouble(y,0.0))
+            state.didInitialFit=false; view.requestLayout(); view.requestRender()
+        }
+    }
 
     /** The bookmarks in page order; ones on the same page keep the order they were made in. */
     val bookmarks: List<Bookmark> get() = state.document.bookmarks.sortedBy { it.page }
@@ -3771,14 +3844,25 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         val t0 = System.nanoTime()
         var readMs = -1L
         try {
+            if (!registerForOpen(uri, name, "xnote")) return
             val readStart = System.nanoTime()
             var fileBytes = -1L
             val timing = com.xnotes.format.DocumentCodec.ReadTiming()
             val doc = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 fileBytes = fileSizeOf(uri)
                 appContext.contentResolver.openInputStream(android.net.Uri.parse(uri))
-                    ?.use { codec.read(it, pdfDir, imageDir, timing) }
-                    ?.also { it.created = settleCreated(uri, it.created) }
+                    ?.use { codec.read(it, pdfDir, imageDir, timing, pdfStore = { stream -> com.xnotes.storage.PdfResources.get(appContext).admit(stream,name ?: "原始 PDF") }) }
+                    ?.also {
+                        it.created = settleCreated(uri, it.created)
+                        it.pdfFile?.let { extracted ->
+                            val resources = com.xnotes.storage.PdfResources.get(appContext)
+                            val shared = resources.admit(extracted, name ?: "原始 PDF")
+                            it.pdfFile = shared
+                            it.identity = it.identity.copy(pdfResource = shared.nameWithoutExtension)
+                            resources.pin("note:${it.identity.documentId}", resources.references("note:${it.identity.documentId}") + shared.nameWithoutExtension)
+                            if (extracted != shared) extracted.delete()
+                        }
+                    }
             }
             readMs = (System.nanoTime() - readStart) / 1_000_000
             state.lastOpenInflateMs = timing.inflateMs
@@ -3791,7 +3875,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
                     " + assets ${timing.assetsMs} + compact ${timing.compactMs}, $fileBytes bytes",
             )
             if (doc == null) { message = appContext.getString(R.string.err_open_that_note); return }
-            if (openCancelled.get()) { doc.pdfFile?.delete(); deleteImageTemps(doc); return } // tapped Cancel mid-read; stay put
+            if (openCancelled.get()) { doc.pdfFile?.takeUnless { com.xnotes.storage.PdfResources.get(appContext).isOwned(it) }?.delete(); deleteImageTemps(doc); return } // tapped Cancel mid-read; stay put
             doc.path = uri
             doc.displayName = name
             doc.dirty = false
@@ -3800,6 +3884,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             state.openFileBytes = fileBytes
             state.lastSaveBytes = fileBytes // the on-disk size, until the first autosave rewrites it
             maybeBindAutosave(uri) // resume autosaving if this note lives in the granted folder
+            missingDocument = null
             noteOpen = true // push the editor on top of backstage (only on a successful open)
             rememberOpened(uri, name)
         } catch (e: XNoteFormatException) {
@@ -3821,10 +3906,20 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     fun save(output: OutputStream, uri: String, name: String? = null) {
         sharedOwner?.let { it.save(output, uri, name); return }
         try {
-            synchronized(saveLock) { codec.write(state.document, output) }
+            val toSave = state.document.snapshot()
+            if (!toSave.path.isNullOrBlank() && documentKey(toSave.path.orEmpty()) != documentKey(uri)) {
+                toSave.identity = toSave.identity.copy(documentId = java.util.UUID.randomUUID().toString())
+            }
+            synchronized(saveLock) { codec.write(toSave, output) }
+            state.document.identity = toSave.identity
             state.document.path = uri
             if (name != null) state.document.displayName = name
             state.document.dirty = false
+            val saved=state.document.snapshot()
+            autosaveScope.launch(Dispatchers.IO) {
+                runCatching { notebookStorage.registry.register(saved.identity.documentId,"xnote",name ?: saved.title,uri); pinPdfForWrite(saved) }
+                    .onFailure { message="笔记已保存，但文档索引登记失败；请重新打开此文件" }
+            }
             maybeBindAutosave(uri) // saving into the folder makes it autosave thereafter
             refreshContent()
             invalidateThumb(uri) // content changed; re-render its tile next time it's shown
@@ -3850,6 +3945,9 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         val startNs = System.nanoTime()
         // Pointers, on the main thread: the writer gets its own page lists over the live items.
         val snapshot = doc.snapshot()
+        if (!snapshot.path.isNullOrBlank() && documentKey(snapshot.path.orEmpty()) != documentKey(uri)) {
+            snapshot.identity = snapshot.identity.copy(documentId = java.util.UUID.randomUUID().toString())
+        }
         state.lastSaveSnapshotMs = msSince(startNs)
         // Clean from here, not once the bytes land; see [startNoteWrite] for why.
         val wasDirty = doc.dirty
@@ -3860,13 +3958,18 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         noteWriteJob = autosaveScope.launch {
             pending?.join() // a write already going out finishes first rather than racing this one
             val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                writeNoteSafely(uri, snapshot)
+                val written = writeNoteSafely(uri, snapshot)
+                if (written) runCatching {
+                    notebookStorage.registry.register(snapshot.identity.documentId, "xnote", snapshot.title, uri)
+                }.onFailure { message = "笔记已保存，但文档索引登记失败；请重新打开此文件" }
+                written
             }
             savingNote = false
             if (ok) {
                 // The note may have been switched while the bytes were going out; only the document
                 // this save belongs to may have its path and autosave binding touched.
                 if (state.document === doc) {
+                    doc.identity = snapshot.identity
                     doc.path = uri
                     maybeBindAutosave(uri)
                     refreshContent()
@@ -4352,8 +4455,8 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     /** Put [uri] at the front of Recent. Main thread. */
     private fun rememberOpened(uri: String, name: String?) {
         val key = documentKey(uri)
-        val entry = com.xnotes.settings.RecentDoc(uri, name ?: uri.substringAfterLast('/'), System.currentTimeMillis())
-        setRecents((listOf(entry) + recentDocs.filterNot { documentKey(it.uri) == key }).take(RECENT_MAX))
+        val entry = com.xnotes.settings.RecentDoc(uri, name ?: uri.substringAfterLast('/'), System.currentTimeMillis(), visibleDocumentId)
+        setRecents((listOf(entry) + recentDocs.filterNot { it.documentId == visibleDocumentId || documentKey(it.uri) == key }).take(RECENT_MAX))
     }
 
     /** Forget everything in Recent. */
@@ -4374,7 +4477,8 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         val colors = HashMap<String, Map<String, Rgba>>()
         val folders = HashMap<String, String?>()
         val gone = ArrayList<String>()
-        val out = recentDocs.filter { isUnderTree(it.uri, treeUri) }.mapNotNull { r ->
+        val out = recentDocs.map { r -> if(r.documentId.isBlank()) r else r.copy(uri = runCatching { notebookStorage.registry.resolve(r.documentId) }.getOrNull() ?: r.uri) }.filter { isUnderTree(it.uri, treeUri) }.mapNotNull { r ->
+            if(r.documentId.isNotBlank() && runCatching { notebookStorage.identity(r.uri)?.documentId != r.documentId }.getOrDefault(true)) return@mapNotNull null
             val docId = runCatching { android.provider.DocumentsContract.getDocumentId(android.net.Uri.parse(r.uri)) }.getOrNull() ?: return@mapNotNull null
             val uri = android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, docId)
             val stamp = stampOf(uri.toString()) ?: run { gone.add(r.uri); return@mapNotNull null }
@@ -4390,7 +4494,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             )
             RecentEntry(entry, r.opened, where)
         }
-        if (gone.isNotEmpty()) autosaveScope.launch { setRecents(recentDocs.filterNot { it.uri in gone }) }
+        // Keep missing recent references so reauthorization or rediscovery can restore them.
         return out.distinctBy { it.entry.documentUri }
     }
 
@@ -4529,7 +4633,8 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             android.provider.DocumentsContract.createDocument(appContext.contentResolver, parent, "application/octet-stream", name)
         }.getOrNull() ?: return null
         return runCatching {
-            appContext.contentResolver.openOutputStream(uri, "wt")?.use { write(it) }
+            checkNotNull(appContext.contentResolver.openOutputStream(uri, "wt")).use { write(it) }
+            if (DocumentKind.ofName(name) in listOf(DocumentKind.NOTE,DocumentKind.CANVAS)) notebookStorage.ensure(uri.toString(),name,DocumentKind.ofName(name)!!.extension)
             uri.toString()
         }.getOrElse {
             runCatching { android.provider.DocumentsContract.deleteDocument(appContext.contentResolver, uri) }
@@ -4779,6 +4884,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     /** Carry everything keyed by a document's identity across a rename or move; [newName] is set for a rename. */
     private fun onDocumentMoved(oldUri: String, newUri: String, newName: String? = null) {
+        notebookStorage.registry.moved(oldUri, newUri)
         val from = documentKey(oldUri)
         val to = documentKey(newUri)
         if (oldUri != newUri) repin(oldUri, newUri)
@@ -4794,6 +4900,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             val key = com.xnotes.core.util.DocKeys.moved(documentKey(uri), from, to) ?: return null
             return android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, key.substringAfter('|')).toString()
         }
+        for (known in notebookStorage.registry.knownLocations()) follow(known)?.let { moved -> if (known != moved) notebookStorage.registry.moved(known,moved) }
         autosaveScope.launch {
             setRecents(recentDocs.map { r -> follow(r.uri)?.let { r.copy(uri = it) } ?: r })
             val movedViews = folderViews.mapKeys { (k, _) -> com.xnotes.core.util.DocKeys.moved(k, from, to) ?: k }
@@ -4896,6 +5003,11 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         // created in this folder (the local provider reuses the path-derived id) starts at fit-width
         // instead of inheriting the dead note's view.
         val keyPrefix = "$auth|$delId"
+        for (uri in notebookStorage.registry.knownLocations()) if (com.xnotes.core.util.DocKeys.within(documentKey(uri), keyPrefix)) {
+            val id=notebookStorage.registry.idAt(uri)
+            notebookStorage.registry.markUnavailable(uri)
+            if(id != null && notebookStorage.registry.locations(id).isEmpty()) com.xnotes.storage.PdfResources.get(appContext).pin("note:$id",emptySet())
+        }
         viewStates.removeMatching { it == keyPrefix || it.startsWith("$keyPrefix/") }
 
         detachIfOpen(docUri)
@@ -4964,7 +5076,13 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         val direct = runCatching {
             android.provider.DocumentsContract.copyDocument(appContext.contentResolver, src, target)
         }.getOrNull()
-        if (direct != null) return@runCatching queryDisplayName(direct) ?: srcName
+        if (direct != null) {
+            if (DocumentKind.ofName(srcName) in listOf(DocumentKind.NOTE, DocumentKind.CANVAS) || appContext.contentResolver.getType(direct) == android.provider.DocumentsContract.Document.MIME_TYPE_DIR) {
+                try { identifyCopiedTree(direct,treeUri) }
+                catch (e: Exception) { runCatching { android.provider.DocumentsContract.deleteDocument(appContext.contentResolver, direct) }; throw e }
+            }
+            return@runCatching queryDisplayName(direct) ?: srcName
+        }
         // The clash case (usually pasting into the same folder): duplicate under a free "… copy" name.
         val isDir = appContext.contentResolver.getType(src) == android.provider.DocumentsContract.Document.MIME_TYPE_DIR
         val taken = browseChildren(treeUri, targetParentDocId).mapTo(HashSet()) { it.name.lowercase() }
@@ -4981,9 +5099,20 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
                 } ?: false
             }.getOrDefault(false)
             if (!copied) { runCatching { android.provider.DocumentsContract.deleteDocument(appContext.contentResolver, newUri) }; return@runCatching null }
+            if (DocumentKind.ofName(srcName) in listOf(DocumentKind.NOTE, DocumentKind.CANVAS)) {
+                try { notebookStorage.assignCopy(newUri.toString()) }
+                catch (e: Exception) { runCatching { android.provider.DocumentsContract.deleteDocument(appContext.contentResolver, newUri) }; throw e }
+            }
             queryDisplayName(newUri) ?: newName
         }
     }.getOrNull()
+
+    private fun identifyCopiedTree(uri: android.net.Uri, grantedTree: String) {
+        if (appContext.contentResolver.getType(uri) == android.provider.DocumentsContract.Document.MIME_TYPE_DIR) {
+            val tree = android.net.Uri.parse(grantedTree)
+            childDocumentUris(tree.toString(),android.provider.DocumentsContract.getDocumentId(uri)).forEach { identifyCopiedTree(it,grantedTree) }
+        } else if (DocumentKind.ofName(queryDisplayName(uri).orEmpty()) in listOf(DocumentKind.NOTE,DocumentKind.CANVAS)) notebookStorage.assignCopy(uri.toString())
+    }
 
     /** Copies [entries] into [targetParentDocId], colour codes included; returns how many were copied. IO. */
     fun copyEntriesInto(treeUri: String, entries: List<BrowseEntry>, targetParentDocId: String): Int {
@@ -5036,7 +5165,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             val copied = runCatching {
                 android.provider.DocumentsContract.copyDocument(appContext.contentResolver, child, dest)
             }.getOrNull()
-            if (copied == null) ok = false
+            if (copied == null) ok = false else if (runCatching { identifyCopiedTree(copied,treeUri) }.isFailure) ok = false
         }
         return ok
     }
@@ -5109,7 +5238,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     private val knownStamps = java.util.concurrent.ConcurrentHashMap<String, FileStamp>()
 
     /** Where a fork landed: the new file's uri, and the name to show the user. */
-    private class Fork(val uri: String, val name: String)
+    private class Fork(val uri: String, val name: String, val identity: com.xnotes.format.BundleIdentity)
 
     /** Where a guarded save landed; [fork] is null when it wrote the file in place as usual. */
     private class SaveResult(val uri: String, val fork: Fork?)
@@ -5178,9 +5307,10 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         val root = documentStorageRoot(uri) ?: return null
         val parentId = parentDocIdOf(uri) ?: return null
         val name = forkName(root, parentId, title, com.xnotes.core.util.DocumentKind.NOTE)
+        doc.identity = com.xnotes.format.BundleIdentity(pdfResource = doc.identity.pdfResource)
         val forked = createNoteFile(root, parentId, name) { codec.write(doc, it) } ?: return null
         rememberStamp(forked)
-        return Fork(forked, name)
+        return Fork(forked, name, doc.identity)
     }
 
     /** The canvas sibling of [forkNote]. */
@@ -5188,9 +5318,10 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         val root = documentStorageRoot(uri) ?: return null
         val parentId = parentDocIdOf(uri) ?: return null
         val name = forkName(root, parentId, title, com.xnotes.core.util.DocumentKind.CANVAS)
+        doc.identity = com.xnotes.format.BundleIdentity()
         val forked = createNoteFile(root, parentId, name) { canvasCodec.write(doc, it) } ?: return null
         rememberStamp(forked)
-        return Fork(forked, name)
+        return Fork(forked, name, doc.identity)
     }
 
     /** Autosave [owner]'s [doc] to [uri], or to the fork [owner] already moved to, forking when that file moved under us. IO. */
@@ -5203,6 +5334,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             return SaveResult(fork.uri, fork)
         }
         if (!writeNoteSafely(target, doc)) return null
+        notebookStorage.registry.register(doc.identity.documentId,"xnote",title,target)
         SaveResult(target, null)
     }
 
@@ -5221,11 +5353,13 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             return SaveResult(fork.uri, fork)
         }
         if (!writeCanvasSafely(target, doc)) return null
+        notebookStorage.registry.register(doc.identity.documentId,"xcanvas",title,target)
         SaveResult(target, null)
     }
 
     /** Point the open note at the copy it just forked into, and say so. Main thread. */
     private fun adoptNoteFork(fork: Fork) {
+        state.document.identity = fork.identity
         state.document.path = fork.uri
         state.document.displayName = fork.name
         autosaveUri = fork.uri
@@ -5235,6 +5369,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     /** The canvas sibling of [adoptNoteFork]. Main thread. */
     private fun adoptCanvasFork(fork: Fork) {
+        infinite.document.identity = fork.identity
         val canvas = infiniteOrNull ?: return
         canvas.document.path = fork.uri
         canvas.document.displayName = fork.name
@@ -5255,7 +5390,16 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
      * The old path opened the destination in "wt" (truncate) and encoded straight into it, so a
      * throw mid-encode left the note as 0 bytes. Returns true only when [uri] now holds the note.
      */
+    private fun pinPdfForWrite(doc: Document) {
+        doc.pdfFile?.let { pdf ->
+            val resources=com.xnotes.storage.PdfResources.get(appContext)
+            val shared=resources.admit(pdf,doc.displayName ?: "原始PDF")
+            doc.identity=doc.identity.copy(pdfResource=shared.nameWithoutExtension)
+            resources.pin("note:${doc.identity.documentId}",resources.references("note:${doc.identity.documentId}")+shared.nameWithoutExtension)
+        }
+    }
     private fun writeNoteSafely(uri: String, doc: Document): Boolean = synchronized(saveLock) {
+        if(runCatching { pinPdfForWrite(doc) }.isFailure) return false
         // Replace only the manifest when everything ahead of it is already right. A splice that
         // fails part way leaves a file that is not a valid zip, and falling through to the full
         // rewrite below is what puts it right, so this must stay ordered this way.
@@ -6309,8 +6453,14 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     // --- per-file actions in the explorer (operate on a stored note URI, not the open document) ---
 
     /** Streams a stored note's raw bytes to [out] (share-as-.xnote / save-a-copy). */
-    fun copyFileTo(srcUri: String, out: OutputStream) {
-        appContext.contentResolver.openInputStream(android.net.Uri.parse(srcUri))?.use { it.copyTo(out) }
+    fun copyFileTo(srcUri: String, out: OutputStream, newIdentity: Boolean = false) {
+        if (!newIdentity) { appContext.contentResolver.openInputStream(android.net.Uri.parse(srcUri))?.use { it.copyTo(out) }; return }
+        val source = java.io.File.createTempFile("duplicate-", ".zip",saveTmpDir)
+        try {
+            checkNotNull(appContext.contentResolver.openInputStream(android.net.Uri.parse(srcUri))).use { input -> source.outputStream().use { input.copyTo(it) } }
+            val prepared=com.xnotes.format.BundleMigration.prepare(source,saveTmpDir,copy=true)
+            try { prepared.file.inputStream().use { it.copyTo(out) } } finally { prepared.file.delete() }
+        } finally { source.delete() }
     }
 
     /**
@@ -9331,7 +9481,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     private fun splitSnapshot(): org.json.JSONObject {
         val second = secondary
-        val json = org.json.JSONObject().put("format", "xnotes-split").put("version", 1).put("secondOpen", second?.noteOpen == true)
+        val json = org.json.JSONObject().put("format", "xnotes-split").put("version", 2).put("secondOpen", second?.noteOpen == true)
             .put("primaryOpen", noteOpen).put("ratio", splitRatio.toDouble())
             .put("focused", focusedPane.name).put("reversed", splitReversed)
         splitSideBySide?.let { json.put("sideBySide", it) }
@@ -9339,6 +9489,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             json.put("shared", isSharedView)
             json.put("primaryPath", visibleDocumentUri ?: "")
             json.put("secondPath", second.visibleDocumentUri ?: "")
+            json.put("primaryId", visibleDocumentId).put("secondId", second.visibleDocumentId)
             json.put("zoom", second.state.zoom).put("x", second.state.scrollX).put("y", second.state.scrollY)
             json.put("primaryZoom", state.zoom).put("primaryX", state.scrollX).put("primaryY", state.scrollY)
             json.put("primaryView", com.xnotes.platform.ViewOverridesJson.write(org.json.JSONObject(), viewOverrides))
@@ -9350,6 +9501,11 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
                 val v = ed.infinite.viewport.toWaypoint()
                 json.put(prefix + "CX", v.cx).put(prefix + "CY", v.cy).put(prefix + "CZ", v.zoom)
             }
+        }
+        for ((ed,prefix) in listOfNotNull(this to "primary",second?.let { it to "second" })) ed.missingDocument?.let { missing ->
+            val keys = listOf(prefix+"Canvas",prefix+"CX",prefix+"CY",prefix+"CZ",prefix+"View") +
+                if(prefix=="primary") listOf("primaryZoom","primaryX","primaryY") else listOf("zoom","x","y")
+            keys.forEach { key -> if(missing.snapshot.has(key)) json.put(key,missing.snapshot.get(key)) }
         }
         return json
     }
@@ -9371,6 +9527,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     /** Await writes without overwriting an externally changed clean file. */
     suspend fun flushSplitDocument(): Boolean {
+        if (missingDocument != null) return true
         if (canvasOpen) return saveCanvasBeforeReplacement()
         if (documentOwner !== this) return documentOwner.flushSplitDocument()
         commitText()
@@ -9499,14 +9656,15 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
                     }
                     org.json.JSONObject(output.toString("UTF-8"))
                 } ?: error("Cannot read split file")
-                require((uri == null || j.optString("format") == "xnotes-split") && j.optInt("version", 1) == 1)
+                require((uri == null || j.optString("format") == "xnotes-split") && j.optInt("version", 1) in 1..2)
                 require(j.optDouble("ratio", .5).isFinite())
                 for (prefix in listOf("primary", "second")) {
                     val path = j.getString(if (prefix == "primary") "primaryPath" else "secondPath")
                     require(path.isNotBlank())
                     val valid = if (j.optBoolean(prefix + "Canvas")) peekFile(path, { canvasCodec.peek(it) }, { canvasCodec.peek(it) }) != null
                         else peekFile(path, { codec.peek(it) }, { codec.peek(it) }) != null
-                    require(valid)
+                    // Missing files remain as pane placeholders after the arrangement is validated.
+                    if (!valid) j.put(prefix + "Missing", true)
                     for (key in listOf(prefix + "CX", prefix + "CY", prefix + "CZ")) if (j.has(key)) require(j.getDouble(key).isFinite())
                 }
                 for (key in listOf("primaryZoom", "primaryX", "primaryY", "zoom", "x", "y")) if (j.has(key)) require(j.getDouble(key).isFinite())
@@ -9567,20 +9725,31 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     suspend fun openSavedSplit(snapshot: org.json.JSONObject? = null): Boolean {
         if (openPanes.isNotEmpty()) return false
         val json = snapshot ?: withContext(Dispatchers.IO) { savedSplit.read() }
-        val first = json.optString("primaryPath")
-        val other = json.optString("secondPath")
+        suspend fun resolve(prefix: String): String = withContext(Dispatchers.IO) {
+            val id=json.optString(prefix+"Id")
+            if(id.isBlank()) json.optString(prefix+"Path")
+            else runCatching { notebookStorage.registry.resolve(id) }.getOrNull() ?: json.optString(prefix+"Path")
+        }
+        val first = resolve("primary")
+        val other = resolve("second")
         if (first.isBlank() || other.isBlank()) return false
         suspend fun load(ed: Editor, path: String, prefix: String): Boolean {
-            if (json.optBoolean(prefix + "Canvas")) ed.openCanvasAsync(path, null) else ed.openAsync(path)
-            return ed.noteOpen && ed.visibleDocumentUri == path
+            val expected=json.optString(prefix+"Id")
+            val matches=withContext(Dispatchers.IO) { expected.isBlank() || runCatching { notebookStorage.identity(path)?.documentId == expected }.getOrDefault(false) }
+            if(matches) {
+                if (json.optBoolean(prefix + "Canvas")) ed.openCanvasAsync(path, null) else ed.openAsync(path)
+            }
+            if (matches && ed.noteOpen && ed.missingDocument == null && ed.visibleDocumentUri == path) return true
+            ed.missingDocument = MissingDocument(json.optString(prefix+"Id"),path,org.json.JSONObject(json.toString()),prefix)
+            ed.noteOpen=true
+            return false
         }
-        if (!load(this, first, "primary")) return false
+        load(this, first, "primary")
         val second = secondaryPane()
-        if (json.optBoolean("shared") && !canvasOpen && first == other) second.openSharedView(this)
-        else if (!load(second, other, "second")) {
-            abandonSecondary(); say(appContext.getString(R.string.err_open_note)); return false
-        }
+        if (missingDocument == null && !canvasOpen && first == other) second.openSharedView(this)
+        else load(second, other, "second")
         fun position(ed: Editor, prefix: String, z: String, x: String, y: String) {
+            if (ed.missingDocument != null) return
             if (ed.canvasOpen) {
                 val view = com.xnotes.core.infinite.Waypoint("", json.optDouble(prefix + "CX", 0.0),
                     json.optDouble(prefix + "CY", 0.0), json.optDouble(prefix + "CZ", 1.0).coerceIn(0.05, 20.0))
@@ -9612,10 +9781,16 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         splitReversed = json.optBoolean("reversed")
         splitRatio = json.optDouble("ratio", 0.5).toFloat().coerceIn(0.18f, 0.82f)
         splitSideBySide = if (json.has("sideBySide")) json.optBoolean("sideBySide") else null
+        if (json.optString("primaryId").isNotBlank() && json.optString("primaryId") != visibleDocumentId) {
+            missingDocument=MissingDocument(json.optString("primaryId"),json.optString("primaryPath"),json,"primary")
+            noteOpen=true
+        }
         val second = secondaryPane()
         if (json.optBoolean("shared")) {
-            if (!noteOpen || canvasOpen || json.optString("primaryPath") != (visibleDocumentUri ?: "")) {
-                abandonSecondary(); return
+            if (missingDocument != null || !noteOpen || canvasOpen || (if(json.optString("primaryId").isNotBlank()) json.optString("primaryId") != visibleDocumentId else json.optString("primaryPath") != (visibleDocumentUri ?: ""))) {
+                second.missingDocument = MissingDocument(json.optString("secondId"),json.optString("secondPath"),json,"second")
+                second.noteOpen=true
+                return
             }
             second.openSharedView(this)
             json.optJSONObject("primaryView")?.let { installViewOverrides(com.xnotes.platform.ViewOverridesJson.read(it)) }
@@ -9633,9 +9808,12 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         } else {
             second.restoreSession()
             if (second.restoredPagedSession) second.noteOpen = true
-            if (json.optString("secondPath") != (second.visibleDocumentUri ?: "")) second.noteOpen = false
+            if (if(json.optString("secondId").isNotBlank()) json.optString("secondId") != second.visibleDocumentId else json.optString("secondPath") != (second.visibleDocumentUri ?: "")) second.noteOpen = false
         }
-        if (!second.noteOpen) abandonSecondary()
+        if (!second.noteOpen) {
+            second.missingDocument = MissingDocument(json.optString("secondId"),json.optString("secondPath"),json,"second")
+            second.noteOpen=true
+        }
         focusedPane = if (json.optString("focused") == Pane.SECONDARY.name) Pane.SECONDARY else Pane.PRIMARY
     }
 

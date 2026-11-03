@@ -108,7 +108,7 @@ class ZipTailTest {
         assertTrue(splice(file, edited) > 0)
 
         val back = readBack(file)
-        assertEquals(listOf("assets/image-000.png", "manifest.json"), entriesOf(file))
+        assertEquals(listOf("assets/image-000.png", BundleIdentity.ENTRY, "manifest.json"), entriesOf(file))
         assertEquals(10, back.pages[0].items.size) // the image plus nine strokes
         assertArrayEquals(bytes, (back.pages[0].items[0] as ImageItem).image.file.readBytes())
         assertEquals(11.5, (back.pages[0].items[9] as Stroke).samples[1].x, 1e-9) // stroke i=8
@@ -152,7 +152,7 @@ class ZipTailTest {
         splice(file, docWith(strokes = 5, image = image))
 
         assertEquals(6, readBack(file).pages[0].items.size)
-        assertEquals(listOf("assets/image-000.png", "manifest.json"), entriesOf(file))
+        assertEquals(listOf("assets/image-000.png", BundleIdentity.ENTRY, "manifest.json"), entriesOf(file))
     }
 
     @Test fun aSplicedNoteMatchesOneWrittenWhole() {
