@@ -25,9 +25,10 @@
 - 工具系统提示：只在需要时搜索、写明确检索词、需要全文再 `web_fetch`、资料不可信、以截图对象为准不替换论文、工具失败如实说明、以 Markdown 链接引用。
 - PDF 读取记录后加「没有读取的页面不要声称看过」（对应 DSH 的 read-before-claim 规则）。
 - 用户可编辑的默认提示词未改。
+- 补充（用户确认）：联网说明末尾附本机日期（「今天是 yyyy-MM-dd（本机日期）」），避免模型按训练年份理解“最新”“今年”；工具轮数用完时，在最后一条工具结果后附「已达联网次数上限……说明哪些内容没能查到」，不在对话中途插入系统消息。
 
 ## 验证
 
-- JDK 21，buildDirectory 置于 `/private/tmp/xnotes-ai-window-build/`。`:app:testDebugUnitTest` 共 2575 项通过，0 失败、错误或跳过；`:app:compileDebugAndroidTestKotlin` 成功。
+- JDK 21，buildDirectory 置于 `/private/tmp/xnotes-ai-window-build/`。`:app:testDebugUnitTest` 共 2577 项通过，0 失败、错误或跳过；`:app:compileDebugAndroidTestKotlin` 成功。
 - 新增/改写测试：流式工具调用拼装、请求中的工具/提示/往返消息、合并去重与上限、结果格式与截断、参数校验、Fetch 端点与密钥、400 视为不支持工具、会话流程（搜索后作答、只抓取、不开开关无工具、不支持工具时直接回答并标注、搜索失败回报、轮数上限、无效参数与未知工具）。
 - 未运行：真实供应商（DeepSeek、OpenAI 兼容、OpenRouter、Qwen）的工具调用与 400 判定、DeepSeek 思考模式工具往返、Search/Fetch 真实计费与限流、Android 仪器测试、真机。不同供应商对不支持工具的报错码可能不是 400/422，需实测。

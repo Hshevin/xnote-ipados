@@ -44,11 +44,25 @@ class AiWebToolsTest {
         assertEquals("none", body.getString("tool_choice"))
         assertEquals(2, body.getJSONArray("tools").length())
         val messages = body.getJSONArray("messages")
-        assertEquals(AiWebTools.GUIDANCE, messages.getJSONObject(0).getString("content"))
+        val guidance = messages.getJSONObject(0).getString("content")
+        assertTrue(guidance.startsWith(AiWebTools.GUIDANCE)); assertTrue(guidance.contains("今天是 ${java.time.LocalDate.now()}"))
         assertEquals("tool", messages.getJSONObject(messages.length() - 1).getString("role"))
         val assistant = messages.getJSONObject(messages.length() - 2)
         assertTrue(assistant.isNull("content")); assertFalse(assistant.has("reasoning_content"))
         assertFalse(AiProtocol.request(config, listOf(AiMessage("user", "q"))).has("tools"))
+    }
+
+    @Test fun guidanceCarriesTheDeviceDate() {
+        assertTrue(AiWebTools.guidance(java.time.LocalDate.of(2026, 11, 4)).endsWith("今天是 2026-11-04（本机日期）。涉及“最新”“今年”等时间时，按这个日期写检索词并判断资料是否过时。"))
+    }
+
+    @Test fun limitNoticeGoesOnTheLastToolResultOnly() {
+        val results = listOf(JSONObject().put("role", "tool").put("tool_call_id", "a").put("content", "r1"),
+            JSONObject().put("role", "tool").put("tool_call_id", "b").put("content", "r2"))
+        val marked = AiWebTools.withLimitNotice(results)
+        assertEquals("r1", marked[0].getString("content"))
+        assertEquals("r2\n\n（${AiWebTools.LIMIT_NOTICE}）", marked[1].getString("content"))
+        assertEquals("b", marked[1].getString("tool_call_id")); assertEquals("r2", results[1].getString("content"))
     }
 
     @Test fun mergeIsRoundRobinDeduplicatedAndCapped() {

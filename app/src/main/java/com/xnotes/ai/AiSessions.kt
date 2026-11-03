@@ -251,7 +251,9 @@ class AiSessions(
                     if (reply.calls.isEmpty() || choice != "auto") break
                     rounds++
                     val round = AiWebTools.run(reply.calls, client, settings.searchKey, user.text) { label -> progress(id, label) }
-                    tail += AiWebTools.assistantMessage(reply); tail += round.messages
+                    tail += AiWebTools.assistantMessage(reply)
+                    // The next request withholds tools; the model is told why in the results it reads.
+                    tail += if (rounds >= AiWebTools.MAX_ROUNDS) AiWebTools.withLimitNotice(round.messages) else round.messages
                     evidence += round.evidence; failures += round.failures
                 }
                 // What was found stays with the question, for follow-ups and the details view.

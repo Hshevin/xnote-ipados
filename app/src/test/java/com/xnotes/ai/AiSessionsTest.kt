@@ -161,7 +161,12 @@ class AiSessionsTest {
     }
     @Test fun toolRoundsAreBoundedThenTheModelMustAnswer() = runBlocking {
         val model = ToolModel(List(AiWebTools.MAX_ROUNDS) { n -> { _: List<org.json.JSONObject>, _: org.json.JSONArray?, _: String -> call("web_search", """{"queries":["q$n"]}""", "c$n") } } +
-            listOf({ _, _, choice -> assertEquals("none", choice); AiReply("够了") }))
+            listOf({ tail, _, choice ->
+                assertEquals("none", choice)
+                assertTrue(tail.last().getString("content").endsWith("（${AiWebTools.LIMIT_NOTICE}）"))
+                assertEquals(1, tail.count { it.optString("content").contains(AiWebTools.LIMIT_NOTICE) })
+                AiReply("够了")
+            }))
         ask(model, true) { sessions, id ->
             assertEquals(AiWebTools.MAX_ROUNDS, model.searches.size)
             assertEquals("够了", sessions.chats[id]!!.turns.single().answer)

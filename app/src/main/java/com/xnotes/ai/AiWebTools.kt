@@ -77,6 +77,22 @@ object AiWebTools {
 - 工具失败时如实告诉用户，不要声称已经查证。
 - 使用联网资料时，以 Markdown 链接引用相关 URL。"""
 
+    /** Told once the tool rounds are used up, inside the last tool result: no mid-chat system message, which some APIs refuse. */
+    const val LIMIT_NOTICE = "已达联网次数上限，不能再调用工具。请根据已获得的资料作答，并说明哪些内容没能查到。"
+
+    /**
+     * [GUIDANCE] with the device's date, so "latest" and "this year" become concrete queries
+     * instead of the model's training-time guess.
+     */
+    fun guidance(today: java.time.LocalDate = java.time.LocalDate.now()): String =
+        "$GUIDANCE\n- 今天是 $today（本机日期）。涉及“最新”“今年”等时间时，按这个日期写检索词并判断资料是否过时。"
+
+    /** [messages] with [LIMIT_NOTICE] added to the last tool result. */
+    fun withLimitNotice(messages: List<JSONObject>): List<JSONObject> = messages.mapIndexed { index, message ->
+        if (index != messages.lastIndex) message
+        else JSONObject(message.toString()).put("content", message.getString("content") + "\n\n（$LIMIT_NOTICE）")
+    }
+
     fun definitions(): JSONArray = JSONArray()
         .put(function(SEARCH, "Search the web for current information. Returns a list of source URLs with summaries.",
             JSONObject().put("queries", JSONObject().put("type", "array").put("items", JSONObject().put("type", "string"))

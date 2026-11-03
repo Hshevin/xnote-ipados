@@ -44,7 +44,7 @@ class AiSettingsOptionsTest {
         // With tools offered, the user's prompt still leads and the app's tool guidance follows it.
         val withTools = AiProtocol.request(config, listOf(AiMessage("user", "问题")), tools = AiWebTools.definitions()).getJSONArray("messages")
         assertEquals("用中文回答", withTools.getJSONObject(0).getString("content"))
-        assertEquals(AiWebTools.GUIDANCE, withTools.getJSONObject(1).getString("content"))
+        assertTrue(withTools.getJSONObject(1).getString("content").startsWith(AiWebTools.GUIDANCE))
         assertEquals(16000, body.getInt("max_tokens"))
         assertEquals("", config.forTools().instructions); assertEquals("", config.copy(effort = "high").forTools().effort)
     }
