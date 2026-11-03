@@ -15,7 +15,7 @@ This fork targets Wacom MovinkPad Pro 14 and Pro Pen 3. Three-button mappings an
 
 源码已合入主工作区，保留 Release 81 的灰阶、字号/间距 tokens 和工具栏布局。尚未开始下一轮 UI 调整；用户随后授权导出 AI preview3 测试 APK，包含本轮合并后的源码。
 
-由独立工作树 `ask-ai` 合入本地主分支的功能包括 PDF、分页笔记及无限画布截图菜单的「AI」。设置中填写 HTTPS 供应商地址、支持图片的模型和 API Key；支持应用内拖动/收起浮窗、流式回答、追问、停止和文本选择复制。当前源码已加入左侧 AI 历史：本地保存、搜索、继续、重命名、删除及 8 秒撤销。关闭浮窗、切换文档或新会话不取消生成；主动停止或确认删除才取消。进程结束后恢复最近保存的内容，并标记中断。
+由独立工作树 `ask-ai` 合入本地主分支的功能包括 PDF、分页笔记及无限画布截图菜单的「AI」。设置中填写 HTTPS 供应商地址、支持图片的模型和 API Key；支持应用内拖动/收起浮窗、流式回答、追问、停止和文本选择复制。当前源码已加入左侧 AI 历史：本地保存、搜索、继续、重命名，删除后移到回收站，可恢复或永久删除（[记录](docs/movinkpad/ai-trash-2026-11-04.md)）。关闭浮窗、切换文档或新会话不取消生成；主动停止或确认删除才取消。进程结束后恢复最近保存的内容，并标记中断。
 
 本分支新增可选网络功能，上游下方“no internet access”不适用于此分支。笔记仍离线保存，只有主动发送才上传选区及当前会话。已导出 [AI 独立测试 APK（preview3）](build/ai-preview/XNotes-0.9.7-ai-preview3-arm64.apk)，包名 `com.xnotes.movinkpad.aipreview`，可与 Release 并存。使用 `-PaiPreview=true :app:assembleDebug` 构建；真实接口、密钥存储故障恢复及平板交互尚待验收。详见 [实现与验证](docs/movinkpad/ask-ai-2026-11-03.md)。
 
@@ -54,7 +54,7 @@ Release 83 本地交付本轮 UI、Markdown 和中英文资源改动，并修复
 - 测试包名 `com.xnotes.movinkpad.splitpreview`，与正式包名 `com.xnotes.movinkpad` 分开安装。用户已确认该版本满足当前需求，并要求打包原应用覆盖升级版；当前维护入口为 `master`。
 - 本轮验证：2462 项 JVM 测试、39 项 Android 模拟器测试通过。测试数量是本次记录，不代表后续版本已验证。
 
-[下载本地 Release 88 ARM64 APK](build/xnotes/XNotes-0.9.7-movinkpad-release88-arm64.apk)。沿用正式包名及 Release 87 签名，versionCode 88，可覆盖升级；包含合并后的 AI 多截图、跨窗格截图、浮窗历史与原生联网工具，保留用户已确认解决原半屏实时笔迹问题的 Release 87 修复。2585 项 Release JVM 测试及 APK 身份、签名、对齐核验通过；本次未执行设备安装，新增 AI 行为仍待真实供应商和目标设备验收。此前发布版仍见 [GitHub Release 84](https://github.com/Hshevin/xnotes-android/releases/tag/v0.9.7-movinkpad.84)，本次未推送或发布。
+[下载本地 Release 89 ARM64 APK](build/xnotes/XNotes-0.9.7-movinkpad-release89-arm64.apk)。沿用正式包名及 Release 88 签名，versionCode 89，可覆盖升级；新增 AI 回收站、浮窗历史删除及搜索栏布局修复，保留 Release 88 AI 功能和 Release 87 湿墨修复。2591 项 Release JVM 测试、Android 测试源码编译及 APK 身份、签名、对齐核验通过；本次未执行设备安装或仪器测试，新增 AI 行为仍待真实供应商和目标设备验收。详见 [Release 记录](docs/movinkpad/release-2026-11-02.md#release-89ai-回收站与搜索栏2026-11-04)。此前发布版仍见 [GitHub Release 84](https://github.com/Hshevin/xnotes-android/releases/tag/v0.9.7-movinkpad.84)，本次未推送或发布。
 
 此前 Release 85 为 **0.9.7-movinkpad / versionCode 85**，使用原应用身份和历史签名，包含退出 PDF 分屏的湿墨层调整及 AI 未开始对话输入区清理；2563 项 Release 单元测试通过，R8、资源压缩、lintVital 与 APK 身份/签名核验通过。本轮未执行设备安装或 Android 仪器测试，前缓冲实际显示、真实 AI 供应商及目标设备验收仍待完成。交付与验证见 [Release 记录](docs/movinkpad/release-2026-11-02.md)。测试版的数据不会自动迁入原应用。版本 79 修复返回主菜单后打开普通文件仍保留分屏的问题，普通文件进入单文档，显式恢复分屏不受影响。
 

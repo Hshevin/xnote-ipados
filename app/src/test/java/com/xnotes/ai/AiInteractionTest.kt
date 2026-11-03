@@ -39,7 +39,7 @@ class AiInteractionTest {
             assertTrue(sessions.composerVersion(id) > version)
             sessions.close(); sessions.flush()
             assertTrue(sessions.chats.isEmpty()); assertTrue(store.readAll().first.isEmpty())
-            assertNull(sessions.undoChat)
+            assertTrue(sessions.trash.isEmpty())
         }
     }
     @Test fun closingUnstartedChatDiscardsEvenANonblankPromptAndPersistsRemoval() = runBlocking {
@@ -109,7 +109,7 @@ class AiInteractionTest {
             sessions.close(); sessions.flush()
             until { sessions.storageError.isNotEmpty() && sessions.chats.containsKey(id) }
             assertEquals("keep", java.io.File(file, "blocker").readText())
-            assertTrue(sessions.drafts[id].isNullOrEmpty()); assertNull(sessions.undoChat)
+            assertTrue(sessions.drafts[id].isNullOrEmpty()); assertTrue(sessions.trash.isEmpty())
             file.deleteRecursively()
             sessions.retrySave(); sessions.flush()
             assertEquals("", sessions.storageError)
@@ -168,9 +168,10 @@ class AiInteractionTest {
             until { sessions.importStates[id]?.error == "bad PDF" }
             sessions.retryImport(id); until { sessions.pdfAttachments[id] != null }
             sessions.editDraft(id, "draft"); sessions.delete(id)
-            until { sessions.undoChat != null }; sessions.editDraft(id, "late callback")
-            sessions.flush(); assertFalse(sessions.chats.containsKey(id)); assertTrue(store.readAll().first.isEmpty())
-            sessions.undoDelete(); sessions.flush()
+            sessions.flush(); sessions.editDraft(id, "late callback")
+            sessions.flush(); assertFalse(sessions.chats.containsKey(id))
+            assertEquals("draft", store.readAll().first.single().draft.text) // the trashed record keeps the draft, not the late edit
+            sessions.restore(id); sessions.flush()
             assertEquals("draft", sessions.drafts[id]); assertNotNull(sessions.pdfAttachments[id])
         }
     }
@@ -312,6 +313,105 @@ class AiInteractionTest {
             assertFalse(sessions.chats.containsKey(id))
         }
     }
+    @Test fun trashedChatsStayOutOfEveryHistoryAcrossReload() = runBlocking {
+        fixture { store, scope ->
+            val sessions = AiSessions(store, scope, { settings })
+            until { sessions.ready }
+            val kept = sessions.newChat("A", "uri-a", "doc-a", "doc-a")
+            started(sessions, kept); sessions.editDraft(kept, "kept draft")
+            val joined = sessions.newChat("A", "uri-a", "doc-a", "doc-a")
+            sessions.addScreenshot(joined, byteArrayOf(1), fromDocument = "doc-b")
+            sessions.delete(joined); sessions.flush()
+            assertEquals(listOf(kept), sessions.chatsOf("doc-a").map { it.id }); assertTrue(sessions.chatsOf("doc-b").isEmpty())
+            val reloaded = AiSessions(store, scope, { settings })
+            until { reloaded.ready }
+            assertEquals(setOf(kept), reloaded.chats.keys); assertEquals(setOf(joined), reloaded.trash.keys)
+            assertTrue(reloaded.chatsOf("doc-b").isEmpty()); assertNull(reloaded.attachments[joined])
+            reloaded.restore(joined); reloaded.flush()
+            assertEquals(1, reloaded.attachments[joined]!!.size) // the draft screenshot comes back with it
+            assertEquals(listOf(joined), reloaded.chatsOf("doc-b").map { it.id })
+        }
+    }
+    @Test fun deletingTheFloatingChatMovesTheCardToTheDocumentsNextChat() = runBlocking {
+        fixture { store, scope ->
+            val sessions = AiSessions(store, scope, { settings })
+            until { sessions.ready }
+            sessions.documents["doc-a"] = AiDocument("A", "uri-a", "doc-a", null)
+            val older = sessions.newChat("A", "uri-a", "doc-a", "doc-a")
+            started(sessions, older)
+            val newer = sessions.newChat("A", "uri-a", "doc-a", "doc-a")
+            sessions.delete(newer)
+            assertEquals(older, sessions.activeId); assertEquals("doc-a", sessions.floatingOwner)
+            sessions.delete(older) // none left: a fresh chat of the same document keeps the card open
+            assertNotNull(sessions.activeId); assertEquals("doc-a", sessions.chats[sessions.activeId!!]!!.sourceDocumentId)
+            sessions.documents.remove("doc-a"); sessions.delete(sessions.activeId!!)
+            assertNull(sessions.activeId); assertNull(sessions.floatingOwner)
+            sessions.flush(); assertEquals(3, sessions.trash.size)
+        }
+    }
+    @Test fun trashIsPurgedByRetentionAndEmptiedByHand() = runBlocking {
+        fixture { store, scope ->
+            val sessions = AiSessions(store, scope, { settings })
+            until { sessions.ready }
+            val a = sessions.newChat(); started(sessions, a)
+            val b = sessions.newChat()
+            sessions.delete(a); sessions.delete(b); sessions.flush()
+            val now = System.currentTimeMillis()
+            sessions.purgeTrash(0, now + 400 * 86_400_000L) // trash kept forever / off: nothing purged
+            assertEquals(2, sessions.trash.size)
+            sessions.purgeTrash(30, now + 29 * 86_400_000L); sessions.flush()
+            assertEquals(2, sessions.trash.size)
+            sessions.purgeTrash(30, now + 31 * 86_400_000L); sessions.flush()
+            assertTrue(sessions.trash.isEmpty()); assertTrue(store.readAll().first.isEmpty())
+            val c = sessions.newChat(); sessions.delete(c); sessions.emptyTrash(); sessions.flush()
+            assertTrue(store.readAll().first.isEmpty())
+        }
+    }
+    @Test fun withTrashOffDeleteIsPermanentLikeNotes() = runBlocking {
+        fixture { store, scope ->
+            val sessions = AiSessions(store, scope, { settings })
+            until { sessions.ready }
+            val kept = sessions.newChat(); started(sessions, kept); sessions.editDraft(kept, "kept draft")
+            val gone = sessions.newChat(); sessions.flush()
+            sessions.trashDays = 0
+            assertTrue(sessions.trashOff)
+            sessions.delete(gone); sessions.flush()
+            assertFalse(sessions.chats.containsKey(gone)); assertTrue(sessions.trash.isEmpty())
+            assertEquals(listOf(kept), store.readAll().first.map { it.id })
+            sessions.trashDays = 30
+            sessions.delete(kept); sessions.flush()
+            assertEquals(setOf(kept), sessions.trash.keys) // back on: deletes go to Trash again
+        }
+    }
+    @Test fun permanentDeleteFailureLeavesTheChatInHistory() = runBlocking {
+        val directory = Files.createTempDirectory("ai-interaction").toFile()
+        val job = SupervisorJob()
+        try {
+            val scope = CoroutineScope(coroutineContext + job)
+            val sessions = AiSessions(AiHistoryStore(directory), scope, { settings })
+            until { sessions.ready }
+            val id = sessions.newChat(); sessions.editDraft(id, "keep me"); sessions.flush()
+            sessions.trashDays = 0
+            directory.setWritable(false)
+            sessions.delete(id); sessions.flush()
+            until { sessions.chats.containsKey(id) }
+            assertEquals("keep me", sessions.drafts[id]); assertTrue(sessions.storageError.isNotEmpty())
+        } finally { directory.setWritable(true); job.cancelAndJoin(); directory.deleteRecursively() }
+    }
+    @Test fun trashWriteFailureLeavesTheChatInHistory() = runBlocking {
+        val directory = Files.createTempDirectory("ai-interaction").toFile()
+        val job = SupervisorJob()
+        try {
+            val scope = CoroutineScope(coroutineContext + job)
+            val sessions = AiSessions(AiHistoryStore(directory), scope, { settings })
+            until { sessions.ready }
+            val id = sessions.newChat(); sessions.editDraft(id, "keep me"); sessions.flush()
+            directory.setWritable(false)
+            sessions.delete(id); sessions.flush()
+            until { sessions.chats.containsKey(id) }; assertFalse(sessions.trash.containsKey(id))
+            assertEquals("keep me", sessions.drafts[id]); assertTrue(sessions.storageError.isNotEmpty())
+        } finally { directory.setWritable(true); job.cancelAndJoin(); directory.deleteRecursively() }
+    }
     @Test fun configurationFailureKeepsComposer() = runBlocking {
         fixture { store, scope ->
             val sessions = AiSessions(store, scope, { AiConfig() })
@@ -334,9 +434,9 @@ class AiInteractionTest {
             until { sessions.ready }; val id = sessions.newChat()
             sessions.importPdf(id, "content://pdf"); entered.await()
             sessions.delete(id); release.complete(Unit)
-            until { sessions.undoChat != null }; sessions.flush()
+            sessions.flush()
             assertFalse(sessions.chats.containsKey(id)); assertNull(sessions.pdfAttachments[id]); assertNull(sessions.importStates[id])
-            assertTrue(store.readAll().first.isEmpty())
+            assertNull(store.readAll().first.single().draft.pdf)
         }
     }
 

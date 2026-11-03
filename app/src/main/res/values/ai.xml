@@ -57,7 +57,6 @@
     <string name="ai_retry_save">Retry</string>
     <string name="ai_locate">Locate</string>
     <string name="ai_open_source">Open source</string>
-    <string name="ai_deleted">Deleted “%1$s”</string>
     <string name="ai_loading">Loading…</string>
     <string name="ai_no_matches">No matching chats</string>
     <string name="ai_no_chats">No chats yet</string>
@@ -66,8 +65,13 @@
     <string name="ai_replace_draft_text">Your unsent text and attachments will be replaced by this question.</string>
     <string name="ai_replace">Replace</string>
     <string name="ai_keep_draft">Keep draft</string>
-    <string name="ai_delete_title">Delete chat?</string>
-    <string name="ai_delete_text">Any answer in progress stops. You can undo for 8 seconds.</string>
+    <string name="ai_move_to_trash">Move to Trash</string>
+    <string name="ai_delete_chat">Delete “%1$s”</string>
+    <string name="ai_trash_section">AI chats</string>
+    <string name="ai_trash_row_sub">AI chat · from %1$s</string>
+    <string name="ai_delete_forever_text">“%1$s” will be permanently deleted. This can’t be undone. Any answer in progress stops.</string>
+    <string name="ai_delete_title">Move chat to Trash?</string>
+    <string name="ai_delete_text">“%1$s” moves to Trash, where you can restore it. Any answer in progress stops.</string>
     <string name="ai_code">Code</string>
     <string name="ai_copy_code">Copy code</string>
     <string name="ai_link_failed">Can\'t open this link</string>
