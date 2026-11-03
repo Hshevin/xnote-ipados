@@ -5,7 +5,7 @@ import org.junit.Test
 
 class AiSearchGroundingTest {
     @Test fun questionRemainsSeparateAndLastAfterReferencesAndImage() {
-        val messages = AiProtocol.request("vision", listOf(AiMessage("user", "解释图片中的公式", "YWJj", "无关网页摘要"))).getJSONArray("messages")
+        val messages = AiProtocol.request("vision", listOf(AiMessage("user", "解释图片中的公式", listOf("YWJj"), "无关网页摘要"))).getJSONArray("messages")
         assertEquals("system", messages.getJSONObject(0).getString("role"))
         val content = messages.getJSONObject(messages.length() - 1).getJSONArray("content")
         assertEquals("解释图片中的公式", content.getJSONObject(content.length() - 1).getString("text"))
@@ -20,7 +20,7 @@ class AiSearchGroundingTest {
         assertTrue(system.contains("不相关"))
     }
     @Test fun ordinaryMessageFormatDoesNotChange() {
-        val messages = AiProtocol.request("vision", listOf(AiMessage("user", "解题", "YWJj"))).getJSONArray("messages")
+        val messages = AiProtocol.request("vision", listOf(AiMessage("user", "解题", listOf("YWJj")))).getJSONArray("messages")
         assertEquals(1, messages.length())
         assertEquals("解题", messages.getJSONObject(0).getJSONArray("content").getJSONObject(0).getString("text"))
     }

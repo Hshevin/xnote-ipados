@@ -27,6 +27,14 @@
     <string name="ai_stop_preparing">取消准备</string>
     <string name="ai_remove_attachment">移除附件</string>
     <string name="ai_retry_attachment">重试附件</string>
+    <string name="ai_screenshot_numbered">截图 %d</string>
+    <string name="ai_screenshot_limit">每个问题最多附带 %d 张截图，请先移除一张</string>
+    <string name="ai_take_screenshot">截图</string>
+    <string name="ai_add_screenshot">添加到 AI</string>
+    <string name="ai_document_history">本文档的会话</string>
+    <plurals name="ai_turns">
+        <item quantity="other">%d 个问题</item>
+    </plurals>
     <plurals name="ai_pages">
         <item quantity="other">%d 页</item>
     </plurals>

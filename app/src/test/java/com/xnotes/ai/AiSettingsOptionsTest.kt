@@ -115,7 +115,7 @@ class AiSettingsOptionsTest {
             val id = sessions.newChat()
             sessions.choose(id, model = "reasoner", effort = "high")
             sessions.choose(id, effort = "bogus") // ignored
-            sessions.send(id, AiMessage("user", "这篇论文", "YWJj"), true)
+            sessions.send(id, AiMessage("user", "这篇论文", listOf("YWJj")), true)
             until { !sessions.isRunning(id) }; sessions.flush()
             assertEquals(2, seen.size)
             assertEquals(listOf("reasoner", "reasoner"), seen.map { it.model })

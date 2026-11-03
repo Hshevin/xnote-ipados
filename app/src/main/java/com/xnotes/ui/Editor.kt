@@ -2023,12 +2023,15 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         message = if (ok) appContext.getString(R.string.image_copied) else appContext.getString(R.string.err_copy_image)
     }
 
-    /** The screenshot tool's capture as a PNG for the share sheet, putting the capture away; null when it failed. */
-    fun screenshotImageForShare(): java.io.File? {
+    /**
+     * The screenshot tool's capture as a PNG for the share sheet, putting the capture away; null when it failed.
+     * [keepTool] leaves the screenshot tool armed, for adding several captures to an open AI chat.
+     */
+    fun screenshotImageForShare(keepTool: Boolean = false): java.io.File? {
         val rect = controller.screenshotRect ?: return null
         val file = renderRegionBitmap(rect)?.let { com.xnotes.platform.ShareFiles.png(appContext, it, state.document.title) }
         controller.clearScreenshot()
-        controller.switchBackAfterScreenshot()
+        if (!keepTool) controller.switchBackAfterScreenshot()
         if (file == null) message = appContext.getString(R.string.err_share_image)
         return file
     }

@@ -3,9 +3,9 @@ import org.junit.Assert.*
 import org.junit.Test
 class AiSearchQueryTest {
     @Test fun plannerReceivesImageAndQuestionWithoutOldSearchSnippets() {
-        val messages = AiSearchQuery.messages(listOf(AiMessage("user", "old", searchContext = "unrelated")), AiMessage("user", "这篇论文的有关情况", "YWJj"))
+        val messages = AiSearchQuery.messages(listOf(AiMessage("user", "old", searchContext = "unrelated")), AiMessage("user", "这篇论文的有关情况", listOf("YWJj")))
         assertEquals("system", messages.first().role)
-        assertEquals("YWJj", messages.last().image)
+        assertEquals("YWJj", messages.last().images.single())
         assertEquals("这篇论文的有关情况", messages.last().text)
         assertTrue(messages.all { it.searchContext.isEmpty() })
     }

@@ -16,7 +16,8 @@ class AiSessions(
     private val holdPdfs: (Set<String>) -> AutoCloseable = { AutoCloseable {} },
     private val preparePdf: suspend (String, String?) -> AiPdf = { _, _ -> error(AiText.t(AiMsg.PDF_SERVICE_UNAVAILABLE)) },
 ) {
-    val attachments = mutableStateMapOf<String, ByteArray>()
+    /** Pending screenshots per chat, in capture order. */
+    val attachments = mutableStateMapOf<String, List<ByteArray>>()
     val pdfAttachments = mutableStateMapOf<String, AiPdf>()
     val currentPdfs = mutableStateMapOf<String, Pair<String, String>>()
     val drafts = mutableStateMapOf<String, String>()
@@ -32,6 +33,10 @@ class AiSessions(
     val scrollPositions = mutableMapOf<String, Int>()
     /** Where the floating card was last left, in px of its host; a new chat opens there too. Null until moved. */
     var windowOffset by mutableStateOf<Pair<Float, Float>?>(null)
+    /** The floating card folded to its title strip; kept here so a new capture can unfold it. */
+    var floatingCollapsed by mutableStateOf(false)
+    /** Per floating owner (document key), arms that document's screenshot tool. Registered by the open editors. */
+    val captureHandlers = mutableStateMapOf<String, () -> Unit>()
     /** Bumped when AI settings are saved, so open chats re-read their model choices. */
     var configRevision by mutableStateOf(0)
     val followLatest = mutableMapOf<String, Boolean>()
@@ -69,9 +74,8 @@ class AiSessions(
     private fun restoreDraft(chat: AiChat) {
         drafts[chat.id] = chat.draft.text
         searchEnabled[chat.id] = chat.draft.search
-        chat.draft.image?.let { encoded ->
-            runCatching { java.util.Base64.getDecoder().decode(encoded) }.onSuccess { attachments[chat.id] = it }.onFailure { storageError = AiText.t(AiMsg.DRAFT_SCREENSHOT_UNREADABLE) }
-        }
+        if (chat.draft.images.isNotEmpty())
+            runCatching { chat.draft.images.map { java.util.Base64.getDecoder().decode(it) } }.onSuccess { attachments[chat.id] = it }.onFailure { storageError = AiText.t(AiMsg.DRAFT_SCREENSHOT_UNREADABLE) }
         chat.draft.pdf?.let { pdfAttachments[chat.id] = it }
     }
     fun editDraft(id: String, text: String? = null, search: Boolean? = null) {
@@ -79,9 +83,20 @@ class AiSessions(
         text?.let { drafts[id] = it.take(16000) }; search?.let { searchEnabled[id] = it }
         saveDraft(id)
     }
-    fun setScreenshot(id: String, bytes: ByteArray?) {
-        if (!chats.containsKey(id)) return
-        if (bytes == null) attachments.remove(id) else attachments[id] = bytes
+    /** Adds a screenshot to the chat's next question; false when it already holds [AiProtocol.MAX_IMAGES]. */
+    fun addScreenshot(id: String, bytes: ByteArray): Boolean {
+        if (!chats.containsKey(id)) return false
+        val current = attachments[id].orEmpty()
+        if (current.size >= AiProtocol.MAX_IMAGES) return false
+        attachments[id] = current + bytes
+        saveDraft(id)
+        return true
+    }
+    fun removeScreenshot(id: String, index: Int) {
+        val current = attachments[id] ?: return
+        if (index !in current.indices) return
+        val next = current.filterIndexed { i, _ -> i != index }
+        if (next.isEmpty()) attachments.remove(id) else attachments[id] = next
         saveDraft(id)
     }
     fun removePdf(id: String) {
@@ -93,12 +108,13 @@ class AiSessions(
         drafts[id] = user.text
         if (user.pdf != null) pdfAttachments[id] = user.pdf
         attachments.remove(id)
-        user.image?.let { attachments[id] = java.util.Base64.getDecoder().decode(it) }
+        if (user.images.isNotEmpty()) attachments[id] = user.images.map { java.util.Base64.getDecoder().decode(it) }
         saveDraft(id)
     }
+    private fun encoded(id: String): List<String> = attachments[id].orEmpty().map { java.util.Base64.getEncoder().encodeToString(it) }
     private fun saveDraft(id: String) {
         val chat = chats[id] ?: return
-        val draft = AiDraft(drafts[id].orEmpty(), attachments[id]?.let { java.util.Base64.getEncoder().encodeToString(it) }, pdfAttachments[id], searchEnabled[id] ?: false)
+        val draft = AiDraft(drafts[id].orEmpty(), encoded(id), pdfAttachments[id], searchEnabled[id] ?: false)
         chats[id] = chat.copy(draft = draft)
         draftSaves.remove(id)?.cancel()
         draftSaves[id] = scope.launch {
@@ -156,6 +172,15 @@ class AiSessions(
         if (floatingOwner != null && floatingOwner !in visibleDocuments) close()
     }
     fun open(id: String) { if (chats.containsKey(id)) { activeId = id; floatingOwner = null } }
+    /** Switch the floating card to another chat of the same document; the document's PDF stays on offer. */
+    fun openFloating(id: String) {
+        if (!chats.containsKey(id) || floatingOwner == null) return
+        val offer = activeId?.let { currentPdfs[it] }
+        activeId = id
+        if (offer != null && currentPdfs[id] == null) currentPdfs[id] = offer
+    }
+    /** Chats started from [owner], the floating card's document key, newest first. */
+    fun chatsOf(owner: String): List<AiChat> = chats.values.filter { it.belongsTo(owner) }.sortedByDescending { it.updated }
     fun rename(id: String, title: String) {
         chats[id]?.let { val next = it.copy(title = title.trim().take(100).ifBlank { "新会话" }); chats[id] = next; persist(next) }
     }
@@ -187,7 +212,7 @@ class AiSessions(
                 check(persist(next).await()) { AiText.t(AiMsg.QUESTION_SAVE_FAILED) }
                 // Clear only the submitted composer; edits made while saving belong to the next turn.
                 if (drafts[id].orEmpty().trim() == user.text && pdfAttachments[id] == user.pdf &&
-                    attachments[id]?.let { java.util.Base64.getEncoder().encodeToString(it) } == user.image) {
+                    encoded(id) == user.images) {
                     drafts.remove(id); attachments.remove(id); pdfAttachments.remove(id); saveDraft(id)
                 }
                 val pdfIds=(original.context()+user).mapNotNull { it.pdf?.id?.takeIf(String::isNotBlank) }.toSet()

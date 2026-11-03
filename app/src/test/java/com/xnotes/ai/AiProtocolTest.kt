@@ -12,7 +12,7 @@ class AiProtocolTest {
         }
     }
     @Test fun preservesImageAndFollowup() {
-        val messages = AiProtocol.request("vision", listOf(AiMessage("user", "解释", "YWJj"), AiMessage("assistant", "回答"), AiMessage("user", "为什么"))).getJSONArray("messages")
+        val messages = AiProtocol.request("vision", listOf(AiMessage("user", "解释", listOf("YWJj")), AiMessage("assistant", "回答"), AiMessage("user", "为什么"))).getJSONArray("messages")
         assertEquals(3, messages.length())
         assertEquals("data:image/png;base64,YWJj", messages.getJSONObject(0).getJSONArray("content").getJSONObject(1).getJSONObject("image_url").getString("url"))
         assertEquals("为什么", messages.getJSONObject(2).getJSONArray("content").getJSONObject(0).getString("text"))

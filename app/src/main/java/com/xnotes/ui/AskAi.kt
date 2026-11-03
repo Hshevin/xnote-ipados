@@ -440,21 +440,42 @@ private fun AiSettings(close: () -> Unit) {
 
 // --- entry and host ------------------------------------------------------------------------
 
+/**
+ * The screenshot menu's AI action for one document. While that document's floating chat is open,
+ * [addsToOpenChat] is true and a capture joins the chat's next question; otherwise it starts a new chat.
+ */
+internal class AskAiAction(val addsToOpenChat: Boolean, val take: (File) -> Unit)
+
+/** [onCapture] arms this document's screenshot tool, for the floating chat's own screenshot button. */
 @Composable
-internal fun rememberAskAi(source: String, sourceUri: String?, currentPdf: File? = null, documentId: String = ""): (File) -> Unit {
+internal fun rememberAskAi(source: String, sourceUri: String?, currentPdf: File? = null, documentId: String = "", onCapture: () -> Unit = {}): AskAiAction {
     val context = LocalContext.current
     val sessions = AiSessions.get(context)
+    val owner = documentId.ifBlank { sourceUri ?: source }
+    val capture by rememberUpdatedState(onCapture)
+    DisposableEffect(sessions, owner) {
+        val handler: () -> Unit = { capture() }
+        sessions.captureHandlers[owner] = handler
+        onDispose { if (sessions.captureHandlers[owner] === handler) sessions.captureHandlers.remove(owner) }
+    }
     var failure by remember { mutableStateOf("") }
     if (failure.isNotEmpty()) AlertDialog(onDismissRequest = { failure = "" }, text = { Text(failure) },
         confirmButton = { TextButton(onClick = { failure = "" }) { Text(stringResource(R.string.ai_ok)) } })
-    return { file ->
+    val openChat = sessions.activeId?.takeIf { sessions.floatingOwner == owner && sessions.chats.containsKey(it) }
+    return AskAiAction(openChat != null) { file ->
         runCatching {
             check(sessions.ready) { context.getString(R.string.ai_history_loading) }
             require(file.length() in 1..(6 * 1024 * 1024)) { context.getString(R.string.ai_screenshot_too_large) }
             val bytes = file.readBytes()
-            val id = sessions.newChat(source, sourceUri.orEmpty(), documentId.ifBlank { sourceUri ?: source }, documentId)
-            sessions.setScreenshot(id, bytes)
-            currentPdf?.let { sessions.offerCurrentPdf(id, android.net.Uri.fromFile(it).toString(), "$source.pdf") }
+            if (openChat != null) {
+                check(sessions.addScreenshot(openChat, bytes)) { context.getString(R.string.ai_screenshot_limit, AiProtocol.MAX_IMAGES) }
+                sessions.floatingCollapsed = false
+            } else {
+                val id = sessions.newChat(source, sourceUri.orEmpty(), owner, documentId)
+                sessions.addScreenshot(id, bytes)
+                sessions.floatingCollapsed = false
+                currentPdf?.let { sessions.offerCurrentPdf(id, android.net.Uri.fromFile(it).toString(), "$source.pdf") }
+            }
         }.onFailure { failure = it.message ?: context.getString(R.string.ai_screenshot_failed) }
     }
 }
@@ -496,14 +517,18 @@ private fun AskAiWindow(
     LaunchedEffect(scroll.maxValue) { if (follow && !scroll.isScrollInProgress) scroll.scrollTo(scroll.maxValue) }
     fun jumpToLatest() { follow = true; sessions.followLatest[chat.id] = true; uiScope.launch { scroll.animateScrollTo(scroll.maxValue) } }
     var settings by remember { mutableStateOf(false) }
-    var collapsed by remember { mutableStateOf(false) }
+    // The floating card's own list of this document's chats, shown in place of the conversation.
+    var history by remember { mutableStateOf(false) }
+    val collapsed = floating && sessions.floatingCollapsed
+    val owner = sessions.floatingOwner
+    val capture = owner?.let { sessions.captureHandlers[it] }
     // Unplaced until first moved: the card then opens at the right edge below the document toolbar,
     // not over the toolbar's first tools. Once moved, every chat (a new one too) opens where it was left.
     val x = sessions.windowOffset?.first ?: Float.NaN
     val y = sessions.windowOffset?.second ?: Float.NaN
     val busy = sessions.isRunning(chat.id)
     val prompt = sessions.drafts[chat.id] ?: ""
-    val attachment = sessions.attachments[chat.id]
+    val screenshots = sessions.attachments[chat.id].orEmpty()
     val importing = sessions.importStates[chat.id]?.loading == true
     var retryQuestion by remember { mutableStateOf<AiMessage?>(null) }
     retryQuestion?.let { question ->
@@ -514,12 +539,13 @@ private fun AskAiWindow(
     }
     if (settings) AiSettings { settings = false }
     fun retry(question: AiMessage) {
-        if (prompt.isNotBlank() || attachment != null || sessions.pdfAttachments[chat.id] != null || importing) retryQuestion = question
+        if (prompt.isNotBlank() || screenshots.isNotEmpty() || sessions.pdfAttachments[chat.id] != null || importing) retryQuestion = question
         else sessions.restoreQuestion(chat.id, question)
     }
     BoxWithConstraints(Modifier.fillMaxSize().imePadding()) {
         val density = androidx.compose.ui.platform.LocalDensity.current
-        val width = if (!floating) maxWidth else minOf(maxWidth, if (collapsed) 340.dp else 480.dp)
+        // Collapsed keeps the open width, so folding never shifts the card sideways.
+        val width = if (!floating) maxWidth else minOf(maxWidth, 480.dp)
         val height = if (!floating) maxHeight else if (collapsed) MinTouchTarget + Space.s8 else minOf(maxHeight, 680.dp)
         val maxX = with(density) { (maxWidth - width).toPx() }.coerceAtLeast(0f)
         val maxY = with(density) { (maxHeight - height).toPx() }.coerceAtLeast(0f)
@@ -544,7 +570,7 @@ private fun AskAiWindow(
                             sessions.windowOffset = (lastX.coerceIn(0f, maxX) + drag.x).coerceIn(0f, maxX) to (lastY.coerceIn(0f, maxY) + drag.y).coerceIn(0f, maxY)
                         }
                     }
-                    .then(if (floating && collapsed) Modifier.clickable { collapsed = false } else Modifier)
+                    .then(if (collapsed) Modifier.clickable { sessions.floatingCollapsed = false } else Modifier)
                     .padding(horizontal = Space.s4),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -555,19 +581,30 @@ private fun AskAiWindow(
                 Text(chat.displayTitle(), Modifier.weight(1f), color = palette.text.toComposeColor(), fontSize = if (floating) TextSize.bodyLarge else TextSize.title,
                     fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (busy) Box(Modifier.padding(horizontal = Space.s8)) { AiSpinner() }
-                if (!(floating && collapsed)) {
+                if (!collapsed) {
+                    if (floating && owner != null) {
+                        AiIconButton(XnotesIcons.list, stringResource(R.string.ai_history)) { history = !history }
+                        // Folds the card out of the way and arms the document's screenshot tool; the capture unfolds it.
+                        if (capture != null) AiIconButton(XnotesIcons.scissors, stringResource(R.string.ai_take_screenshot)) {
+                            history = false; sessions.floatingCollapsed = true; capture()
+                        }
+                    }
                     AiIconButton(XnotesIcons.edit, stringResource(R.string.ai_new_chat), enabled = sessions.ready) {
+                        history = false
                         sessions.newChat(floatingOwner = if (floating) sessions.floatingOwner else null)
                     }
                     AiIconButton(XnotesIcons.sliders, stringResource(R.string.ai_settings)) { settings = true }
                 }
                 if (floating) {
                     AiIconButton(if (collapsed) XnotesIcons.chevronUp else XnotesIcons.chevronDown,
-                        stringResource(if (collapsed) R.string.ai_expand else R.string.ai_collapse)) { collapsed = !collapsed }
+                        stringResource(if (collapsed) R.string.ai_expand else R.string.ai_collapse)) { sessions.floatingCollapsed = !collapsed }
                     AiIconButton(XnotesIcons.close, stringResource(R.string.ai_close)) { sessions.close() }
                 }
             }
-            if (!(floating && collapsed)) {
+            if (!collapsed && history && owner != null) {
+                HorizontalDivider(color = palette.border.toComposeColor())
+                AiFloatingHistory(sessions, owner, Modifier.weight(1f).fillMaxWidth()) { history = false }
+            } else if (!collapsed) {
                 HorizontalDivider(color = palette.border.toComposeColor())
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = Space.s16, vertical = Space.s12),
@@ -627,11 +664,14 @@ private fun AiTurnView(chatId: String, index: Int, turn: AiTurn, canRetry: Boole
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
         Column(Modifier.align(Alignment.End).widthIn(max = 560.dp).fillMaxWidth(0.85f), horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(Space.s6)) {
-            turn.user.image?.let { encoded ->
-                val bitmap = remember(encoded) { runCatching { val bytes = Base64.decode(encoded, Base64.DEFAULT); BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }.getOrNull() }
-                bitmap?.let {
-                    Image(it.asImageBitmap(), stringResource(R.string.ai_chat_screenshot), Modifier.heightIn(max = 160.dp).clip(MaterialTheme.shapes.medium)
-                        .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.medium), contentScale = ContentScale.Fit)
+            // Several screenshots sit in one row that scrolls sideways, smaller than a lone one.
+            if (turn.user.images.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+                turn.user.images.forEach { encoded ->
+                    val bitmap = remember(encoded) { runCatching { val bytes = Base64.decode(encoded, Base64.DEFAULT); BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }.getOrNull() }
+                    bitmap?.let {
+                        Image(it.asImageBitmap(), stringResource(R.string.ai_chat_screenshot), Modifier.heightIn(max = if (turn.user.images.size == 1) 160.dp else 120.dp)
+                            .clip(MaterialTheme.shapes.medium).border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.medium), contentScale = ContentScale.Fit)
+                    }
                 }
             }
             turn.user.pdf?.let { AiFileTag(XnotesIcons.pdfFile, it.name, pluralStringResource(R.plurals.ai_pages, it.pageCount, it.pageCount)) }
@@ -705,7 +745,7 @@ private fun AiComposer(sessions: AiSessions, chat: AiChat, modifier: Modifier, o
     val importing = importState?.loading == true
     val webSearch = sessions.searchEnabled[chat.id] ?: false
     val prompt = sessions.drafts[chat.id] ?: ""
-    val attachment = sessions.attachments[chat.id]
+    val screenshots = sessions.attachments[chat.id].orEmpty()
     val pdf = sessions.pdfAttachments[chat.id]
     val busy = sessions.isRunning(chat.id)
     var clipboardError by remember { mutableStateOf(false) }
@@ -722,16 +762,16 @@ private fun AiComposer(sessions: AiSessions, chat: AiChat, modifier: Modifier, o
     Column(modifier.fillMaxWidth()) {
         if (clipboardError) Text(stringResource(R.string.ai_paste_no_pdf), Modifier.padding(bottom = Space.s8), color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
         Column(Modifier.fillMaxWidth().clip(shape).background(palette.menuBg.toComposeColor()).border(1.dp, palette.materialColors.outline.toComposeColor(), shape)) {
-            if (attachment != null || importState != null || pdf != null) Row(
+            if (screenshots.isNotEmpty() || importState != null || pdf != null) Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = Space.s8, end = Space.s8, top = Space.s8),
                 horizontalArrangement = Arrangement.spacedBy(Space.s8),
             ) {
-                attachment?.let { bytes ->
+                screenshots.forEachIndexed { index, bytes ->
                     val bitmap = remember(bytes) { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
-                    val description = stringResource(R.string.ai_screenshot)
+                    val description = if (screenshots.size == 1) stringResource(R.string.ai_screenshot) else stringResource(R.string.ai_screenshot_numbered, index + 1)
                     AiAttachmentChip(description, "", leading = {
                         bitmap?.let { Image(it.asImageBitmap(), description, Modifier.size(32.dp).clip(MaterialTheme.shapes.small), contentScale = ContentScale.Crop) }
-                    }, removeLabel = stringResource(R.string.ai_remove_screenshot), onRemove = { sessions.setScreenshot(chat.id, null) })
+                    }, removeLabel = stringResource(R.string.ai_remove_screenshot), onRemove = { sessions.removeScreenshot(chat.id, index) })
                 }
                 importState?.let { state ->
                     AiAttachmentChip(state.name ?: "PDF", if (state.loading) stringResource(R.string.ai_preparing) else state.error, leading = {
@@ -783,7 +823,7 @@ private fun AiComposer(sessions: AiSessions, chat: AiChat, modifier: Modifier, o
                 AiSendButton(busy = busy, enabled = busy || canSend) {
                     if (busy) sessions.stop(chat.id)
                     else {
-                        sessions.send(chat.id, AiMessage("user", prompt.trim(), attachment?.let { Base64.encodeToString(it, Base64.NO_WRAP) }, pdf = pdf), webSearch)
+                        sessions.send(chat.id, AiMessage("user", prompt.trim(), screenshots.map { Base64.encodeToString(it, Base64.NO_WRAP) }, pdf = pdf), webSearch)
                         onSent()
                     }
                 }
@@ -863,6 +903,44 @@ private fun AiSendButton(busy: Boolean, enabled: Boolean, onClick: () -> Unit) {
             Box(Modifier.size(36.dp).clip(CircleShape).background((if (enabled) palette.selectionBackground else palette.surface).toComposeColor()), contentAlignment = Alignment.Center) {
                 Icon(if (busy) XnotesIcons.stop else XnotesIcons.arrowUp, label, Modifier.size(18.dp),
                     tint = (if (enabled) palette.selectionForeground else palette.textDim).toComposeColor())
+            }
+        }
+    }
+}
+
+/**
+ * The floating card's history: only this document's chats, newest first. Picking one keeps it
+ * floating over the document; renaming, deleting and opening other documents stay on the AI page.
+ */
+@Composable
+private fun AiFloatingHistory(sessions: AiSessions, owner: String, modifier: Modifier, onPicked: () -> Unit) {
+    val palette = LocalPalette.current
+    val chats = sessions.chatsOf(owner)
+    Column(modifier) {
+        Text(stringResource(R.string.ai_document_history), Modifier.padding(horizontal = Space.s16, vertical = Space.s8),
+            color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
+        if (chats.isEmpty()) Text(stringResource(R.string.ai_no_chats), Modifier.padding(horizontal = Space.s16, vertical = Space.s8),
+            color = palette.textDim.toComposeColor(), fontSize = TextSize.body)
+        androidx.compose.foundation.lazy.LazyColumn(Modifier.weight(1f).padding(horizontal = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
+            items(chats.size, key = { chats[it].id }) { index ->
+                val chat = chats[index]
+                val selected = sessions.activeId == chat.id
+                val running = sessions.isRunning(chat.id)
+                val fg = (if (selected) palette.selectionForeground else palette.text).toComposeColor()
+                val dim = if (selected) fg.copy(alpha = 0.7f) else palette.textDim.toComposeColor()
+                val turns = pluralStringResource(R.plurals.ai_turns, chat.turns.size, chat.turns.size)
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = MinTouchTarget).clip(MaterialTheme.shapes.medium)
+                        .then(if (selected) Modifier.background(palette.selectionBackground.toComposeColor()) else Modifier)
+                        .clickable { sessions.openFloating(chat.id); onPicked() }.padding(horizontal = Space.s12, vertical = Space.s6),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(chat.displayTitle(), color = fg, fontSize = TextSize.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("$turns · ${relativeAge(chat.updated)}", color = dim, fontSize = TextSize.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    if (running) AiSpinner(dim)
+                }
             }
         }
     }
@@ -961,7 +1039,7 @@ private fun AiHistoryRow(chat: AiChat, sessions: AiSessions, onOpen: () -> Unit,
     val status = when {
         running -> last?.progress?.ifBlank { null } ?: stringResource(R.string.ai_state_running)
         sessions.importStates[chat.id]?.loading == true -> stringResource(R.string.ai_attachment_preparing)
-        chat.draft.text.isNotBlank() || chat.draft.image != null || chat.draft.pdf != null -> stringResource(R.string.ai_draft)
+        chat.draft.text.isNotBlank() || chat.draft.images.isNotEmpty() || chat.draft.pdf != null -> stringResource(R.string.ai_draft)
         last != null && last.state != STATE_DONE -> stateLabel(last.state)
         else -> null
     }

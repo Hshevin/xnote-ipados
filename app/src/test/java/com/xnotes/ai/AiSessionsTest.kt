@@ -25,7 +25,7 @@ class AiSessionsTest {
             val sessions = AiSessions(store, scope, { AiConfig("https://example.com/v1", "vision", "key") }, { reply })
             until { sessions.ready }
             val first = sessions.newChat("source.pdf", floatingOwner = "source.pdf")
-            sessions.send(first, AiMessage("user", "问题", "YWJj"), false)
+            sessions.send(first, AiMessage("user", "问题", listOf("YWJj")), false)
             reply.entered.await()
             sessions.reconcileFloating(setOf("source.pdf"))
             assertEquals(first, sessions.activeId)
@@ -84,7 +84,7 @@ class AiSessionsTest {
                     return "source evidence"
                 }
                 override suspend fun stream(config: AiConfig, messages: List<AiMessage>, delta: suspend (String) -> Unit) {
-                    assertEquals("YWJj", messages.last().image)
+                    assertEquals("YWJj", messages.last().images.single())
                     assertEquals("这篇论文的有关情况", messages.last().text)
                     if (calls.isEmpty()) {
                         calls.add("identify")
@@ -99,7 +99,7 @@ class AiSessionsTest {
             }
             val sessions = AiSessions(AiHistoryStore(dir), scope, { AiConfig("https://example.com/v1", "vision", "key", "search-key") }, { fake })
             until { sessions.ready }; val id = sessions.newChat()
-            sessions.send(id, AiMessage("user", "这篇论文的有关情况", "YWJj"), true)
+            sessions.send(id, AiMessage("user", "这篇论文的有关情况", listOf("YWJj")), true)
             until { !sessions.isRunning(id) }; sessions.flush()
             assertEquals(listOf("identify", "search", "answer"), calls)
             assertEquals("论文介绍", sessions.chats[id]!!.turns.single().answer)
@@ -118,7 +118,7 @@ class AiSessionsTest {
             }
             val sessions = AiSessions(AiHistoryStore(dir), scope, { AiConfig("https://example.com/v1", "vision", "key", "search-key") }, { fake })
             until { sessions.ready }; val id = sessions.newChat()
-            sessions.send(id, AiMessage("user", "这篇论文", "YWJj"), true)
+            sessions.send(id, AiMessage("user", "这篇论文", listOf("YWJj")), true)
             until { !sessions.isRunning(id) }; sessions.flush()
             assertFalse(searched)
             assertEquals("生成失败", sessions.chats[id]!!.turns.single().state)

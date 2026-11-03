@@ -19,7 +19,7 @@ class DeepSeekSearchTest {
         assertFalse(body.contains("search")); assertFalse(body.contains("tools"))
     }
     @Test fun groundingIsIncludedAlongsideImage() {
-        val text = AiProtocol.request("model", listOf(AiMessage("user", "hello", "YWJj", "source evidence"))).toString()
+        val text = AiProtocol.request("model", listOf(AiMessage("user", "hello", listOf("YWJj"), "source evidence"))).toString()
         assertTrue(text.contains("source evidence")); assertTrue(text.contains("data:image/png"))
     }
 }

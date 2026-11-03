@@ -27,6 +27,15 @@
     <string name="ai_stop_preparing">Stop preparing</string>
     <string name="ai_remove_attachment">Remove attachment</string>
     <string name="ai_retry_attachment">Retry attachment</string>
+    <string name="ai_screenshot_numbered">Screenshot %d</string>
+    <string name="ai_screenshot_limit">A question can carry up to %d screenshots. Remove one first.</string>
+    <string name="ai_take_screenshot">Take screenshot</string>
+    <string name="ai_add_screenshot">Add to AI</string>
+    <string name="ai_document_history">Chats from this document</string>
+    <plurals name="ai_turns">
+        <item quantity="one">%d question</item>
+        <item quantity="other">%d questions</item>
+    </plurals>
     <plurals name="ai_pages">
         <item quantity="one">%d page</item>
         <item quantity="other">%d pages</item>
