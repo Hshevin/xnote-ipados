@@ -58,3 +58,17 @@ Release 85 交付后，用户确认上述队列重建调整未解决问题，并
 交叉核对了 [Android 15 SurfaceView 源码](https://raw.githubusercontent.com/aosp-mirror/platform_frameworks_base/android-15.0.0_r1/core/java/android/view/SurfaceView.java)：父层几何与裁剪由框架和 RenderThread 管理，并与窗口绘制事务合并；[HandlerThread 源码](https://raw.githubusercontent.com/aosp-mirror/platform_frameworks_base/android-15.0.0_r1/core/java/android/os/HandlerThread.java)中 `quitSafely()` 只发出退出请求。另有 [AndroidX 的 Compose/SurfaceView 裁剪问题讨论](https://github.com/androidx/media/issues/2158)，但平台版本与设备情况不同，不能作为本设备已命中同一系统缺陷的证据。
 
 本阶段结论：问题已缩小到前缓冲启用时的显示/生命周期路径，具体根因尚未确认。保留 Release 85 源码行为，不继续套用重建方案；后续需要能区分上述原因的证据或可控复现。未运行新的通过性测试；中止了撤回方案的构建，不把它计为验证结果。
+
+## Android 15 模拟器复现尝试（2026-11-04）
+
+用户要求先尝试复现，确认原因后直接修复。本次在主机沙箱外发现可用 KVM/GPU，新增隔离模拟器；此前“未安装模拟器”的环境描述仅适用于之前阶段。
+
+- Android Emulator 37.2.13，API 35 default x86_64，`-gpu host`；系统指纹 `Android/sdk_phone64_x86_64/emu64x:15/AE3A.240806.019/12368160:userdebug/test-keys`。
+- JDK 21 / 仓库 wrapper，以忽略目录中的 init 脚本额外启用 x86_64，构建现有 Debug 源码成功。仅安装到新建模拟器，包名 `com.xnotes.movinkpad.standalone`。没有制作正式交付包、安装用户设备或修改产品源码。请求 2880×1800，但系统实际布局为 1920×1800；并非目标屏幕等效测试。
+- 生成无用户内容的单页 PDF，实走导入、打开 PDF、打开右侧空分屏首页、直接关闭右侧首页恢复单文档；转储三个阶段的 SurfaceFlinger 层级和应用 GL 日志。
+- 父 SurfaceView 层 ID 依次为 179 → 185 → 191，湿墨子层为 182 → 188 → 194。实际拆挂会重建父层，不能把此路径解释为“只重建子层、始终保留原半屏父层”。这不排除新父层收到错误裁剪或迟到事务，但目前没有这样的实测证据。普通文本转储未提供这些无缓冲层的有效裁剪值，不能声称已验证父层全屏裁剪。
+- 独立 native EGL 探针检测：扩展列表没有 `EGL_KHR_mutable_render_buffer`；要求 `EGL_WINDOW_BIT | 0x1000`、GLES3、RGBA8 的配置数为 **0**。应用在上述三个阶段均记录 `wet pad unavailable: no mutable-render-buffer config`。因此这次执行没有进入真实前缓冲绘制，不能以界面正常证明问题不存在或已经修复。
+
+结论：本次未复现用户报告的半屏湿墨故障，纠正了父层复用的推断；尚不满足“确认原因后修复”的条件，未提交推测性的行为改动。线程跨代访问仍为独立源码风险，尚未建立它与半屏现象的因果证据。下一步需要支持 mutable render buffer 的运行环境，或由目标设备导出故障时的图层/缓冲证据；仅伪造支持扩展或改用双缓冲不能作为原故障复现。
+
+临时构建、模拟器、探针和原始日志均在忽略的 `tmp/refresh-repro*` 中；本记录保留可复核摘要。检查 AGENTS.md 后无长期约定变更；README.md 同步本次复现状态。
