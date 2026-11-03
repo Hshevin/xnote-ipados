@@ -6,7 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-// Release signing is read from a gitignored keystore.properties when present.
+// Shared debug/release signing is read from gitignored keystore.properties when present.
 // F-Droid builds without that file, producing an unsigned APK it verifies against
 // the published (signed) binary for reproducible builds.
 val keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -74,6 +74,7 @@ android {
                 keyAlias = keystoreProperties.getProperty("keyAlias")
                 keyPassword = keystoreProperties.getProperty("keyPassword")
             }
+            getByName("debug").initWith(getByName("release"))
         }
     }
 

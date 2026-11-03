@@ -53,6 +53,8 @@ Release 83 本地交付本轮 UI、Markdown 和中英文资源改动，并修复
 
 构建覆盖升级 Release（须保留本机原签名密钥）：
 
+本服务器已支持 Debug 与 Release 共用签名：在忽略提交的 `keystore.properties` 配置 `storeFile`（相对 `app/` 的路径）、`storePassword`、`keyAlias` 和 `keyPassword`，两种构建都会使用该密钥；未配置时保留原构建行为。密钥与密码不提交到 Git。正式发布前仍需核对包名、versionCode 和证书；共用签名不改变独立测试包与正式包的身份。
+
 ```sh
 export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 ./gradlew --no-daemon -PmovinkpadPreviewSigning=true :app:testReleaseUnitTest :app:assembleRelease

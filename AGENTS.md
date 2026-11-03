@@ -34,6 +34,8 @@
 
 ## 覆盖安装与 Release
 
+- 2026-11-03 用户在本服务器提供原签名密钥，要求 Debug 与 Release 共用。通过忽略提交的 `keystore.properties` 配置两种构建；不要覆盖服务器默认调试密钥、提交密钥或密码。证书 SHA-256 为 `A0:45:3B:7B:E6:C0:C8:23:9E:86:16:20:86:12:C4:12:CF:50:1D:A8:89:8C:7A:04:50:CC:92:3C:8E:35:84:51`。此要求不改变各构建的包名，也不授权本轮打包或安装。
+
 - 用户于 2026-11-02 确认当前分屏版本足够，授权打包覆盖早期 XNotes 的 Release；交付包使用 `com.xnotes.movinkpad`，独立测试包仍为 `com.xnotes.movinkpad.splitpreview`。不把打包授权扩展为 GitHub 推送或商店发布。
 - 覆盖升级必须沿用已交付 APK 的签名、提高正式包 versionCode，核对签名与安装身份。当前通过 `-PmovinkpadPreviewSigning=true` 显式沿用历史本机 Debug 密钥；Release 仍启用 R8、资源压缩并关闭 debuggable。不要重新生成密钥或要求用户卸载旧版。
 
