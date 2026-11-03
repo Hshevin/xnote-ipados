@@ -1,7 +1,7 @@
 # MovinkPad preview development
 
 - Read `MOVINKPAD.md` and `README.md` before changing this fork. Read `docs/movinkpad/project-brief.md` and check `git status` before work. This fork is self-contained; the separate diagnostic application is not a module here.
-- Preserve upstream licenses and third-party notices. Do not commit or push unless requested.
+- Preserve upstream licenses and third-party notices. Automatically commit completed, validated work locally; push to GitHub only when explicitly requested.
 - Target Wacom MovinkPad Pro 14, Android 15, Pro Pen 3; product reference remains OneNote Android tablet.
 - Keep everything local/offline. No account, sync or backend requirements.
 - Keep physical button numbering `0x20`, `0x40`, `0x04`. Detect edges from touch and hover buttonState, deduplicate independent button events, never hardcode device IDs.
@@ -15,9 +15,10 @@
 - Notes must persist locally. Verify recovery and failure paths for storage, import, deletion and migration changes.
 - Preserve raw button masks and axes. Compare buttonState transitions on MOVE/HOVER_MOVE and deduplicate independent button events; distinguish stylus, finger and cancellation.
 - Use JDK 21, Gradle wrapper 8.13, AGP 8.12.3, SDK/Build Tools 36/36.0.0, NDK 27.0.12077973 and CMake 3.22.1. Do not import the diagnostic project's AGP 8.12.0 setting.
-- Preserve user changes; no commit, push, remote or Git configuration changes unless requested. Temporary files belong in ignored `tmp/`, not source or permanent documentation.
+- Preserve user changes; automatically commit only changes related to the completed task after relevant validation. Do not include unrelated user changes. No push, remote or Git configuration changes unless explicitly requested. Temporary files belong in ignored `tmp/`, not source or permanent documentation.
 
-- 用户于 2026-10-31 最新要求本次直接在本机编译，覆盖此前“不在本机编译”的约定；使用 JDK 21，遵守执行环境权限。未经明确要求仍不提交或推送。
+- 用户于 2026-10-31 最新要求本次直接在本机编译，覆盖此前“不在本机编译”的约定；使用 JDK 21，遵守执行环境权限。
+- 用户于 2026-11-03 要求：每完成一个功能阶段或修复并通过相关验证后，自动提交到本地 Git，无需再次询问；推送 GitHub 仍由用户手动操作或明确要求后执行。此约定覆盖此前“未经要求不提交”的限制，不授权自动推送、打包或发布。
 
 ## 文档维护
 
