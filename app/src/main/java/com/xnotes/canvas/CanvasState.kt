@@ -120,26 +120,28 @@ class CanvasState(
      */
     var palette: Palette
         get() {
-            // Read many times per frame: recompute only when the theme, document or page in view changes.
+            // Paper can change in place without changing the document, page index or theme.
+            // Cache the derived palette by the actual contrast decision, not page identity.
             val theme = themePalette
-            val page = if (pageRects.isEmpty()) -1 else currentPageIndex()
+            val page = if (pageRects.isEmpty()) null else document.pages.getOrNull(currentPageIndex())
+            val pageLight = page?.let {
+                it.pdfPage != null || (effectivePageColor(it) ?: theme.paper).luminance() > 0.5
+            }
             val cached = overlayPalette
-            if (cached == null || overlayTheme !== theme || overlayDocument !== document || overlayPage != page) {
-                overlayTheme = theme; overlayDocument = document; overlayPage = page
-                return overlayPaletteFor(theme, page).also { overlayPalette = it }
+            if (cached == null || overlayTheme !== theme || overlayPageLight != pageLight) {
+                overlayTheme = theme; overlayPageLight = pageLight
+                return overlayPaletteFor(theme, pageLight).also { overlayPalette = it }
             }
             return cached
         }
         set(value) { themePalette = value }
 
     private var overlayTheme: Palette? = null
-    private var overlayDocument: Document? = null
-    private var overlayPage = -1
+    private var overlayPageLight: Boolean? = null
     private var overlayPalette: Palette? = null
 
-    private fun overlayPaletteFor(theme: Palette, pageIndex: Int): Palette {
-        val page = document.pages.getOrNull(pageIndex) ?: return theme
-        val pageLight = page.pdfPage != null || (effectivePageColor(page) ?: theme.paper).luminance() > 0.5
+    private fun overlayPaletteFor(theme: Palette, pageLight: Boolean?): Palette {
+        if (pageLight == null) return theme
         if (pageLight != (theme.accent.luminance() > 0.5)) return theme
         val black = com.xnotes.core.model.Rgba(0, 0, 0, 255)
         val white = com.xnotes.core.model.Rgba(255, 255, 255, 255)
