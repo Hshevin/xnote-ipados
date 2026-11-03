@@ -180,14 +180,16 @@ class AiInteractionTest {
             sessions.newChat("A", "uri-a", "doc-a", "doc-a")
             sessions.startCapture()
             assertTrue(sessions.capturing); assertTrue(sessions.floatingCollapsed)
-            assertEquals(listOf("arm A", "arm B"), log)
+            // Pane order is not meaningful (a hash of per-pane tokens); what matters is that each is armed once.
+            assertEquals(setOf("arm A", "arm B"), log.toSet()); assertEquals(2, log.size)
             sessions.expand()
             assertFalse(sessions.capturing); assertFalse(sessions.floatingCollapsed)
-            assertEquals(listOf("arm A", "arm B", "release A", "release B"), log)
+            assertEquals(setOf("release A", "release B"), log.drop(2).toSet()); assertEquals(4, log.size)
             sessions.expand() // already out of capture mode: nothing released twice
             assertEquals(4, log.size)
             sessions.startCapture(); sessions.unregisterCapture(right); sessions.close()
-            assertEquals(listOf("arm A", "arm B", "release A", "release B", "arm A", "arm B", "release A"), log)
+            // The right pane left during capture mode: only the left one is given its tool back.
+            assertEquals(setOf("arm A", "arm B"), log.subList(4, 6).toSet()); assertEquals("release A", log.last()); assertEquals(7, log.size)
             assertFalse(sessions.capturing); assertTrue(sessions.canCapture)
         }
     }
