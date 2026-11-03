@@ -11,6 +11,37 @@ import com.xnotes.format.DocumentCodec
 
 /** Real editor models/controllers and codec, on Android's UI thread. No production data is used. */
 class SplitEditorTest {
+    @Test fun pagedHostReattachmentReplacesOnlyWetViewAndKeepsItsPreference() = onMain { editor ->
+        val document = editor.state.document
+        val page = document.pages.first()
+        val stroke = com.xnotes.core.model.Stroke(com.xnotes.core.tools.Tool.PEN,
+            com.xnotes.core.tools.ToolDefaults.configFor(com.xnotes.core.tools.Tool.PEN))
+        stroke.addSample(com.xnotes.core.stroke.Sample(10.0, 20.0, 1.0, 0.0))
+        page.items.add(stroke)
+        val canvas = editor.view
+        val container = editor.surfaces
+        val old = editor.pad
+        val oldFront = editor.controller.frontInk
+        old.frontBuffering = false
+        assertSame(container, editor.surfacesForAttach())
+        assertSame(document, editor.state.document)
+        assertSame(page, editor.state.document.pages.first())
+        assertSame(stroke, page.items.last())
+        assertSame(canvas, container.getChildAt(0))
+        assertEquals(2, container.childCount)
+        assertNotSame(old, editor.pad)
+        assertNotSame(oldFront, editor.controller.frontInk)
+        assertNull(old.parent)
+        assertNull(old.onSurfaceLost)
+        assertFalse(editor.pad.frontBuffering)
+        val second = editor.pad
+        second.frontBuffering = true
+        editor.surfacesForAttach()
+        assertNotSame(second, editor.pad)
+        assertTrue(editor.pad.frontBuffering)
+        assertSame(editor.pad, container.getChildAt(1))
+    }
+
     private fun onMain(test: (Editor) -> Unit) {
         val runner = PenTestRunner.instance
         var error: Throwable? = null

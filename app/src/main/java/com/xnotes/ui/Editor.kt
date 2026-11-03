@@ -396,7 +396,8 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     val view = CanvasView(context).also { it.state = state }
 
     /** The front buffer wet ink goes into, above [view] and transparent whenever no pen is down. */
-    val pad = com.xnotes.gl.GlWetPad(context, onTop = true)
+    var pad = com.xnotes.gl.GlWetPad(context, onTop = true)
+        private set
 
     /**
      * The two surfaces, in order. The pad is a sibling above the canvas rather than part of it: the
@@ -405,6 +406,28 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     val surfaces = android.widget.FrameLayout(context).apply {
         addView(view, android.widget.FrameLayout.LayoutParams(-1, -1))
         addView(pad, android.widget.FrameLayout.LayoutParams(-1, -1))
+    }
+
+    /** A new AndroidView host must not inherit the old wet View's RenderNode/ancestor clip. */
+    fun surfacesForAttach(): android.widget.FrameLayout {
+        val old = pad
+        controller.frontInk?.surfaceLost()
+        // surfaceLost above has returned held ink to the ordinary canvas. The retiring pad must
+        // never call into the replacement controller, including after a slow EGL teardown.
+        old.onSurfaceLost = null
+        surfaces.removeView(old)
+        pad = com.xnotes.gl.GlWetPad(surfaces.context, onTop = true).also {
+            it.frontBuffering = old.frontBuffering
+        }
+        bindFrontInk()
+        surfaces.addView(pad, android.widget.FrameLayout.LayoutParams(-1, -1))
+        return surfaces
+    }
+
+    private fun bindFrontInk() {
+        val front = com.xnotes.canvas.FrontInk(state, view, pad)
+        controller.frontInk = front
+        pad.onSurfaceLost = front::surfaceLost
     }
     private val textMeasurer = AndroidTextMeasurer()
     private val imageCodec = AndroidImageCodec()
@@ -1753,8 +1776,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         view.hover = { proPenInput.motion(it, focusForPenHover(it)); controller.onHover(it) }
         view.genericMotion = { proPenInput.motion(it); controller.onGenericMotion(it) }
         view.drawOverlay = { renderer, _ -> controller.drawOverlay(renderer) }
-        controller.frontInk = com.xnotes.canvas.FrontInk(state, view, pad)
-        pad.onSurfaceLost = { controller.frontInk?.surfaceLost() }
+        bindFrontInk()
         view.debugOverlay.frontHud = { controller.frontInk?.hud }
         view.afterLayout = { refreshView() }
         view.onScrollbarScrolled = { refreshView() }

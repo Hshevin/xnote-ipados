@@ -1979,7 +1979,10 @@ private fun EditorPane(
                         }
                         Box(modifier = Modifier.weight(1f).fillMaxHeight().clipToBounds().endsPageSelection(editor)) {
                             AndroidView(
-                                factory = { detached(editor.surfaces) },
+                                factory = {
+                                    detached(editor.surfaces)
+                                    editor.surfacesForAttach()
+                                },
                                 modifier = Modifier.fillMaxSize(),
                                 update = { editor.view.requestRender() }, // repaint on (re)attach so a push never flashes blank
                             )

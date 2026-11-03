@@ -84,3 +84,11 @@ Release 85 交付后，用户确认上述队列重建调整未解决问题，并
 验证：JDK 21 / Gradle 8.13，2563 项 JVM 测试通过；Android 15 x86_64 模拟器运行 49 项 Android 测试，0 失败，runner 报告 PASS。新增 `WetPadLifecycleTest` 用真实 HandlerThread 和锁存器强制超过 500 ms，验证立即重挂不会替换尚存活的工作线程、再次销毁后迟到重试不会重启。主机 GPU 模拟器启动异常后改用 SwiftShader 执行这组测试；此测试验证线程生命周期，不验证目标 GPU 前缓冲显示。
 
 模拟器 Debug 应用及测试 APK 只用于本机回归，没有构建新的正式 ARM64 交付包。原始日志为忽略目录 `tmp/refresh-repro/fix-build.log`、`fix-instrumentation.log`。`git diff --check` 通过。真机重点验收仍是 PDF → 空分屏首页 → 关闭首页 → 在原空窗格区域持续书写，连续多轮，并检查取消、撤销、保存重开及前缓冲开关。AGENTS.md 的长期约定无需变更。
+
+## Release 86 真机反馈与下一候选
+
+用户确认 Release 86 完全未改善：退出空分屏后，仍只有原空窗格区域的笔迹需要提笔才显示。跨代线程保护不足以解决此故障，不能继续把它称为已确认的设备根因。
+
+下一候选针对复用 SurfaceView/RenderNode 的路径：分页编辑器的 AndroidView factory 先拆下原容器，再替换为全新 GlWetPad 与 FrontInk，最后挂接到新宿主。旧 FrontInk 先归还暂存笔迹，旧 pad 的 onSurfaceLost 断开，新 pad 继承前缓冲开关；保留 CanvasView、文档模型、笔迹对象和页面缓存。适用于分页笔记及 PDF；不扩展修改无限画布路径，不手动写系统父层 crop。此前父 SurfaceControl 已重建的证据仍成立，此候选处理的是同一个 Java View/RenderNode 被复用，尚未证实目标设备命中该问题。
+
+本候选验证：JDK 21 编译及 2563 项 Debug JVM 测试通过；新增 Android 测试确认连续替换湿墨 View 时，文档/页面/已有笔画/普通 CanvasView 身份不变，前缓冲开关继承，旧回调断开。首次复用模拟器数据执行 50 项测试，有一项既有 `sharedWorkspaceRestoresBothPositionsEvenWithSecondaryOwner` 会话身份断言失败；新增测试通过。保留失败日志后清空本任务隔离测试应用数据，同源码重跑 50 项全部通过。此结果不能证明会话测试重复运行问题已修复。日志在忽略的 `tmp/refresh-repro/view-fix-*`。`git diff --check` 通过；本轮没有新的正式交付包、用户设备安装或推送。检查 AGENTS.md 无长期约定变更，README.md 已同步失败反馈与候选状态。
