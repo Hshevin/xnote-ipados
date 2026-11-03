@@ -88,3 +88,5 @@
 - 2026-11-03 用户在两轮提交核对后授权打包正式 Release 84，包含 AI 设置、新会话默认、默认提示词与侧栏修复；沿用 `com.xnotes.movinkpad` 和历史签名，仅本地交付，不安装、不推送或发布 GitHub Release。
 
 - 用户随后于 2026-11-03 授权推送 `master` 并发布 GitHub Release 84（标签 `v0.9.7-movinkpad.84`）。此授权仅限本次，后续推送和发布仍需明确要求。
+
+- 用户于 2026-11-04 授权本地打包正式 Release 85，包含退出 PDF 分屏的前缓冲调整及 AI 未开始对话输入区清理；沿用 `com.xnotes.movinkpad` 和历史签名，提高 versionCode 以支持覆盖安装。仅本地交付，不包含设备安装、推送或 GitHub Release；前缓冲效果及平台交互仍待目标设备验证。

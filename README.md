@@ -32,7 +32,7 @@ AI 界面已重做（随 Release 83 本地交付）：右侧问题气泡；输�
 
 Release 84 已本地交付 AI 设置扩展：可保存多个模型并从供应商获取列表、设默认思考深度与参数格式、最大输出长度和自定义提示词；输入栏可为单个会话切换模型与思考深度；可设置新会话默认（模型、思考、联网、自动附加当前 PDF），并内置中英文默认提示词。模型列表最多 200 个，超出时明确提示。浮窗会记住上次拖动的位置。另修复了分屏后主页左上角箭头无法收起/展开侧栏的问题。真实接口与真机验收待完成，见[记录](docs/movinkpad/ai-settings-2026-11-03.md)。
 
-2026-11-04 源码调整：尚未开始对话时，关闭 AI 窗口或点击「新会话」会清空提示词、截图和附件，不累积空白历史；已有对话继续保留草稿和附件。未打包，设备交互待验收，见[记录](docs/movinkpad/ai-empty-chat-2026-11-04.md)。
+2026-11-04 调整：尚未开始对话时，关闭 AI 窗口或点击「新会话」会清空提示词、截图和附件，不累积空白历史；已有对话继续保留草稿和附件。已随 Release 85 本地交付，设备交互待验收，见[记录](docs/movinkpad/ai-empty-chat-2026-11-04.md)。
 
 最新源码修复截图论文搜索跑偏路径：自动识图生成检索词，参考资料与原问题分离。此修复已包含在 preview3，preview2 仍是旧搜索流程。
 
@@ -49,9 +49,9 @@ Release 83 本地交付本轮 UI、Markdown 和中英文资源改动，并修复
 - 测试包名 `com.xnotes.movinkpad.splitpreview`，与正式包名 `com.xnotes.movinkpad` 分开安装。用户已确认该版本满足当前需求，并要求打包原应用覆盖升级版；当前维护入口为 `master`。
 - 本轮验证：2462 项 JVM 测试、39 项 Android 模拟器测试通过。测试数量是本次记录，不代表后续版本已验证。
 
-[下载 Release 84 ARM64 APK](build/xnotes/XNotes-0.9.7-movinkpad-release84-arm64.apk)，或从 [GitHub Release 84](https://github.com/Hshevin/xnotes-android/releases/tag/v0.9.7-movinkpad.84) 下载。
+[下载本地 Release 85 ARM64 APK](build/xnotes/XNotes-0.9.7-movinkpad-release85-arm64.apk)。此前发布版仍见 [GitHub Release 84](https://github.com/Hshevin/xnotes-android/releases/tag/v0.9.7-movinkpad.84)，本次未推送或发布。
 
-当前覆盖升级版为 **0.9.7-movinkpad / versionCode 84**，使用原应用身份和历史签名；2558 项 Release 单元测试通过，R8、资源压缩、lintVital 与 APK 身份/签名核验通过。本轮未执行设备安装或 Android 仪器测试，真实 AI 供应商及目标设备验收仍待完成。交付与验证见 [Release 记录](docs/movinkpad/release-2026-11-02.md)。测试版的数据不会自动迁入原应用。版本 79 修复返回主菜单后打开普通文件仍保留分屏的问题，普通文件进入单文档，显式恢复分屏不受影响。
+当前覆盖升级版为 **0.9.7-movinkpad / versionCode 85**，使用原应用身份和历史签名，包含退出 PDF 分屏的湿墨层调整及 AI 未开始对话输入区清理；2563 项 Release 单元测试通过，R8、资源压缩、lintVital 与 APK 身份/签名核验通过。本轮未执行设备安装或 Android 仪器测试，前缓冲实际显示、真实 AI 供应商及目标设备验收仍待完成。交付与验证见 [Release 记录](docs/movinkpad/release-2026-11-02.md)。测试版的数据不会自动迁入原应用。版本 79 修复返回主菜单后打开普通文件仍保留分屏的问题，普通文件进入单文档，显式恢复分屏不受影响。
 
 构建覆盖升级 Release（须保留本机原签名密钥）：
 
@@ -71,7 +71,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 
 Release 80 包含实时笔迹刷新调整、分屏关闭先回到窗格首页再退出，以及文件树叶子文件夹箭头修复。前缓冲显示和性能仍待目标设备验证；发布结果见 Release 记录。
 
-2026-11-04 用户反馈退出 PDF 分屏后仍需提笔才显示笔迹。源码进一步调整前缓冲尺寸变化时的独立 Surface 队列重建，并使旧层延迟回调失效；目标设备效果仍待确认，未打包。见[调查与验证记录](docs/movinkpad/split-wet-ink-2026-11-04.md)。
+2026-11-04 用户反馈退出 PDF 分屏后仍需提笔才显示笔迹。源码进一步调整前缓冲尺寸变化时的独立 Surface 队列重建，并使旧层延迟回调失效；已随 Release 85 本地交付，目标设备效果仍待确认。见[调查与验证记录](docs/movinkpad/split-wet-ink-2026-11-04.md)。
 
 Release 81（2026-11-03，仅本地打包）加入黑白灰阶层级、统一字号和间距规范，以及 48 dp 触控区。已知在 1280 dp 宽的分屏下工具栏会溢出到滚动区；真机验收待执行。
 
