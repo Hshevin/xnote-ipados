@@ -65,7 +65,8 @@ import com.xnotes.ui.theme.TextSize
 
 /**
  * Trash: what was deleted, where it came from, when, and how long it has left before it is permanently deleted. Items
- * go back to their folder on Restore; Empty trash and Delete permanently remove them.
+ * go back to their folder on Restore; Empty trash and Delete permanently remove them. Deleted AI chats are listed
+ * after the files, kept by the same retention setting, and go back to AI history on Restore.
  */
 @Composable
 internal fun TrashPane(editor: Editor, sidebarOpen: Boolean, onShowSidebar: () -> Unit, onOpenPreferences: () -> Unit) {
@@ -78,8 +79,11 @@ internal fun TrashPane(editor: Editor, sidebarOpen: Boolean, onShowSidebar: () -
     var query by remember { mutableStateOf("") }
     var confirmEmpty by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf<TrashItem?>(null) }
+    var confirmChat by remember { mutableStateOf<com.xnotes.ai.AiChat?>(null) }
     var busy by remember { mutableStateOf(false) }
+    val sessions = com.xnotes.ai.AiSessions.get(context)
     val items by produceState<List<TrashItem>?>(null, root, refresh) {
+        sessions.purgeTrash(prefs.trashDays)
         value = if (root == null) emptyList() else withContext(Dispatchers.IO) {
             editor.purgeExpiredTrash(root, prefs.trashDays)
             editor.listTrash(root)
@@ -92,6 +96,8 @@ internal fun TrashPane(editor: Editor, sidebarOpen: Boolean, onShowSidebar: () -
     val clock24 = android.text.format.DateFormat.is24HourFormat(context)
     val zone = ZoneId.systemDefault()
     val shown = items.orEmpty().filter { query.isBlank() || it.entry.name.contains(query.trim(), ignoreCase = true) }
+    val chats = sessions.trash.values.sortedByDescending { it.trashedAt }
+    val shownChats = chats.filter { query.isBlank() || it.title.contains(query.trim(), ignoreCase = true) || it.source.contains(query.trim(), ignoreCase = true) }
 
     Column(Modifier.fillMaxSize()) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
@@ -111,7 +117,7 @@ internal fun TrashPane(editor: Editor, sidebarOpen: Boolean, onShowSidebar: () -
                 ExplorerSearchField(query, { query = it }, expandedWidth = searchRoom.coerceIn(40.dp, 300.dp))
                 Spacer(Modifier.width(Space.s12))
                 val shape = MaterialTheme.shapes.extraLarge
-                val enabled = !busy && !items.isNullOrEmpty()
+                val enabled = !busy && (!items.isNullOrEmpty() || chats.isNotEmpty())
                 Row(
                     Modifier.onSizeChanged { emptyWidth = with(density) { it.width.toDp() } }
                         .height(40.dp).clip(shape).border(1.dp, palette.border.toComposeColor(), shape)
@@ -152,12 +158,12 @@ internal fun TrashPane(editor: Editor, sidebarOpen: Boolean, onShowSidebar: () -
             val wide = maxWidth >= 720.dp
             val list = items
             when {
-                root == null -> EmptyPane(stringResource(R.string.trash_no_root))
+                root == null && chats.isEmpty() -> EmptyPane(stringResource(R.string.trash_no_root))
                 list == null -> EmptyPane(stringResource(R.string.loading))
-                list.isEmpty() -> EmptyPane(stringResource(R.string.trash_empty), EmptyArt.TRASH)
-                shown.isEmpty() -> EmptyPane(stringResource(R.string.trash_no_match, query.trim()))
+                list.isEmpty() && chats.isEmpty() -> EmptyPane(stringResource(R.string.trash_empty), EmptyArt.TRASH)
+                shown.isEmpty() && shownChats.isEmpty() -> EmptyPane(stringResource(R.string.trash_no_match, query.trim()))
                 else -> Column(Modifier.fillMaxSize()) {
-                    Row(Modifier.fillMaxWidth().height(36.dp).padding(start = Space.s8, end = Space.s4), verticalAlignment = Alignment.CenterVertically) {
+                    if (shown.isNotEmpty() || shownChats.isNotEmpty()) Row(Modifier.fillMaxWidth().height(36.dp).padding(start = Space.s8, end = Space.s4), verticalAlignment = Alignment.CenterVertically) {
                         TrashHead(stringResource(R.string.sort_name), Modifier.weight(1f).padding(start = Space.s48))
                         if (wide) {
                             TrashHead(stringResource(R.string.trash_was_in), Modifier.width(170.dp))
@@ -174,9 +180,10 @@ internal fun TrashPane(editor: Editor, sidebarOpen: Boolean, onShowSidebar: () -
                             TrashRow(
                                 editor, item, wide, rootName ?: stringResource(R.string.the_top_folder), now, clock24, zone, prefs.trashDays,
                                 onRestore = {
+                                    val folder = root ?: return@TrashRow
                                     busy = true
                                     scope.launch {
-                                        val ok = withContext(Dispatchers.IO) { editor.restoreTrash(root, item) }
+                                        val ok = withContext(Dispatchers.IO) { editor.restoreTrash(folder, item) }
                                         busy = false
                                         refresh++
                                         editor.say(if (ok) context.getString(R.string.restored_item, label(item)) else context.getString(R.string.err_restore_item, label(item)))
@@ -186,8 +193,21 @@ internal fun TrashPane(editor: Editor, sidebarOpen: Boolean, onShowSidebar: () -
                             )
                             Hairline()
                         }
+                        if (shownChats.isNotEmpty()) {
+                            item(key = "ai-section") {
+                                Text(stringResource(R.string.ai_trash_section), color = palette.textDim.toComposeColor(), fontSize = TextSize.body, fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.padding(start = Space.s8, top = Space.s16, bottom = Space.s4))
+                                Hairline()
+                            }
+                            items(shownChats, key = { "ai:" + it.id }) { chat ->
+                                AiTrashRow(chat, wide, now, clock24, zone, prefs.trashDays,
+                                    onRestore = { sessions.restore(chat.id); editor.say(context.getString(R.string.restored_item, chat.displayTitle(context))) },
+                                    onDelete = { confirmChat = chat })
+                                Hairline()
+                            }
+                        }
                     }
-                    Text(
+                    if (shown.isNotEmpty()) Text(
                         stringResource(R.string.restore_hint, rootName ?: stringResource(R.string.the_top_folder)),
                         color = palette.textDim.toComposeColor(), fontSize = TextSize.body, modifier = Modifier.padding(start = Space.s8, top = Space.s12),
                     )
@@ -196,7 +216,7 @@ internal fun TrashPane(editor: Editor, sidebarOpen: Boolean, onShowSidebar: () -
         }
     }
 
-    if (confirmEmpty && root != null) {
+    if (confirmEmpty) {
         AlertDialog(
             onDismissRequest = { confirmEmpty = false },
             title = { Text(stringResource(R.string.empty_trash_confirm)) },
@@ -205,14 +225,24 @@ internal fun TrashPane(editor: Editor, sidebarOpen: Boolean, onShowSidebar: () -
                 TextButton(onClick = {
                     confirmEmpty = false
                     busy = true
+                    sessions.emptyTrash()
                     scope.launch {
-                        withContext(Dispatchers.IO) { editor.emptyTrash(root) }
+                        if (root != null) withContext(Dispatchers.IO) { editor.emptyTrash(root) }
                         busy = false
                         refresh++
                     }
                 }) { Text(stringResource(R.string.empty_trash)) }
             },
             dismissButton = { TextButton(onClick = { confirmEmpty = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+    confirmChat?.let { chat ->
+        AlertDialog(
+            onDismissRequest = { confirmChat = null },
+            title = { Text(stringResource(R.string.delete_permanently_confirm)) },
+            text = { Text(stringResource(R.string.delete_permanently_body, chat.displayTitle(context))) },
+            confirmButton = { TextButton(onClick = { sessions.deleteForever(chat.id); confirmChat = null }) { Text(stringResource(R.string.delete)) } },
+            dismissButton = { TextButton(onClick = { confirmChat = null }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     confirmDelete?.let { item ->
@@ -232,6 +262,67 @@ internal fun TrashPane(editor: Editor, sidebarOpen: Boolean, onShowSidebar: () -
             },
             dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text(stringResource(R.string.cancel)) } },
         )
+    }
+}
+
+/** The stored default title is "新会话"; outside composition it is shown in the UI language too. */
+private fun com.xnotes.ai.AiChat.displayTitle(context: android.content.Context): String =
+    if (title == com.xnotes.ai.AiChat().title) context.getString(R.string.ai_new_chat) else title
+
+/** A deleted AI chat, laid out like a file row: where it came from, when it was deleted, how long it has left. */
+@Composable
+private fun AiTrashRow(chat: com.xnotes.ai.AiChat, wide: Boolean, now: Long, clock24: Boolean, zone: ZoneId, days: Int, onRestore: () -> Unit, onDelete: () -> Unit) {
+    val palette = LocalPalette.current
+    val context = LocalContext.current
+    val words = rememberExplorerWords()
+    val dim = palette.textDim.toComposeColor()
+    val title = chat.displayTitle(context)
+    val wasIn = chat.source.ifBlank { stringResource(R.string.ai_label) }
+    val deleted = formatWhen(words, chat.trashedAt, now, "day", true, clock24, zone)
+    val left = if (days > 0) (days - ((now - chat.trashedAt) / 86_400_000L).toInt()).coerceAtLeast(0) else null
+    Row(Modifier.fillMaxWidth().height(60.dp).padding(start = Space.s8, end = Space.s4), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(40.dp).clip(MaterialTheme.shapes.small).background(palette.surface.toComposeColor()), contentAlignment = Alignment.Center) {
+            Icon(XnotesIcons.ai, null, tint = dim, modifier = Modifier.size(22.dp))
+        }
+        Column(Modifier.weight(1f).padding(start = Space.s16)) {
+            Text(title, color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(if (wide) stringResource(R.string.ai_trash_row_sub, wasIn) else stringResource(R.string.ai_trash_row_sub, wasIn) + " · " + deleted,
+                color = dim, fontSize = TextSize.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        if (wide) {
+            Row(Modifier.width(170.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s6)) {
+                Icon(XnotesIcons.file, null, tint = dim, modifier = Modifier.size(14.dp))
+                Text(wasIn, color = dim, fontSize = TextSize.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Text(deleted, color = dim, fontSize = TextSize.body, maxLines = 1, modifier = Modifier.width(150.dp))
+            Text(
+                when (left) { null -> stringResource(R.string.never); 0 -> stringResource(R.string.today); else -> pluralStringResource(R.plurals.days_count, left, left) },
+                color = if (left != null && left <= 3) palette.danger.toComposeColor() else palette.text.toComposeColor(),
+                fontSize = TextSize.body, maxLines = 1, modifier = Modifier.width(110.dp),
+            )
+        }
+        Row(Modifier.width(150.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.End) {
+            Row(
+                Modifier.clip(MaterialTheme.shapes.small).clickable(onClick = onRestore).padding(horizontal = Space.s8, vertical = Space.s8),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Space.s6),
+            ) {
+                Icon(XnotesIcons.restore, null, tint = palette.accent.toComposeColor(), modifier = Modifier.size(16.dp))
+                Text(stringResource(R.string.restore), color = palette.accent.toComposeColor(), fontSize = TextSize.bodyLarge, fontWeight = FontWeight.Medium)
+            }
+            var menu by remember { mutableStateOf(false) }
+            Box {
+                Tooltip(stringResource(R.string.more)) {
+                    IconButton(onClick = { menu = true }, modifier = Modifier.size(40.dp)) {
+                        Icon(XnotesIcons.more, stringResource(R.string.more_for, title), tint = dim, modifier = Modifier.size(17.dp))
+                    }
+                }
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(text = { Text(stringResource(R.string.restore)) }, onClick = { menu = false; onRestore() })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.delete_permanently)) }, onClick = { menu = false; onDelete() })
+                }
+            }
+        }
     }
 }
 

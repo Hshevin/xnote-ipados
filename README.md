@@ -14,7 +14,7 @@ This fork targets Wacom MovinkPad Pro 14 and Pro Pen 3. Three-button mappings an
 
 源码已合入主工作区，保留 Release 81 的灰阶、字号/间距 tokens 和工具栏布局。尚未开始下一轮 UI 调整；用户随后授权导出 AI preview3 测试 APK，包含本轮合并后的源码。
 
-由独立工作树 `ask-ai` 合入本地主分支的功能包括 PDF、分页笔记及无限画布截图菜单的「AI」。设置中填写 HTTPS 供应商地址、支持图片的模型和 API Key；支持应用内拖动/收起浮窗、流式回答、追问、停止和文本选择复制。当前源码已加入左侧 AI 历史：本地保存、搜索、继续、重命名、删除及 8 秒撤销。关闭浮窗、切换文档或新会话不取消生成；主动停止或确认删除才取消。进程结束后恢复最近保存的内容，并标记中断。
+由独立工作树 `ask-ai` 合入本地主分支的功能包括 PDF、分页笔记及无限画布截图菜单的「AI」。设置中填写 HTTPS 供应商地址、支持图片的模型和 API Key；支持应用内拖动/收起浮窗、流式回答、追问、停止和文本选择复制。当前源码已加入左侧 AI 历史：本地保存、搜索、继续、重命名，删除后移到回收站，可恢复或永久删除（[记录](docs/movinkpad/ai-trash-2026-11-04.md)）。关闭浮窗、切换文档或新会话不取消生成；主动停止或确认删除才取消。进程结束后恢复最近保存的内容，并标记中断。
 
 本分支新增可选网络功能，上游下方“no internet access”不适用于此分支。笔记仍离线保存，只有主动发送才上传选区及当前会话。已导出 [AI 独立测试 APK（preview3）](build/ai-preview/XNotes-0.9.7-ai-preview3-arm64.apk)，包名 `com.xnotes.movinkpad.aipreview`，可与 Release 并存。使用 `-PaiPreview=true :app:assembleDebug` 构建；真实接口、密钥存储故障恢复及平板交互尚待验收。详见 [实现与验证](docs/movinkpad/ask-ai-2026-11-03.md)。
 

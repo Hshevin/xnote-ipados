@@ -61,7 +61,7 @@ private fun stateLabel(state: String): String = when (state) {
 
 /** The stored default title is the Chinese "新会话"; show it in the UI language. */
 @Composable
-private fun AiChat.displayTitle(): String = if (title == AiChat().title) stringResource(R.string.ai_new_chat) else title
+internal fun AiChat.displayTitle(): String = if (title == AiChat().title) stringResource(R.string.ai_new_chat) else title
 
 /** A 48 dp icon action with a tooltip; the AI chrome has no bare text buttons. */
 @Composable
@@ -927,12 +927,15 @@ private fun AiSendButton(busy: Boolean, enabled: Boolean, onClick: () -> Unit) {
 
 /**
  * The floating card's history: only this document's chats, newest first. Picking one keeps it
- * floating over the document; renaming, deleting and opening other documents stay on the AI page.
+ * floating over the document; the trash button moves a chat to Trash. Renaming and opening other
+ * documents stay on the AI page.
  */
 @Composable
 private fun AiFloatingHistory(sessions: AiSessions, owner: String, modifier: Modifier, onPicked: () -> Unit) {
     val palette = LocalPalette.current
     val chats = sessions.chatsOf(owner)
+    var deleting by remember { mutableStateOf<AiChat?>(null) }
+    deleting?.let { chat -> AiTrashDialog(chat, onConfirm = { sessions.delete(chat.id); deleting = null }) { deleting = null } }
     Column(modifier) {
         Text(stringResource(R.string.ai_document_history), Modifier.padding(horizontal = Space.s16, vertical = Space.s8),
             color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
@@ -949,7 +952,7 @@ private fun AiFloatingHistory(sessions: AiSessions, owner: String, modifier: Mod
                 Row(
                     Modifier.fillMaxWidth().heightIn(min = MinTouchTarget).clip(MaterialTheme.shapes.medium)
                         .then(if (selected) Modifier.background(palette.selectionBackground.toComposeColor()) else Modifier)
-                        .clickable { sessions.openFloating(chat.id); onPicked() }.padding(horizontal = Space.s12, vertical = Space.s6),
+                        .clickable { sessions.openFloating(chat.id); onPicked() }.padding(start = Space.s12, top = Space.s2, bottom = Space.s2),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
@@ -957,10 +960,25 @@ private fun AiFloatingHistory(sessions: AiSessions, owner: String, modifier: Mod
                         Text("$turns · ${relativeAge(chat.updated)}", color = dim, fontSize = TextSize.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     if (running) AiSpinner(dim)
+                    val label = stringResource(R.string.ai_delete_chat, chat.displayTitle())
+                    Tooltip(label) {
+                        IconButton(onClick = { deleting = chat }, modifier = Modifier.size(MinTouchTarget)) {
+                            Icon(XnotesIcons.trash, label, Modifier.size(18.dp), tint = dim)
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+/** Confirms moving [chat] to Trash; shared by the AI page and the floating card's history. */
+@Composable
+private fun AiTrashDialog(chat: AiChat, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(stringResource(R.string.ai_delete_title)) },
+        text = { Text(stringResource(R.string.ai_delete_text, chat.displayTitle())) },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(R.string.ai_move_to_trash)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
 }
 
 // --- the AI page ---------------------------------------------------------------------------
@@ -1034,11 +1052,8 @@ private fun AiHistoryList(onShowSidebar: (() -> Unit)?, onOpenSource: (String) -
                     onRename = { renaming = chat.id; title = chat.title }, onDelete = { deleting = chat.id })
             }
         }
-        sessions.undoChat?.let { Box(Modifier.padding(vertical = Space.s8)) { AiBanner(stringResource(R.string.ai_deleted, it.displayTitle()), stringResource(R.string.undo), sessions::undoDelete) } }
     }
-    deleting?.let { id -> AlertDialog(onDismissRequest = { deleting = null }, title = { Text(stringResource(R.string.ai_delete_title)) }, text = { Text(stringResource(R.string.ai_delete_text)) },
-        confirmButton = { TextButton(onClick = { sessions.delete(id); deleting = null }) { Text(stringResource(R.string.delete)) } },
-        dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.cancel)) } }) }
+    deleting?.let { id -> sessions.chats[id]?.let { chat -> AiTrashDialog(chat, onConfirm = { sessions.delete(id); deleting = null }) { deleting = null } } }
     renaming?.let { id -> AlertDialog(onDismissRequest = { renaming = null }, title = { Text(stringResource(R.string.rename)) }, text = { OutlinedTextField(title, { title = it.take(100) }, singleLine = true) },
         confirmButton = { TextButton(onClick = { sessions.rename(id, title); renaming = null }) { Text(stringResource(R.string.save)) } },
         dismissButton = { TextButton(onClick = { renaming = null }) { Text(stringResource(R.string.cancel)) } }) }

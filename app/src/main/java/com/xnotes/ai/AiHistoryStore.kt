@@ -14,7 +14,9 @@ data class AiChat(val id: String = UUID.randomUUID().toString(), val title: Stri
     /** The model and thinking level picked in this chat; blank / null follow the settings defaults. */
     val model: String = "", val effort: String? = null,
     /** Other documents' keys whose screenshots joined this chat (split screen); the chat stays with its source. */
-    val relatedDocuments: List<String> = emptyList()) {
+    val relatedDocuments: List<String> = emptyList(),
+    /** When the chat was moved to Trash; 0 while it is in history. */
+    val trashedAt: Long = 0L) {
     /** The key the chat's source document is known by: registry ID, else URI, else title — as editors compute it. */
     val documentKey: String get() = sourceDocumentId.ifBlank { sourceUri.ifBlank { source } }
     /** What this chat sends with: its own picks over the defaults in [config]. */
@@ -45,7 +47,7 @@ class AiHistoryStore(private val directory: File, private val resources: com.xno
         chat.turns.forEach { turn -> turns.put(JSONObject().put("user", turn.user.text).put("images", JSONArray(turn.user.images))
             .put("pdf", pdfJson(turn.user.pdf))
             .put("sources", turn.user.searchContext).put("answer", turn.answer).put("state", turn.state).put("error", turn.error).put("progress", turn.progress).put("steps", JSONArray(turn.steps))) }
-        val json = JSONObject().put("version", 1).put("id", chat.id).put("title", chat.title).put("source", chat.source).put("updated", chat.updated).put("sourceUri", chat.sourceUri).put("sourceDocumentId", chat.sourceDocumentId).put("model", chat.model).put("effort", chat.effort ?: JSONObject.NULL).put("related", JSONArray(chat.relatedDocuments)).put("turns", turns).put("draft", JSONObject().put("text", chat.draft.text).put("images", JSONArray(chat.draft.images)).put("pdf", pdfJson(chat.draft.pdf)).put("search", chat.draft.search))
+        val json = JSONObject().put("version", 1).put("id", chat.id).put("title", chat.title).put("source", chat.source).put("updated", chat.updated).put("sourceUri", chat.sourceUri).put("sourceDocumentId", chat.sourceDocumentId).put("model", chat.model).put("effort", chat.effort ?: JSONObject.NULL).put("related", JSONArray(chat.relatedDocuments)).put("trashedAt", chat.trashedAt).put("turns", turns).put("draft", JSONObject().put("text", chat.draft.text).put("images", JSONArray(chat.draft.images)).put("pdf", pdfJson(chat.draft.pdf)).put("search", chat.draft.search))
         val bytes = json.toString().toByteArray(Charsets.UTF_8)
         require(bytes.size <= 64 * 1024 * 1024) { AiText.t(AiMsg.CHAT_TOO_LARGE) }
         val ids = (chat.turns.mapNotNull { it.user.pdf?.id } + listOfNotNull(chat.draft.pdf?.id)).filter { it.isNotBlank() }.toSet()
@@ -74,7 +76,8 @@ class AiHistoryStore(private val directory: File, private val resources: com.xno
                     AiTurn(AiMessage("user", t.getString("user"), readImages(t), t.optString("sources", ""), readPdf(t.optJSONObject("pdf"))), t.getString("answer"), t.getString("state"), t.optString("error", ""), t.optString("progress", ""), t.optJSONArray("steps")?.let { steps -> (0 until steps.length()).map { steps.getString(it) } } ?: emptyList())
                 }, json.optString("sourceUri", ""), json.optJSONObject("draft")?.let { d -> AiDraft(d.optString("text", ""), readImages(d), readPdf(d.optJSONObject("pdf")), d.optBoolean("search", false)) } ?: AiDraft(), json.optString("sourceDocumentId", ""),
                     model = (json.opt("model") as? String).orEmpty(), effort = (json.opt("effort") as? String)?.takeIf { it in AiThinking.LEVELS },
-                    relatedDocuments = json.optJSONArray("related")?.let { list -> (0 until list.length()).mapNotNull { list.opt(it) as? String } } ?: emptyList())
+                    relatedDocuments = json.optJSONArray("related")?.let { list -> (0 until list.length()).mapNotNull { list.opt(it) as? String } } ?: emptyList(),
+                    trashedAt = json.optLong("trashedAt", 0L).coerceAtLeast(0L))
             } catch (_: Exception) { damaged++; null }
         }
         if (damaged == 0 && resources != null) try {

@@ -351,7 +351,9 @@ private fun BackstageContent(
     else pins.indexOfFirst { runCatching { editor.browseDocId(it.uri) }.getOrNull() == explorerFolder }
     val shownColors = if (prefs.sidebarColours) colors else emptyList()
     // With Trash off it leaves the sidebar, once whatever was already in it is restored or emptied.
-    val trashCount = if (prefs.sidebarTrash && editor.browseRoot != null && (prefs.trashDays != 0 || editor.trashCount > 0)) editor.trashCount else -1
+    // Deleted AI chats live in the same Trash, so they count and keep it reachable without a notes folder.
+    val aiTrash = com.xnotes.ai.AiSessions.get(LocalContext.current).trash.size
+    val trashCount = if (prefs.sidebarTrash && (editor.browseRoot != null && (prefs.trashDays != 0 || editor.trashCount > 0) || aiTrash > 0)) editor.trashCount + aiTrash else -1
     LaunchedEffect(editor.browseRoot) { editor.browseRoot?.let { r -> withContext(Dispatchers.IO) { editor.purgeExpiredTrash(r, prefs.trashDays) } } }
     // Kept while its inputs hold, so folding the sidebar never recomposes the rail or the sidebar.
     val showRecent = prefs.sidebarRecent && editor.browseRoot != null

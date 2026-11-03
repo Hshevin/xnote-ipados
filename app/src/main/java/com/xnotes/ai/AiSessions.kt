@@ -27,7 +27,8 @@ class AiSessions(
     var activeId by mutableStateOf<String?>(null)
     var ready by mutableStateOf(false); private set
     var storageError by mutableStateOf(""); private set
-    var undoChat by mutableStateOf<AiChat?>(null); private set
+    /** Chats moved to Trash, kept on disk until restored or deleted permanently; never in [chats]. */
+    val trash = mutableStateMapOf<String, AiChat>()
     val searchEnabled = mutableStateMapOf<String, Boolean>()
     val importStates = mutableStateMapOf<String, AiImportState>()
     val scrollPositions = mutableMapOf<String, Int>()
@@ -54,7 +55,7 @@ class AiSessions(
         scope.launch {
             try {
                 val (loaded, damaged) = withContext(Dispatchers.IO) { store.readAll() }
-                loaded.forEach { chat -> chats[chat.id] = chat.recover(); restoreDraft(chat) }
+                loaded.forEach { chat -> if (chat.trashedAt > 0) trash[chat.id] = chat.recover() else { chats[chat.id] = chat.recover(); restoreDraft(chat) } }
                 if (damaged > 0) storageError = AiText.t(AiMsg.HISTORY_DAMAGED, damaged)
                 loaded.filter { it != it.recover() }.forEach { persist(it.recover()) }
             } catch (_: Exception) { storageError = AiText.t(AiMsg.HISTORY_READ_FAILED) }
@@ -320,26 +321,56 @@ class AiSessions(
         update(id) { c -> c.copy(updated = System.currentTimeMillis(), turns = c.turns.dropLast(1) + c.turns.last().copy(state = state, error = error)) }?.let { persist(it) }
     }
     fun stop(id: String) { requests[id]?.let { (client, job) -> client.cancel(); job.cancel() } }
+    /**
+     * Moves a chat to Trash: generation and imports stop, and it leaves every history list. Its record
+     * (draft and PDF references included) stays on disk until restored or deleted permanently. A
+     * floating card on it moves to the document's newest other chat, or a fresh one.
+     */
     fun delete(id: String) {
         val chat = chats[id] ?: return
         stop(id)
         imports.remove(id)?.cancel(); importStates.remove(id); draftSaves.remove(id)?.cancel()
         searchEnabled.remove(id); scrollPositions.remove(id); followLatest.remove(id)
         attachments.remove(id); drafts.remove(id); pdfAttachments.remove(id); currentPdfs.remove(id)
-        chats.remove(id) // Late callbacks cannot recreate a deleted record.
-        if (activeId == id) close()
-        val deleted = chat.recover()
+        chats.remove(id) // Late callbacks cannot recreate a trashed record.
+        val trashed = chat.recover().copy(trashedAt = System.currentTimeMillis())
+        trash[id] = trashed
+        if (activeId == id) {
+            val owner = floatingOwner
+            val next = owner?.let { chatsOf(it).firstOrNull() }
+            when {
+                next != null -> activeId = next.id
+                owner != null && documents.containsKey(owner) -> newChat(floatingOwner = owner)
+                else -> close()
+            }
+        }
+        // Queued now, after every earlier write of this chat; if it fails the chat goes back where it was, with the storage error shown.
+        val saved = persist(trashed)
+        scope.launch { if (!saved.await() && trash[id] === trashed) { trash.remove(id); chats[id] = chat; restoreDraft(chat) } }
+    }
+    /** Back from Trash into history, draft and attachments as they were. */
+    fun restore(id: String) {
+        val chat = trash.remove(id) ?: return
+        val back = chat.copy(trashedAt = 0L)
+        chats[id] = back; restoreDraft(back); persist(back)
+    }
+    /** Removes a trashed chat's record for good; its PDF snapshots are released once nothing else holds them. */
+    fun deleteForever(id: String) {
+        val chat = trash.remove(id) ?: return
+        // Queued now, in order with the writes before it; only the outcome is awaited.
+        val op = Disk(delete = id).also { disk.trySend(it) }
         scope.launch {
-            val op = Disk(delete = id); disk.send(op)
-            if (op.done.await()) {
-                undoChat = deleted
-                delay(8000)
-                if (undoChat?.id == id) undoChat = null
-                withContext(Dispatchers.IO) { store.forgetDeleted(id) }
-            } else { chats[id] = deleted }
+            if (op.done.await()) withContext(Dispatchers.IO) { runCatching { store.forgetDeleted(id) } }
+            else trash[id] = chat
         }
     }
-    fun undoDelete() { undoChat?.let { chats[it.id] = it; restoreDraft(it); persist(it); undoChat = null } }
+    fun emptyTrash() = trash.keys.toList().forEach(::deleteForever)
+    /** Permanently deletes chats trashed more than [days] days ago; 0 or less keeps them until emptied by hand. */
+    fun purgeTrash(days: Int, now: Long = System.currentTimeMillis()) {
+        if (days <= 0) return
+        val cutoff = now - days * 86_400_000L
+        trash.values.filter { it.trashedAt in 1 until cutoff }.forEach { deleteForever(it.id) }
+    }
     companion object {
         @Volatile private var instance: AiSessions? = null
         fun get(context: Context): AiSessions {

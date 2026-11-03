@@ -42,7 +42,7 @@ class AiSessionsTest {
             assertEquals("已完成", store.readAll().first.first { it.id == first }.turns.single().state)
         } finally { job.cancelAndJoin(); dir.deleteRecursively() }
     }
-    @Test fun deleteCancelsAndCannotResurrectThenUndoRestoresPartial() = runBlocking {
+    @Test fun deleteCancelsMovesToTrashAndRestoreBringsBackPartial() = runBlocking {
         val dir = Files.createTempDirectory("sessions").toFile()
         val job = SupervisorJob(); val scope = CoroutineScope(coroutineContext + job)
         try {
@@ -51,11 +51,16 @@ class AiSessionsTest {
             until { sessions.ready }; val id = sessions.newChat()
             sessions.send(id, AiMessage("user", "问题"), false)
             reply.entered.await(); sessions.delete(id)
-            until { sessions.undoChat != null }; sessions.flush()
-            assertTrue(reply.cancelled); assertFalse(sessions.chats.containsKey(id)); assertTrue(store.readAll().first.isEmpty())
-            sessions.undoDelete(); sessions.flush()
+            sessions.flush()
+            assertTrue(reply.cancelled); assertFalse(sessions.chats.containsKey(id)); assertTrue(sessions.trash.containsKey(id))
+            assertTrue(store.readAll().first.single().trashedAt > 0)
+            sessions.restore(id); sessions.flush()
+            assertTrue(sessions.chats.containsKey(id)); assertFalse(sessions.trash.containsKey(id))
+            assertEquals(0L, store.readAll().first.single().trashedAt)
             assertEquals("部分", store.readAll().first.single().turns.single().answer)
             assertNotEquals("生成中", store.readAll().first.single().turns.single().state)
+            sessions.delete(id); sessions.deleteForever(id); sessions.flush()
+            assertTrue(sessions.trash.isEmpty()); assertTrue(store.readAll().first.isEmpty())
         } finally { job.cancelAndJoin(); dir.deleteRecursively() }
     }
     @Test fun failedInitialSaveDoesNotSendNetworkRequest() = runBlocking {
