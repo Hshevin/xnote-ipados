@@ -255,18 +255,46 @@ fun workspaceToolbarLayout(paged: ToolbarLayout, canvas: ToolbarLayout): Toolbar
     return ToolbarLayout(paged.visibleSections + if (extra.isEmpty()) emptyList() else listOf(ToolbarSection(extra)))
 }
 
-val documentToolbarItems = setOf(ToolbarItem.SIDEBAR, ToolbarItem.MARKUP, ToolbarItem.PAGE_NAV, ToolbarItem.INSERT_SPACE,
-    ToolbarItem.ZOOM, ToolbarItem.FIT, ToolbarItem.ZOOM_LOCK,
-    ToolbarItem.STYLES, ToolbarItem.MARGINS, ToolbarItem.VIEW, ToolbarItem.WAYPOINTS, ToolbarItem.MINIMAP)
-fun ToolbarLayout.forDocumentControls(document: Boolean): ToolbarLayout = ToolbarLayout(sections.map {
-    ToolbarSection(it.visibleEntries.filter { entry -> (entry.item in documentToolbarItems) == document })
-}.filter { it.hasVisible })
+/** Classify every new button here: the exhaustive when prevents silent placement defaults. */
+enum class ToolbarDocument { NOTE, PDF, CANVAS }
+private enum class ToolbarScope(val supported: Set<ToolbarDocument>, val perDocument: Boolean) {
+    COMMON(ToolbarDocument.entries.toSet(), false),
+    PAGED_TOOL(setOf(ToolbarDocument.NOTE, ToolbarDocument.PDF), false),
+    PDF_TOOL(setOf(ToolbarDocument.PDF), false),
+    ALL_VIEW(ToolbarDocument.entries.toSet(), true),
+    PAGED_VIEW(setOf(ToolbarDocument.NOTE, ToolbarDocument.PDF), true),
+    CANVAS_VIEW(setOf(ToolbarDocument.CANVAS), true),
+}
+private val ToolbarItem.scope: ToolbarScope get() = when (this) {
+    ToolbarItem.HOME, ToolbarItem.TITLE, ToolbarItem.PEN, ToolbarItem.DASHED,
+    ToolbarItem.CALLIGRAPHY, ToolbarItem.SPEED, ToolbarItem.TAPER, ToolbarItem.HIGHLIGHTER,
+    ToolbarItem.ERASER, ToolbarItem.PAN, ToolbarItem.SELECT, ToolbarItem.LASSO,
+    ToolbarItem.SCREENSHOT, ToolbarItem.WAND, ToolbarItem.TAPE, ToolbarItem.SHAPE,
+    ToolbarItem.RULER, ToolbarItem.TEXT, ToolbarItem.TEXT_BOX, ToolbarItem.IMAGE,
+    ToolbarItem.UNDO, ToolbarItem.REDO, ToolbarItem.FULLSCREEN, ToolbarItem.COLORS -> ToolbarScope.COMMON
+    ToolbarItem.INSERT_SPACE -> ToolbarScope.PAGED_TOOL
+    ToolbarItem.MARKUP -> ToolbarScope.PDF_TOOL
+    ToolbarItem.ZOOM, ToolbarItem.FIT, ToolbarItem.ZOOM_LOCK, ToolbarItem.STYLES -> ToolbarScope.ALL_VIEW
+    ToolbarItem.SIDEBAR, ToolbarItem.PAGE_NAV, ToolbarItem.MARGINS, ToolbarItem.VIEW -> ToolbarScope.PAGED_VIEW
+    ToolbarItem.WAYPOINTS, ToolbarItem.MINIMAP -> ToolbarScope.CANVAS_VIEW
+}
 
-fun documentToolbarLayout(layout: ToolbarLayout, canvas: Boolean, pdf: Boolean): ToolbarLayout =
-    ToolbarLayout(layout.forDocumentControls(true).sections.map { section ->
-        ToolbarSection(section.visibleEntries.filter {
-            if (canvas) it.item in setOf(ToolbarItem.STYLES, ToolbarItem.WAYPOINTS, ToolbarItem.MINIMAP,
-                ToolbarItem.ZOOM, ToolbarItem.FIT, ToolbarItem.ZOOM_LOCK)
-            else it.item !in setOf(ToolbarItem.WAYPOINTS, ToolbarItem.MINIMAP) && (it.item != ToolbarItem.MARKUP || pdf)
+private val pagedDocuments = setOf(ToolbarDocument.NOTE, ToolbarDocument.PDF)
+
+/** Tools move together based on the workspace, never the currently focused pane. */
+fun ToolbarLayout.forDocumentControls(document: Boolean, documents: Set<ToolbarDocument> = pagedDocuments): ToolbarLayout =
+    ToolbarLayout(sections.map { section ->
+        ToolbarSection(section.visibleEntries.filter { entry ->
+            val scope = entry.item.scope
+            val local = scope.perDocument || documents.isEmpty() || !scope.supported.containsAll(documents)
+            local == document
         })
     }.filter { it.hasVisible })
+
+fun documentToolbarLayout(layout: ToolbarLayout, canvas: Boolean, pdf: Boolean,
+    documents: Set<ToolbarDocument> = pagedDocuments): ToolbarLayout {
+    val kind = if (canvas) ToolbarDocument.CANVAS else if (pdf) ToolbarDocument.PDF else ToolbarDocument.NOTE
+    return ToolbarLayout(layout.forDocumentControls(true, documents).sections.map { section ->
+        ToolbarSection(section.visibleEntries.filter { kind in it.item.scope.supported })
+    }.filter { it.hasVisible })
+}

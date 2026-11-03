@@ -1543,6 +1543,14 @@ private val SwallowTouches = Modifier.pointerInput(Unit) {
  */
 private data class SplitTitleDrag(val source: Editor, val origin: Offset, val point: Offset, val returning: Boolean = false)
 
+private fun Editor.toolbarDocuments(): Set<com.xnotes.core.tools.ToolbarDocument> = openPanes.map {
+    when {
+        it.canvasOpen -> com.xnotes.core.tools.ToolbarDocument.CANVAS
+        it.hasPdf -> com.xnotes.core.tools.ToolbarDocument.PDF
+        else -> com.xnotes.core.tools.ToolbarDocument.NOTE
+    }
+}.toSet()
+
 @Composable
 private fun SplitHost(editor: Editor, actions: PaneActions, homes: Set<com.xnotes.ui.Pane>, onDocumentFocus: () -> Unit, home: @Composable (Editor) -> Unit) {
     val second = editor.secondary
@@ -1575,7 +1583,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions, homes: Set<com.xnote
                     com.xnotes.ui.ToolbarIcon(XnotesIcons.split, stringResource(R.string.split_change_direction)) { editor.splitSideBySide = !sideBySide }
                 }) {
                     CompositionLocalProvider(com.xnotes.ui.LocalEmbeddedToolbar provides true,
-                        com.xnotes.ui.LocalWorkspaceToolbarLayout provides layout.forDocumentControls(false)) {
+                        com.xnotes.ui.LocalWorkspaceToolbarLayout provides layout.forDocumentControls(false, editor.toolbarDocuments())) {
                         if (homes.size < 2) EditorToolbar(editor.active, editor, actions, shared = true)
                     }
                 }
@@ -1854,7 +1862,7 @@ private fun EditorPane(
                     Box(Modifier.weight(1f)) {
                         val look = com.xnotes.ui.LocalToolbarLook.current
                         val layout = com.xnotes.core.tools.documentToolbarLayout(
-                            com.xnotes.core.tools.workspaceToolbarLayout(app.toolbarLayout, app.canvasToolbarLayout), editor.canvasOpen, editor.hasPdf)
+                            com.xnotes.core.tools.workspaceToolbarLayout(app.toolbarLayout, app.canvasToolbarLayout), editor.canvasOpen, editor.hasPdf, app.toolbarDocuments())
                         CompositionLocalProvider(com.xnotes.ui.LocalToolbarLook provides look.copy(position = com.xnotes.settings.ToolbarPosition.TOP, floating = false),
                             com.xnotes.ui.LocalWorkspaceToolbarLayout provides layout) {
                             com.xnotes.ui.ToolbarFrame(armed = if (editor.canvasOpen) editor.infinite.tool else editor.tool) {

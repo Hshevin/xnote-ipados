@@ -9,11 +9,11 @@ This fork targets Wacom MovinkPad Pro 14 and Pro Pen 3. Three-button mappings an
 - [Branch split and upstream sync](docs/movinkpad/github-sync-2026-11-02.md)
 - [Planned PDF and cursor work](tasks/plan.md)
 
-## 当前开发状态（2026-11-02）
+## 当前开发状态（2026-11-03）
 
-- `master` 保留分屏前的 MovinkPad 改进并已同步上游 0.9.7；分屏开发在 `codex/split-workspace`，见上面的分支同步记录。
+- 本地 `master` 已快进合入 `codex/split-workspace`，包含分屏功能及上游 0.9.7；原分屏分支保留，尚未推送此次合并。见上面的分支同步记录。
 - 分屏功能基线为 **0.9.7-split-preview10 / versionCode 77**：支持笔记、PDF、画布分屏、应用内分屏文件管理、默认新分屏位置和重复保存去重。详见 [分屏开发与验收记录](docs/movinkpad/split-preview-2026-11-02.md)。
-- 测试包名 `com.xnotes.movinkpad.splitpreview`，与正式包名 `com.xnotes.movinkpad` 分开安装。用户已确认该版本满足当前需求，并要求打包原应用覆盖升级版；后续修复及维护文档在 `codex/split-workspace` 分支维护，`master` 保留分屏前边界。
+- 测试包名 `com.xnotes.movinkpad.splitpreview`，与正式包名 `com.xnotes.movinkpad` 分开安装。用户已确认该版本满足当前需求，并要求打包原应用覆盖升级版；当前维护入口为 `master`。
 - 本轮验证：2462 项 JVM 测试、39 项 Android 模拟器测试通过。测试数量是本次记录，不代表后续版本已验证。
 
 当前覆盖升级版为 **0.9.7-movinkpad / versionCode 80**，使用原应用身份和历史签名。交付与验证见 [Release 记录](docs/movinkpad/release-2026-11-02.md)。测试版的数据不会自动迁入原应用。版本 79 修复返回主菜单后打开普通文件仍保留分屏的问题，普通文件进入单文档，显式恢复分屏不受影响。
@@ -33,6 +33,8 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 ```
 
 Release 80 包含实时笔迹刷新调整、分屏关闭先回到窗格首页再退出，以及文件树叶子文件夹箭头修复。前缓冲显示和性能仍待目标设备验证；发布结果见 Release 记录。
+
+当前未发布的工具栏调整统一按文档能力分配：插入空白在笔记/PDF 工作区置顶；PDF 文本标注在全 PDF 工作区置顶；混合不支持的文档时下放对应文档栏。缩放/导航/视图等独立设置保持在文档栏。新按钮必须显式分类。按用户要求暂不打包。
 
 每个功能阶段或交付前检查本文件与 [AGENTS.md](AGENTS.md)，同步状态、构建入口及维护约定；详细历史和证据保存在 `docs/movinkpad/`。
 
