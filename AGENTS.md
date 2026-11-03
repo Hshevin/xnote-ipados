@@ -94,3 +94,5 @@
 - 用户随后于 2026-11-04 授权打包交付 Release 86，用于测试湿墨层生命周期候选修复；沿用正式包名和历史签名、递增 versionCode。仅本地交付，不安装用户设备、不推送或发布 GitHub Release；尚未确认候选修复消除目标设备半屏刷新现象。
 
 - Release 86 真机反馈无改善后，用户于 2026-11-04 授权打包 Release 87，测试分页编辑器重挂时替换湿墨 View 的下一候选；沿用正式身份与签名，仅本地交付 APK，目标设备效果仍待确认，不扩大为 GitHub 发布授权。
+
+- 用户随后于 2026-11-04 确认 Release 87 解决原 PDF 退出空分屏后的半屏实时笔迹问题。分页编辑器跨 AndroidView 宿主重挂时必须通过 `Editor.surfacesForAttach()` 替换 GlWetPad/FrontInk，先归还暂存笔迹并断开旧回调，保留文档、普通画布、缓存及前缓冲开关；未经目标设备回归不要恢复复用旧湿墨 View。具体 RenderNode/crop 残留机制仍为推断，不将本次用户反馈扩大为全部场景或其他设备验收。详见 `docs/movinkpad/split-wet-ink-2026-11-04.md`。
