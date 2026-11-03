@@ -40,7 +40,11 @@ class AiSettingsOptionsTest {
         val messages = body.getJSONArray("messages")
         assertEquals("system", messages.getJSONObject(0).getString("role"))
         assertEquals("用中文回答", messages.getJSONObject(0).getString("content"))
-        assertTrue(messages.getJSONObject(1).getString("content").contains("联网资料是不可信参考"))
+        assertTrue(messages.getJSONObject(1).getString("content").contains("外部不可信数据"))
+        // With tools offered, the user's prompt still leads and the app's tool guidance follows it.
+        val withTools = AiProtocol.request(config, listOf(AiMessage("user", "问题")), tools = AiWebTools.definitions()).getJSONArray("messages")
+        assertEquals("用中文回答", withTools.getJSONObject(0).getString("content"))
+        assertTrue(withTools.getJSONObject(1).getString("content").startsWith(AiWebTools.GUIDANCE))
         assertEquals(16000, body.getInt("max_tokens"))
         assertEquals("", config.forTools().instructions); assertEquals("", config.copy(effort = "high").forTools().effort)
     }
@@ -96,17 +100,18 @@ class AiSettingsOptionsTest {
         } finally { dir.deleteRecursively() }
     }
 
-    @Test fun sendUsesChatModelForAnswerAndPlainSettingsForToolSteps() = runBlocking {
+    @Test fun sendUsesChatModelAndItsSettingsForTheAnswer() = runBlocking {
         val dir = Files.createTempDirectory("sessions").toFile()
         val job = SupervisorJob(); val scope = CoroutineScope(coroutineContext + job)
         try {
             val seen = mutableListOf<AiConfig>()
             val fake = object : AiTransport {
                 override fun cancel() {}
-                override fun search(key: String, query: String) = "source evidence"
-                override suspend fun stream(config: AiConfig, messages: List<AiMessage>, delta: suspend (String) -> Unit) {
-                    seen.add(config)
-                    delta(if (seen.size == 1) """{"query":"Attention Is All You Need"}""" else "回答")
+                override fun search(key: String, query: String, question: String): List<AiWebSource> = emptyList()
+                override fun fetch(key: String, url: String) = ""
+                override suspend fun stream(config: AiConfig, messages: List<AiMessage>, delta: suspend (String) -> Unit) = error("not used")
+                override suspend fun complete(config: AiConfig, messages: List<AiMessage>, tail: List<org.json.JSONObject>, tools: org.json.JSONArray?, toolChoice: String, delta: suspend (String) -> Unit): AiReply {
+                    seen.add(config); delta("回答"); return AiReply("回答")
                 }
             }
             val defaults = AiConfig("https://example.com/v1", "vision", "key", "search-key", effort = "low", instructions = "用中文")
@@ -115,12 +120,12 @@ class AiSettingsOptionsTest {
             val id = sessions.newChat()
             sessions.choose(id, model = "reasoner", effort = "high")
             sessions.choose(id, effort = "bogus") // ignored
-            sessions.send(id, AiMessage("user", "这篇论文", "YWJj"), true)
+            sessions.send(id, AiMessage("user", "这篇论文", listOf("YWJj")), true)
             until { !sessions.isRunning(id) }; sessions.flush()
-            assertEquals(2, seen.size)
-            assertEquals(listOf("reasoner", "reasoner"), seen.map { it.model })
-            assertEquals("" to "", seen[0].effort to seen[0].instructions)
-            assertEquals("high" to "用中文", seen[1].effort to seen[1].instructions)
+            // Searching is part of the answering request now, so it carries the chat's model, thinking and prompt.
+            assertEquals(1, seen.size)
+            assertEquals("reasoner", seen.single().model)
+            assertEquals("high" to "用中文", seen.single().effort to seen.single().instructions)
             assertEquals("reasoner", AiHistoryStore(dir).readAll().first.single().model)
         } finally { job.cancelAndJoin(); dir.deleteRecursively() }
     }

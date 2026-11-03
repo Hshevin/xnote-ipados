@@ -19,11 +19,11 @@ class DeepSeekTransportTest {
     @Test fun searchUsesOfficialEndpointAndSeparateKey() {
         val fake = Fake()
         val client = AiConnection { endpoint -> assertEquals(DeepSeekSearch.ENDPOINT, endpoint); fake }
-        assertTrue(client.search("search-test-key", "example").contains("未找到"))
+        assertTrue(client.search("search-test-key", "example", "原问题").isEmpty())
         assertEquals("Bearer search-test-key", fake.getRequestProperty("Authorization"))
         assertFalse(fake.instanceFollowRedirects)
         assertEquals("POST", fake.requestMethod)
-        assertTrue(fake.sent.toString().contains("example"))
+        assertTrue(fake.sent.toString().contains("example")); assertTrue(fake.sent.toString(Charsets.UTF_8).contains("原问题"))
         assertTrue(fake.disconnected)
     }
     @Test fun httpFailureDoesNotBecomeSearchSuccess() {
@@ -44,5 +44,17 @@ class DeepSeekTransportTest {
         val fake = Fake(body = "x".repeat(1024 * 1024 + 1))
         assertThrows(IllegalStateException::class.java) { AiConnection { fake }.search("key", "query") }
         assertTrue(fake.disconnected)
+    }
+    @Test fun fetchUsesOfficialFetchEndpointAndSearchKey() {
+        val fake = Fake(body = "{\"content\":\"# Title\"}")
+        val client = AiConnection { endpoint -> assertEquals(DeepSeekSearch.FETCH_ENDPOINT, endpoint); fake }
+        assertEquals("# Title", client.fetch("search-test-key", "https://example.com/a"))
+        assertEquals("Bearer search-test-key", fake.getRequestProperty("Authorization"))
+        assertFalse(fake.instanceFollowRedirects)
+        assertTrue(fake.sent.toString().contains("https:\\/\\/example.com\\/a") || fake.sent.toString().contains("https://example.com/a"))
+    }
+    @Test fun unusableFetchUrlNeverConnects() {
+        val client = AiConnection { error("must not connect") }
+        assertThrows(IllegalArgumentException::class.java) { client.fetch("key", "file:///data/data/x") }
     }
 }

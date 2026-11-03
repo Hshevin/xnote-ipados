@@ -6,7 +6,7 @@
     <string name="ai_msg_config_search_key_invalid">Invalid search API key format</string>
     <string name="ai_msg_search_key_required">Enter a DeepSeek search API key first</string>
     <string name="ai_msg_connection_stopped">Stopped</string>
-    <string name="ai_msg_search_http_failed">DeepSeek search failed (HTTP %1$d). Check the search key and quota. No answer was generated.</string>
+    <string name="ai_msg_search_http_failed">DeepSeek search failed (HTTP %1$d). Check the search key and quota.</string>
     <string name="ai_msg_search_response_too_large">Search response is too large</string>
     <string name="ai_msg_request_too_large">Screenshot or chat is too large. Start a new chat and use a smaller screenshot.</string>
     <string name="ai_msg_request_http_failed">Request failed (HTTP %1$d). Check the endpoint, key, model and quota.</string>
@@ -47,7 +47,6 @@
     <string name="ai_msg_endpoint_invalid">Enter an HTTPS endpoint without credentials, query or fragment</string>
     <string name="ai_msg_model_required">Enter the name of a model that supports images</string>
     <string name="ai_msg_chat_too_long">Chat is too long. Start a new chat.</string>
-    <string name="ai_msg_search_target_unresolved">Couldn\'t tell what to search for from the screenshot and question. Add a clearer screenshot or the exact title and try again.</string>
     <string name="ai_msg_search_query_length">Enter a search term of 1–128 characters</string>
     <string name="ai_msg_search_returned_error">DeepSeek search returned an error</string>
     <string name="ai_msg_pdf_service_unavailable">PDF reading is unavailable</string>
@@ -60,8 +59,16 @@
     <string name="ai_msg_search_key_not_configured">Set up a DeepSeek search key</string>
     <string name="ai_msg_question_save_failed">Couldn\'t save the question. Sending was cancelled.</string>
     <string name="ai_msg_progress_preparing">Preparing answer</string>
-    <string name="ai_msg_progress_resolving_search">Identifying what to search for</string>
-    <string name="ai_msg_search_target_too_long">Couldn\'t identify what to search for. Add a clearer screenshot or the exact title.</string>
+    <string name="ai_msg_fetch_url_invalid">Invalid page address. Only public http(s) pages can be read.</string>
+    <string name="ai_msg_fetch_http_failed">DeepSeek page reading failed (HTTP %1$d)</string>
+    <string name="ai_msg_fetch_response_too_large">The page is too large</string>
+    <string name="ai_msg_fetch_returned_error">DeepSeek page reading returned an error</string>
+    <string name="ai_msg_progress_fetching_page">Reading page: %1$s</string>
+    <string name="ai_msg_tools_unsupported">This model or API doesn\'t support tool calls, so the web wasn\'t searched</string>
+    <string name="ai_msg_web_tool_failed">Web tool failed: %1$s</string>
+    <string name="ai_msg_web_tool_args_invalid">The model gave invalid web tool arguments</string>
+    <string name="ai_msg_web_tool_unknown">The model asked for an unsupported tool</string>
+    <string name="ai_msg_web_tool_too_many">Too many tool calls this round; the extra ones were not run</string>
     <string name="ai_msg_progress_searching_web">Searching the web: %1$s</string>
     <string name="ai_msg_progress_generating">Generating answer</string>
     <string name="ai_msg_no_text_returned">The model returned no text</string>

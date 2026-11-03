@@ -16,7 +16,8 @@ class AiSessions(
     private val holdPdfs: (Set<String>) -> AutoCloseable = { AutoCloseable {} },
     private val preparePdf: suspend (String, String?) -> AiPdf = { _, _ -> error(AiText.t(AiMsg.PDF_SERVICE_UNAVAILABLE)) },
 ) {
-    val attachments = mutableStateMapOf<String, ByteArray>()
+    /** Pending screenshots per chat, in capture order. */
+    val attachments = mutableStateMapOf<String, List<ByteArray>>()
     val pdfAttachments = mutableStateMapOf<String, AiPdf>()
     val currentPdfs = mutableStateMapOf<String, Pair<String, String>>()
     val drafts = mutableStateMapOf<String, String>()
@@ -32,6 +33,15 @@ class AiSessions(
     val scrollPositions = mutableMapOf<String, Int>()
     /** Where the floating card was last left, in px of its host; a new chat opens there too. Null until moved. */
     var windowOffset by mutableStateOf<Pair<Float, Float>?>(null)
+    /** The floating card folded to its title strip; kept here so a new capture can unfold it. */
+    var floatingCollapsed by mutableStateOf(false)
+    /** Documents open in panes, by document key, registered by their editors while composed. */
+    val documents = mutableStateMapOf<String, AiDocument>()
+    /** Every composed pane's screenshot tool, by a per-pane token: two panes may show one document. */
+    private val captureTargets = mutableStateMapOf<Any, AiCaptureTarget>()
+    val canCapture: Boolean get() = captureTargets.isNotEmpty()
+    /** The floating card's capture mode: every pane has its screenshot tool armed, the card is folded. */
+    var capturing by mutableStateOf(false); private set
     /** Bumped when AI settings are saved, so open chats re-read their model choices. */
     var configRevision by mutableStateOf(0)
     val followLatest = mutableMapOf<String, Boolean>()
@@ -70,9 +80,8 @@ class AiSessions(
     private fun restoreDraft(chat: AiChat) {
         drafts[chat.id] = chat.draft.text
         searchEnabled[chat.id] = chat.draft.search
-        chat.draft.image?.let { encoded ->
-            runCatching { java.util.Base64.getDecoder().decode(encoded) }.onSuccess { attachments[chat.id] = it }.onFailure { storageError = AiText.t(AiMsg.DRAFT_SCREENSHOT_UNREADABLE) }
-        }
+        if (chat.draft.images.isNotEmpty())
+            runCatching { chat.draft.images.map { java.util.Base64.getDecoder().decode(it) } }.onSuccess { attachments[chat.id] = it }.onFailure { storageError = AiText.t(AiMsg.DRAFT_SCREENSHOT_UNREADABLE) }
         chat.draft.pdf?.let { pdfAttachments[chat.id] = it }
     }
     fun editDraft(id: String, text: String? = null, search: Boolean? = null) {
@@ -80,9 +89,26 @@ class AiSessions(
         text?.let { drafts[id] = it.take(16000) }; search?.let { searchEnabled[id] = it }
         saveDraft(id)
     }
-    fun setScreenshot(id: String, bytes: ByteArray?) {
-        if (!chats.containsKey(id)) return
-        if (bytes == null) attachments.remove(id) else attachments[id] = bytes
+    /**
+     * Adds a screenshot to the chat's next question; false when it already holds [AiProtocol.MAX_IMAGES].
+     * A capture from another document ([fromDocument], its key) records that document on the chat, so
+     * the chat also appears in that document's floating history; it still belongs to its source.
+     */
+    fun addScreenshot(id: String, bytes: ByteArray, fromDocument: String = ""): Boolean {
+        val chat = chats[id] ?: return false
+        val current = attachments[id].orEmpty()
+        if (current.size >= AiProtocol.MAX_IMAGES) return false
+        attachments[id] = current + bytes
+        if (fromDocument.isNotBlank() && fromDocument != chat.documentKey && fromDocument !in chat.relatedDocuments)
+            chats[id] = chat.copy(relatedDocuments = chat.relatedDocuments + fromDocument)
+        saveDraft(id)
+        return true
+    }
+    fun removeScreenshot(id: String, index: Int) {
+        val current = attachments[id] ?: return
+        if (index !in current.indices) return
+        val next = current.filterIndexed { i, _ -> i != index }
+        if (next.isEmpty()) attachments.remove(id) else attachments[id] = next
         saveDraft(id)
     }
     fun removePdf(id: String) {
@@ -94,12 +120,13 @@ class AiSessions(
         drafts[id] = user.text
         if (user.pdf != null) pdfAttachments[id] = user.pdf
         attachments.remove(id)
-        user.image?.let { attachments[id] = java.util.Base64.getDecoder().decode(it) }
+        if (user.images.isNotEmpty()) attachments[id] = user.images.map { java.util.Base64.getDecoder().decode(it) }
         saveDraft(id)
     }
+    private fun encoded(id: String): List<String> = attachments[id].orEmpty().map { java.util.Base64.getEncoder().encodeToString(it) }
     private fun saveDraft(id: String) {
         val chat = chats[id] ?: return
-        val draft = AiDraft(drafts[id].orEmpty(), attachments[id]?.let { java.util.Base64.getEncoder().encodeToString(it) }, pdfAttachments[id], searchEnabled[id] ?: false)
+        val draft = AiDraft(drafts[id].orEmpty(), encoded(id), pdfAttachments[id], searchEnabled[id] ?: false)
         chats[id] = chat.copy(draft = draft)
         draftSaves.remove(id)?.cancel()
         draftSaves[id] = scope.launch {
@@ -140,7 +167,7 @@ class AiSessions(
         pdfAttachments.remove(id)
         drafts.remove(id)
         draftSaves.remove(id)?.cancel()
-        val cleared = chat.copy(draft = AiDraft(search = searchEnabled[id] ?: false))
+        val cleared = chat.copy(draft = AiDraft(search = searchEnabled[id] ?: false), relatedDocuments = emptyList())
         if (keepOpen) chats[id] = cleared else {
             chats.remove(id)
             searchEnabled.remove(id); currentPdfs.remove(id)
@@ -160,18 +187,22 @@ class AiSessions(
     fun retrySave() { storageError = ""; chats.values.forEach { persist(it) } }
     fun newChat(source: String = "", sourceUri: String = "", floatingOwner: String? = null, sourceDocumentId: String = ""): String {
         check(ready)
+        endCapture()
+        // The floating card's own "new chat" names only its document: take that document's details from
+        // its open editor, else from the card's chat when that chat was started there (not merely joined).
+        val bare = source.isBlank() && sourceUri.isBlank() && sourceDocumentId.isBlank()
+        val open = if (bare) floatingOwner?.let { documents[it] } else null
+        val previous = if (floatingOwner != null && this.floatingOwner == floatingOwner) activeId?.let { chats[it] }?.takeIf { it.documentKey.isBlank() || it.documentKey == floatingOwner } else null
+        val chat = if (open != null) AiChat(source = open.source, sourceUri = open.uri, sourceDocumentId = open.documentId)
+            else AiChat(source = source.ifBlank { previous?.source.orEmpty() }, sourceUri = sourceUri.ifBlank { previous?.sourceUri.orEmpty() }, sourceDocumentId = sourceDocumentId.ifBlank { previous?.sourceDocumentId.orEmpty() })
+        val previousPdf = open?.pdf ?: previous?.let { currentPdfs[it.id] }
         val current = activeId?.let { chats[it] }
         if (current != null && current.turns.isEmpty() && !isRunning(current.id) &&
-            this.floatingOwner == floatingOwner &&
-            (source.isBlank() || source == current.source) &&
-            (sourceUri.isBlank() || sourceUri == current.sourceUri) &&
-            (sourceDocumentId.isBlank() || sourceDocumentId == current.sourceDocumentId)) {
+            this.floatingOwner == floatingOwner && current.source == chat.source &&
+            current.sourceUri == chat.sourceUri && current.sourceDocumentId == chat.sourceDocumentId) {
             discardUnstartedChat(current.id, keepOpen = true)
             return current.id
         }
-        val previous=if(floatingOwner!=null && this.floatingOwner==floatingOwner) activeId?.let { chats[it] } else null
-        val chat = AiChat(source = source.ifBlank { previous?.source.orEmpty() }, sourceUri = sourceUri.ifBlank { previous?.sourceUri.orEmpty() }, sourceDocumentId = sourceDocumentId.ifBlank { previous?.sourceDocumentId.orEmpty() })
-        val previousPdf = if (floatingOwner != null && this.floatingOwner == floatingOwner) activeId?.let { currentPdfs[it] } else null
         current?.let { discardUnstartedChat(it.id) }
         this.floatingOwner = floatingOwner
         // Unreadable settings only lose the defaults; the chat itself still opens.
@@ -189,13 +220,47 @@ class AiSessions(
         if (defaults?.attachPdfByDefault == true && pdfAttachments[id] == null && importStates[id] == null) importPdf(id, uri, name)
     }
     fun close() {
+        endCapture()
         activeId?.let { discardUnstartedChat(it) }
         activeId = null; floatingOwner = null
     }
+    fun registerCapture(token: Any, target: AiCaptureTarget) { captureTargets[token] = target }
+    fun unregisterCapture(token: Any) { captureTargets.remove(token) }
+    /** Fold the card and arm the screenshot tool in every pane, so either document can be captured. */
+    fun startCapture() {
+        if (floatingOwner == null || activeId == null) return
+        capturing = true; floatingCollapsed = true
+        captureTargets.values.toList().forEach { it.arm() }
+    }
+    /** Leave capture mode: each pane gets back the tool it had, unless the user has picked another since. */
+    fun endCapture() {
+        if (!capturing) return
+        capturing = false
+        captureTargets.values.toList().forEach { it.release() }
+    }
+    /** Unfold the card; ends capture mode, since the chat is about to be read or typed into. */
+    fun expand() { floatingCollapsed = false; endCapture() }
+    /**
+     * Hides the card when its document leaves the screen. A chat that also holds screenshots from a
+     * still-visible document moves over to that one instead of closing.
+     */
     fun reconcileFloating(visibleDocuments: Set<String>) {
-        if (floatingOwner != null && floatingOwner !in visibleDocuments) close()
+        val owner = floatingOwner ?: return
+        if (owner in visibleDocuments) return
+        val chat = activeId?.let { chats[it] }
+        val next = chat?.let { c -> (listOf(c.documentKey) + c.relatedDocuments).firstOrNull { it in visibleDocuments } }
+        if (next != null) floatingOwner = next else close()
     }
     fun open(id: String) { if (chats.containsKey(id)) { activeId = id; floatingOwner = null } }
+    /** Switch the floating card to another chat of the same document; the document's PDF stays on offer. */
+    fun openFloating(id: String) {
+        if (!chats.containsKey(id) || floatingOwner == null) return
+        val offer = floatingOwner?.let { documents[it]?.pdf } ?: activeId?.let { currentPdfs[it] }
+        activeId = id
+        if (offer != null && currentPdfs[id] == null) currentPdfs[id] = offer
+    }
+    /** Chats started from [owner], the floating card's document key, newest first. */
+    fun chatsOf(owner: String): List<AiChat> = chats.values.filter { it.belongsTo(owner) }.sortedByDescending { it.updated }
     fun rename(id: String, title: String) {
         chats[id]?.let { val next = it.copy(title = title.trim().take(100).ifBlank { "新会话" }); chats[id] = next; persist(next) }
     }
@@ -227,7 +292,7 @@ class AiSessions(
                 check(persist(next).await()) { AiText.t(AiMsg.QUESTION_SAVE_FAILED) }
                 // Clear only the submitted composer; edits made while saving belong to the next turn.
                 if (drafts[id].orEmpty().trim() == user.text && pdfAttachments[id] == user.pdf &&
-                    attachments[id]?.let { java.util.Base64.getEncoder().encodeToString(it) } == user.image) {
+                    encoded(id) == user.images) {
                     drafts.remove(id); attachments.remove(id); pdfAttachments.remove(id); saveDraft(id)
                 }
                 val pdfIds=(original.context()+user).mapNotNull { it.pdf?.id?.takeIf(String::isNotBlank) }.toSet()
@@ -236,38 +301,47 @@ class AiSessions(
                 val prepared = if ((original.context() + user).any { !it.pdf?.id.isNullOrEmpty() }) {
                     withContext(Dispatchers.IO) { AiPdfTools.prepare(tools, client, original.context(), user, checkNotNull(pdfAccess) { AiText.t(AiMsg.PDF_SERVICE_UNAVAILABLE) }) { label -> progress(id, label) } }
                 } else user
-                var outgoing = prepared
-                if (useSearch) {
-                    progress(id, AiText.t(AiMsg.PROGRESS_RESOLVING_SEARCH))
-                    val resolvedQuery = run {
-                        val planned = StringBuilder()
-                        withContext(Dispatchers.IO) {
-                            client.stream(tools, AiSearchQuery.messages(original.context(), prepared)) { chunk ->
-                                require(planned.length + chunk.length <= 4096) { AiText.t(AiMsg.SEARCH_TARGET_TOO_LONG) }
-                                planned.append(chunk)
-                            }
-                        }
-                        AiSearchQuery.parse(planned.toString())
-                    }
-                    outgoing = prepared.copy(searchContext = "本次搜索词：$resolvedQuery\n正在检索…")
-                    update(id) { c -> c.copy(turns = c.turns.dropLast(1) + c.turns.last().copy(user = user.copy(searchContext = outgoing.searchContext))) }?.let { persist(it) }
-                    progress(id, AiText.t(AiMsg.PROGRESS_SEARCHING_WEB, resolvedQuery))
-                    val sources = withContext(Dispatchers.IO) { client.search(settings.searchKey, resolvedQuery) }
-                    outgoing = prepared.copy(searchContext = "本次搜索词：$resolvedQuery\n$sources")
-                    update(id) { c -> c.copy(turns = c.turns.dropLast(1) + c.turns.last().copy(user = user.copy(searchContext = outgoing.searchContext))) }?.let { persist(it) }
-                }
+                // Web search is a tool the answering model calls when it needs it, as in DeepSeek Harness;
+                // a model or API without tool calling answers without it and the turn says so.
                 progress(id, AiText.t(AiMsg.PROGRESS_GENERATING))
+                val history = original.context()
+                val tail = mutableListOf<org.json.JSONObject>()
+                val evidence = mutableListOf<String>()
+                val failures = mutableListOf<String>()
+                var offerTools = useSearch
+                var unsupported = ""
+                var rounds = 0
                 var lastSave = System.nanoTime()
-                withContext(Dispatchers.IO) {
-                    client.stream(settings, original.context() + outgoing) { chunk ->
-                        withContext(scope.coroutineContext.minusKey(Job)) {
-                            val chat = update(id) { c -> c.copy(turns = c.turns.dropLast(1) + c.turns.last().copy(answer = c.turns.last().answer + chunk)) }
-                            if (chat != null && System.nanoTime() - lastSave > 1_000_000_000L) { persist(chat); lastSave = System.nanoTime() }
-                        }
+                val append: suspend (String) -> Unit = { chunk ->
+                    withContext(scope.coroutineContext.minusKey(Job)) {
+                        val chat = update(id) { c -> c.copy(turns = c.turns.dropLast(1) + c.turns.last().copy(answer = c.turns.last().answer + chunk)) }
+                        if (chat != null && System.nanoTime() - lastSave > 1_000_000_000L) { persist(chat); lastSave = System.nanoTime() }
                     }
                 }
+                while (true) {
+                    val choice = when { !offerTools -> null; rounds >= AiWebTools.MAX_ROUNDS -> "none"; else -> "auto" }
+                    val reply = try {
+                        withContext(Dispatchers.IO) { client.complete(settings, history + prepared, tail, choice?.let { AiWebTools.definitions() }, choice ?: "auto", append) }
+                    } catch (e: AiToolsUnsupported) {
+                        // Only the first request can be refused for offering tools; later ones already carry tool rounds.
+                        if (choice == null || tail.isNotEmpty()) throw IllegalStateException(e.message)
+                        offerTools = false; unsupported = AiText.t(AiMsg.TOOLS_UNSUPPORTED); progress(id, unsupported)
+                        continue
+                    }
+                    if (reply.calls.isEmpty() || choice != "auto") break
+                    rounds++
+                    val round = AiWebTools.run(reply.calls, client, settings.searchKey, user.text) { label -> progress(id, label) }
+                    tail += AiWebTools.assistantMessage(reply)
+                    // The next request withholds tools; the model is told why in the results it reads.
+                    tail += if (rounds >= AiWebTools.MAX_ROUNDS) AiWebTools.withLimitNotice(round.messages) else round.messages
+                    evidence += round.evidence; failures += round.failures
+                }
+                // What was found stays with the question, for follow-ups and the details view.
+                if (evidence.isNotEmpty()) update(id) { c ->
+                    c.copy(turns = c.turns.dropLast(1) + c.turns.last().let { it.copy(user = it.user.copy(searchContext = evidence.joinToString("\n\n").take(AiWebTools.EVIDENCE_MAX))) })
+                }?.let { persist(it) }
                 check(chats[id]?.turns?.lastOrNull()?.answer?.isNotBlank() == true) { AiText.t(AiMsg.NO_TEXT_RETURNED) }
-                finish(id, "已完成", "")
+                finish(id, "已完成", listOfNotNull(unsupported.ifEmpty { null }, failures.firstOrNull()?.let { AiText.t(AiMsg.WEB_TOOL_FAILED, it) }).joinToString(" · "))
             } catch (e: CancellationException) {
                 if (started) finish(id, "已停止", AiText.t(AiMsg.STOPPED_BY_USER))
                 throw e
@@ -318,5 +392,14 @@ class AiSessions(
         }
     }
 }
+
+/**
+ * A document open in a pane, as its editor registers it under its key: what a chat started from it
+ * records and its PDF to offer in ＋ (URI and name).
+ */
+class AiDocument(val source: String, val uri: String, val documentId: String, val pdf: Pair<String, String>?)
+
+/** One pane's screenshot tool as the floating card's capture mode drives it: [arm] it, then [release] it back. */
+class AiCaptureTarget(val arm: () -> Unit, val release: () -> Unit)
 
 data class AiImportState(val uri: String, val name: String?, val loading: Boolean = false, val error: String = "", val token: Any = Any())

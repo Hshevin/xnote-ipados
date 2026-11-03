@@ -7,16 +7,26 @@ import java.util.UUID
 import org.json.JSONArray
 import org.json.JSONObject
 
-data class AiDraft(val text: String = "", val image: String? = null, val pdf: AiPdf? = null, val search: Boolean = false)
+data class AiDraft(val text: String = "", val images: List<String> = emptyList(), val pdf: AiPdf? = null, val search: Boolean = false)
 
 data class AiTurn(val user: AiMessage, val answer: String = "", val state: String = "生成中", val error: String = "", val progress: String = "", val steps: List<String> = emptyList())
 data class AiChat(val id: String = UUID.randomUUID().toString(), val title: String = "新会话", val source: String = "", val updated: Long = System.currentTimeMillis(), val turns: List<AiTurn> = emptyList(), val sourceUri: String = "", val draft: AiDraft = AiDraft(), val sourceDocumentId: String = "",
     /** The model and thinking level picked in this chat; blank / null follow the settings defaults. */
-    val model: String = "", val effort: String? = null) {
+    val model: String = "", val effort: String? = null,
+    /** Other documents' keys whose screenshots joined this chat (split screen); the chat stays with its source. */
+    val relatedDocuments: List<String> = emptyList()) {
+    /** The key the chat's source document is known by: registry ID, else URI, else title — as editors compute it. */
+    val documentKey: String get() = sourceDocumentId.ifBlank { sourceUri.ifBlank { source } }
     /** What this chat sends with: its own picks over the defaults in [config]. */
     fun settings(config: AiConfig): AiConfig = config.copy(model = model.ifBlank { config.model }, effort = effort ?: config.effort)
     fun context(): List<AiMessage> = turns.filter { it.state == "已完成" }.flatMap { listOf(it.user, AiMessage("assistant", it.answer)) }
     fun recover(): AiChat = copy(turns = turns.map { if (it.state == "生成中") it.copy(state = "已中断", error = AiText.t(AiMsg.RECOVERED_INTERRUPTED)) else it })
+    /**
+     * Shown in [owner]'s history: started from that document (its registry ID, or for older/unsaved ones
+     * its URI or title), or holding a screenshot taken from it.
+     */
+    fun belongsTo(owner: String): Boolean = owner.isNotBlank() &&
+        (sourceDocumentId == owner || sourceDocumentId.isBlank() && (sourceUri == owner || sourceUri.isBlank() && source == owner) || owner in relatedDocuments)
     fun matches(query: String): Boolean = title.contains(query, true) || source.contains(query, true) || turns.any { it.user.text.contains(query, true) || it.answer.contains(query, true) }
 }
 
@@ -32,10 +42,10 @@ class AiHistoryStore(private val directory: File, private val resources: com.xno
         val destination = file(chat.id)
         val temp = File(directory, "${chat.id}.tmp")
         val turns = JSONArray()
-        chat.turns.forEach { turn -> turns.put(JSONObject().put("user", turn.user.text).put("image", turn.user.image ?: JSONObject.NULL)
+        chat.turns.forEach { turn -> turns.put(JSONObject().put("user", turn.user.text).put("images", JSONArray(turn.user.images))
             .put("pdf", pdfJson(turn.user.pdf))
             .put("sources", turn.user.searchContext).put("answer", turn.answer).put("state", turn.state).put("error", turn.error).put("progress", turn.progress).put("steps", JSONArray(turn.steps))) }
-        val json = JSONObject().put("version", 1).put("id", chat.id).put("title", chat.title).put("source", chat.source).put("updated", chat.updated).put("sourceUri", chat.sourceUri).put("sourceDocumentId", chat.sourceDocumentId).put("model", chat.model).put("effort", chat.effort ?: JSONObject.NULL).put("turns", turns).put("draft", JSONObject().put("text", chat.draft.text).put("image", chat.draft.image ?: JSONObject.NULL).put("pdf", pdfJson(chat.draft.pdf)).put("search", chat.draft.search))
+        val json = JSONObject().put("version", 1).put("id", chat.id).put("title", chat.title).put("source", chat.source).put("updated", chat.updated).put("sourceUri", chat.sourceUri).put("sourceDocumentId", chat.sourceDocumentId).put("model", chat.model).put("effort", chat.effort ?: JSONObject.NULL).put("related", JSONArray(chat.relatedDocuments)).put("turns", turns).put("draft", JSONObject().put("text", chat.draft.text).put("images", JSONArray(chat.draft.images)).put("pdf", pdfJson(chat.draft.pdf)).put("search", chat.draft.search))
         val bytes = json.toString().toByteArray(Charsets.UTF_8)
         require(bytes.size <= 64 * 1024 * 1024) { AiText.t(AiMsg.CHAT_TOO_LARGE) }
         val ids = (chat.turns.mapNotNull { it.user.pdf?.id } + listOfNotNull(chat.draft.pdf?.id)).filter { it.isNotBlank() }.toSet()
@@ -61,9 +71,10 @@ class AiHistoryStore(private val directory: File, private val resources: com.xno
                 val turns = json.getJSONArray("turns")
                 AiChat(id, json.getString("title"), json.optString("source", ""), json.getLong("updated"), (0 until turns.length()).map { i ->
                     val t = turns.getJSONObject(i)
-                    AiTurn(AiMessage("user", t.getString("user"), t.opt("image") as? String, t.optString("sources", ""), readPdf(t.optJSONObject("pdf"))), t.getString("answer"), t.getString("state"), t.optString("error", ""), t.optString("progress", ""), t.optJSONArray("steps")?.let { steps -> (0 until steps.length()).map { steps.getString(it) } } ?: emptyList())
-                }, json.optString("sourceUri", ""), json.optJSONObject("draft")?.let { d -> AiDraft(d.optString("text", ""), d.opt("image") as? String, readPdf(d.optJSONObject("pdf")), d.optBoolean("search", false)) } ?: AiDraft(), json.optString("sourceDocumentId", ""),
-                    model = (json.opt("model") as? String).orEmpty(), effort = (json.opt("effort") as? String)?.takeIf { it in AiThinking.LEVELS })
+                    AiTurn(AiMessage("user", t.getString("user"), readImages(t), t.optString("sources", ""), readPdf(t.optJSONObject("pdf"))), t.getString("answer"), t.getString("state"), t.optString("error", ""), t.optString("progress", ""), t.optJSONArray("steps")?.let { steps -> (0 until steps.length()).map { steps.getString(it) } } ?: emptyList())
+                }, json.optString("sourceUri", ""), json.optJSONObject("draft")?.let { d -> AiDraft(d.optString("text", ""), readImages(d), readPdf(d.optJSONObject("pdf")), d.optBoolean("search", false)) } ?: AiDraft(), json.optString("sourceDocumentId", ""),
+                    model = (json.opt("model") as? String).orEmpty(), effort = (json.opt("effort") as? String)?.takeIf { it in AiThinking.LEVELS },
+                    relatedDocuments = json.optJSONArray("related")?.let { list -> (0 until list.length()).mapNotNull { list.opt(it) as? String } } ?: emptyList())
             } catch (_: Exception) { damaged++; null }
         }
         if (damaged == 0 && resources != null) try {
@@ -84,6 +95,9 @@ class AiHistoryStore(private val directory: File, private val resources: com.xno
     fun forgetDeleted(id: String) { resources?.pin("undo:$id", emptySet()); if(referencesReady) resources?.collect() }
 }
 
+/** Records before multi-screenshot questions kept one optional `image`; both forms load. */
+private fun readImages(json: JSONObject): List<String> = json.optJSONArray("images")?.let { list -> (0 until list.length()).map { list.getString(it) } }
+    ?: listOfNotNull(json.opt("image") as? String)
 private fun pdfJson(pdf: AiPdf?): Any = pdf?.let { JSONObject().put("name", it.name).put("id", it.id).put("pageCount", it.pageCount).put("text", it.text).put("pages", JSONArray(it.pageImages)) } ?: JSONObject.NULL
 private fun readPdf(pdf: JSONObject?): AiPdf? = pdf?.let {
     val pages = it.optJSONArray("pages") ?: JSONArray()

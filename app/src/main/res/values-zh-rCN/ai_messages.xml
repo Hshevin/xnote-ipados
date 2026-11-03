@@ -6,7 +6,7 @@
     <string name="ai_msg_config_search_key_invalid">搜索 API Key 格式无效</string>
     <string name="ai_msg_search_key_required">请先填写 DeepSeek 搜索 API Key</string>
     <string name="ai_msg_connection_stopped">已停止</string>
-    <string name="ai_msg_search_http_failed">DeepSeek 搜索失败（HTTP %1$d），请检查搜索密钥与额度；未继续生成回答</string>
+    <string name="ai_msg_search_http_failed">DeepSeek 搜索失败（HTTP %1$d），请检查搜索密钥与额度</string>
     <string name="ai_msg_search_response_too_large">搜索响应过大</string>
     <string name="ai_msg_request_too_large">截图或会话过大，请新建会话并缩小截图</string>
     <string name="ai_msg_request_http_failed">请求失败（HTTP %1$d），请检查接口、密钥、模型及额度</string>
@@ -47,7 +47,6 @@
     <string name="ai_msg_endpoint_invalid">请填写 HTTPS 接口地址，不含账号、查询参数或片段</string>
     <string name="ai_msg_model_required">请填写支持图片的模型名称</string>
     <string name="ai_msg_chat_too_long">会话过长，请新建会话</string>
-    <string name="ai_msg_search_target_unresolved">无法从截图和问题确定搜索对象，请补充清晰截图或具体标题后重试</string>
     <string name="ai_msg_search_query_length">请输入 1–128 个字符的搜索词</string>
     <string name="ai_msg_search_returned_error">DeepSeek 搜索返回错误</string>
     <string name="ai_msg_pdf_service_unavailable">PDF 读取服务不可用</string>
@@ -60,8 +59,16 @@
     <string name="ai_msg_search_key_not_configured">请配置 DeepSeek 搜索密钥</string>
     <string name="ai_msg_question_save_failed">未能保存问题，已取消发送</string>
     <string name="ai_msg_progress_preparing">正在准备回答</string>
-    <string name="ai_msg_progress_resolving_search">正在识别检索对象</string>
-    <string name="ai_msg_search_target_too_long">无法识别搜索对象，请补充清晰截图或具体标题</string>
+    <string name="ai_msg_fetch_url_invalid">网页地址无效，只能读取公开的 http(s) 网页</string>
+    <string name="ai_msg_fetch_http_failed">DeepSeek 网页读取失败（HTTP %1$d）</string>
+    <string name="ai_msg_fetch_response_too_large">网页内容过大</string>
+    <string name="ai_msg_fetch_returned_error">DeepSeek 网页读取返回错误</string>
+    <string name="ai_msg_progress_fetching_page">正在读取网页：%1$s</string>
+    <string name="ai_msg_tools_unsupported">当前模型或接口不支持工具调用，本次未联网搜索</string>
+    <string name="ai_msg_web_tool_failed">联网工具调用失败：%1$s</string>
+    <string name="ai_msg_web_tool_args_invalid">模型给出的联网工具参数无效</string>
+    <string name="ai_msg_web_tool_unknown">模型请求了不支持的工具</string>
+    <string name="ai_msg_web_tool_too_many">本轮工具调用过多，多余的调用未执行</string>
     <string name="ai_msg_progress_searching_web">正在联网搜索：%1$s</string>
     <string name="ai_msg_progress_generating">正在生成回答</string>
     <string name="ai_msg_no_text_returned">模型未返回文字</string>

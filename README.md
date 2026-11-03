@@ -7,6 +7,7 @@ This fork targets Wacom MovinkPad Pro 14 and Pro Pen 3. Three-button mappings an
 - [Linux build and repository structure](docs/movinkpad/server-build.md)
 - [Workspace switching and consistent pen settings](docs/movinkpad/workspace-switch-2026-10-31.md)
 - [Branch split and upstream sync](docs/movinkpad/github-sync-2026-11-02.md)
+- [Remote AI updates merged with Release 87 fixes](docs/movinkpad/remote-merge-2026-11-04.md)
 - [Black/white hierarchy, type and spacing tokens](docs/movinkpad/ui-monochrome-tokens-2026-11-03.md)
 - [Planned PDF and cursor work](tasks/plan.md)
 
@@ -34,7 +35,11 @@ Release 84 已本地交付 AI 设置扩展：可保存多个模型并从供应�
 
 2026-11-04 调整：尚未开始对话时，关闭 AI 窗口或点击「新会话」会清空提示词、截图和附件，不累积空白历史；已有对话继续保留草稿和附件。已随 Release 85 本地交付，设备交互待验收，见[记录](docs/movinkpad/ai-empty-chat-2026-11-04.md)。
 
-最新源码修复截图论文搜索跑偏路径：自动识图生成检索词，参考资料与原问题分离。此修复已包含在 preview3，preview2 仍是旧搜索流程。
+当前源码（未打包）：AI 浮窗收起时宽度不变；浮窗内可直接截图，每个问题最多附带 6 张，可在后续追问中继续添加；浮窗内可查看并切换本文档的历史会话。从浮窗进入截图模式后可在任意窗格框选，分屏时两个窗格的截图都可加入当前会话，会话归属最先截图的文档，并同时出现在另一文档的浮窗历史中。旧的单图记录仍可读取。真机验收待完成，见[记录](docs/movinkpad/ai-floating-screenshots-2026-11-04.md)。
+
+当前源码（未打包）：联网搜索改为参照 DeepSeek Harness 的原生工具调用：开关打开后，模型自行决定是否调用 `web_search`（一次可给多个检索词）和 `web_fetch`（经 DeepSeek 服务端读取网页全文），不再先单独识别检索对象。不支持工具调用的模型不联网直接回答，并在回答下注明。真实供应商与真机验收待完成，见[记录](docs/movinkpad/ai-web-tools-2026-11-04.md)。
+
+此前 preview3 修复截图论文搜索跑偏路径：自动识图生成检索词，参考资料与原问题分离；当前源码已改用上述原生联网工具流程。
 
 Release 83 本地交付本轮 UI、Markdown 和中英文资源改动，并修复修改纸色后页面工具颜色缓存未刷新、Pro Pen 3 设置缺少 Hans 翻译。保留原包名和签名；代码检查、测试和 APK 核验见 [Release 记录](docs/movinkpad/release-2026-11-02.md#release-83ui翻译与代码检查2026-11-03)。目标设备与真实供应商验收仍待完成。
 

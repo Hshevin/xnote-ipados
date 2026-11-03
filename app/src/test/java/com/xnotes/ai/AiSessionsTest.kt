@@ -11,7 +11,8 @@ class AiSessionsTest {
         val release = CompletableDeferred<Unit>()
         var cancelled = false
         override fun cancel() { cancelled = true; release.cancel() }
-        override fun search(key: String, query: String) = "sources"
+        override fun search(key: String, query: String, question: String): List<AiWebSource> = emptyList()
+        override fun fetch(key: String, url: String) = ""
         override suspend fun stream(config: AiConfig, messages: List<AiMessage>, delta: suspend (String) -> Unit) {
             delta("部分"); entered.complete(Unit); release.await(); delta("完成")
         }
@@ -25,7 +26,7 @@ class AiSessionsTest {
             val sessions = AiSessions(store, scope, { AiConfig("https://example.com/v1", "vision", "key") }, { reply })
             until { sessions.ready }
             val first = sessions.newChat("source.pdf", floatingOwner = "source.pdf")
-            sessions.send(first, AiMessage("user", "问题", "YWJj"), false)
+            sessions.send(first, AiMessage("user", "问题", listOf("YWJj")), false)
             reply.entered.await()
             sessions.reconcileFloating(setOf("source.pdf"))
             assertEquals(first, sessions.activeId)
@@ -71,58 +72,111 @@ class AiSessionsTest {
             assertEquals("existing", blocked.readText())
         } finally { job.cancelAndJoin(); dir.deleteRecursively() }
     }
-    @Test fun screenshotIsInterpretedBeforeSearchAndOriginalQuestionIsAnswered() = runBlocking {
+    /** A scripted provider: each [complete] call gets the next reply, or answers [final] once tools are withheld. */
+    private class ToolModel(val script: List<(List<org.json.JSONObject>, org.json.JSONArray?, String) -> AiReply>, val sources: (String) -> List<AiWebSource> = { emptyList() }) : AiTransport {
+        val searches = mutableListOf<Pair<String, String>>()
+        val requests = mutableListOf<Triple<List<org.json.JSONObject>, org.json.JSONArray?, String>>()
+        override fun cancel() {}
+        override fun search(key: String, query: String, question: String): List<AiWebSource> { searches += query to question; return sources(query) }
+        override fun fetch(key: String, url: String) = "# Page\nfull text of $url"
+        override suspend fun stream(config: AiConfig, messages: List<AiMessage>, delta: suspend (String) -> Unit) = error("tool rounds use complete")
+        override suspend fun complete(config: AiConfig, messages: List<AiMessage>, tail: List<org.json.JSONObject>, tools: org.json.JSONArray?, toolChoice: String, delta: suspend (String) -> Unit): AiReply {
+            requests += Triple(tail.toList(), tools, toolChoice)
+            val reply = script[requests.size - 1](tail, tools, toolChoice)
+            if (reply.content.isNotEmpty()) delta(reply.content)
+            return reply
+        }
+    }
+    private fun call(name: String, args: String, id: String = "c1") = AiReply(calls = listOf(AiToolCall(id, name, args)))
+    private suspend fun ask(model: ToolModel, search: Boolean, block: (AiSessions, String) -> Unit) = coroutineScope {
         val dir = Files.createTempDirectory("sessions").toFile()
         val job = SupervisorJob(); val scope = CoroutineScope(coroutineContext + job)
         try {
-            val calls = mutableListOf<String>()
-            val fake = object : AiTransport {
-                override fun cancel() {}
-                override fun search(key: String, query: String): String {
-                    calls.add("search")
-                    assertEquals("Attention Is All You Need", query)
-                    return "source evidence"
-                }
-                override suspend fun stream(config: AiConfig, messages: List<AiMessage>, delta: suspend (String) -> Unit) {
-                    assertEquals("YWJj", messages.last().image)
-                    assertEquals("这篇论文的有关情况", messages.last().text)
-                    if (calls.isEmpty()) {
-                        calls.add("identify")
-                        assertEquals("system", messages.first().role)
-                        delta("""{"query":"Attention Is All You Need"}""")
-                    } else {
-                        calls.add("answer")
-                        assertTrue(messages.last().searchContext.contains("source evidence"))
-                        delta("论文介绍")
-                    }
-                }
-            }
-            val sessions = AiSessions(AiHistoryStore(dir), scope, { AiConfig("https://example.com/v1", "vision", "key", "search-key") }, { fake })
+            val sessions = AiSessions(AiHistoryStore(dir), scope, { AiConfig("https://example.com/v1", "vision", "key", "search-key") }, { model })
             until { sessions.ready }; val id = sessions.newChat()
-            sessions.send(id, AiMessage("user", "这篇论文的有关情况", "YWJj"), true)
+            sessions.send(id, AiMessage("user", "这篇论文的有关情况", listOf("YWJj")), search)
             until { !sessions.isRunning(id) }; sessions.flush()
-            assertEquals(listOf("identify", "search", "answer"), calls)
-            assertEquals("论文介绍", sessions.chats[id]!!.turns.single().answer)
-            assertEquals("已完成", sessions.chats[id]!!.turns.single().state)
+            block(sessions, id)
         } finally { job.cancelAndJoin(); dir.deleteRecursively() }
     }
-    @Test fun unclearImageDoesNotSearchOrInventAnswer() = runBlocking {
-        val dir = Files.createTempDirectory("sessions").toFile()
-        val job = SupervisorJob(); val scope = CoroutineScope(coroutineContext + job)
-        try {
-            var searched = false
-            val fake = object : AiTransport {
-                override fun cancel() {}
-                override fun search(key: String, query: String): String { searched = true; return "wrong paper" }
-                override suspend fun stream(config: AiConfig, messages: List<AiMessage>, delta: suspend (String) -> Unit) { delta("""{"query":""}""") }
-            }
-            val sessions = AiSessions(AiHistoryStore(dir), scope, { AiConfig("https://example.com/v1", "vision", "key", "search-key") }, { fake })
-            until { sessions.ready }; val id = sessions.newChat()
-            sessions.send(id, AiMessage("user", "这篇论文", "YWJj"), true)
-            until { !sessions.isRunning(id) }; sessions.flush()
-            assertFalse(searched)
-            assertEquals("生成失败", sessions.chats[id]!!.turns.single().state)
-            assertTrue(sessions.chats[id]!!.turns.single().error.contains("清晰截图"))
-        } finally { job.cancelAndJoin(); dir.deleteRecursively() }
+    @Test fun modelSearchesThroughToolThenAnswersWithSources() = runBlocking {
+        val model = ToolModel(listOf(
+            { tail, tools, choice ->
+                assertTrue(tail.isEmpty()); assertEquals("auto", choice)
+                assertEquals(listOf("web_search", "web_fetch"), (0 until tools!!.length()).map { tools.getJSONObject(it).getJSONObject("function").getString("name") })
+                call("web_search", """{"queries":["Attention Is All You Need","Attention Is All You Need"]}""").copy(reasoning = "想一想")
+            },
+            { tail, _, _ ->
+                assertEquals("assistant", tail[0].getString("role")); assertEquals("想一想", tail[0].getString("reasoning_content"))
+                val result = tail[1].getString("content")
+                assertEquals("c1", tail[1].getString("tool_call_id"))
+                assertTrue(result.startsWith(AiWebTools.NOTICE)); assertTrue(result.contains("[Paper](https://arxiv.org/abs/1706.03762)"))
+                AiReply("论文介绍")
+            },
+        ), sources = { listOf(AiWebSource("https://arxiv.org/abs/1706.03762", "Paper", summary = "Transformer")) })
+        ask(model, true) { sessions, id ->
+            assertEquals(listOf("Attention Is All You Need" to "这篇论文的有关情况"), model.searches)
+            val turn = sessions.chats[id]!!.turns.single()
+            assertEquals("论文介绍", turn.answer); assertEquals("已完成", turn.state); assertEquals("", turn.error)
+            assertTrue(turn.user.searchContext.contains("https://arxiv.org/abs/1706.03762"))
+            assertTrue(turn.steps.any { it.contains("Attention Is All You Need") })
+        }
+    }
+    @Test fun modelMayAnswerWithoutSearchingAndFetchIsAvailable() = runBlocking {
+        val model = ToolModel(listOf(
+            { _, _, _ -> call("web_fetch", """{"url":"https://example.com/a"}""") },
+            { tail, _, _ -> assertTrue(tail[1].getString("content").contains("full text of https://example.com/a")); AiReply("读完了") },
+        ))
+        ask(model, true) { sessions, id ->
+            assertTrue(model.searches.isEmpty())
+            assertEquals("读完了", sessions.chats[id]!!.turns.single().answer)
+        }
+    }
+    @Test fun withoutTheSwitchNoToolsAreOffered() = runBlocking {
+        val model = ToolModel(listOf({ _, tools, _ -> assertNull(tools); AiReply("直接回答") }))
+        ask(model, false) { sessions, id -> assertEquals("直接回答", sessions.chats[id]!!.turns.single().answer) }
+    }
+    @Test fun modelWithoutToolCallingAnswersWithoutSearchAndSaysSo() = runBlocking {
+        val model = ToolModel(listOf(
+            { _, tools, _ -> assertNotNull(tools); throw AiToolsUnsupported(400) },
+            { _, tools, _ -> assertNull(tools); AiReply("没有联网的回答") },
+        ))
+        ask(model, true) { sessions, id ->
+            val turn = sessions.chats[id]!!.turns.single()
+            assertTrue(model.searches.isEmpty())
+            assertEquals("没有联网的回答", turn.answer); assertEquals("已完成", turn.state)
+            assertTrue(turn.error.contains("不支持工具调用"))
+        }
+    }
+    @Test fun searchFailureGoesBackToModelAndIsReported() = runBlocking {
+        val model = ToolModel(listOf(
+            { _, _, _ -> call("web_search", """{"queries":["x"]}""") },
+            { tail, _, _ -> assertTrue(tail[1].getString("content").contains("工具调用失败")); AiReply("搜索失败了，无法查证") },
+        ), sources = { throw IllegalStateException("DeepSeek 搜索失败（HTTP 401）") })
+        ask(model, true) { sessions, id ->
+            val turn = sessions.chats[id]!!.turns.single()
+            assertEquals("已完成", turn.state); assertTrue(turn.error.contains("HTTP 401"))
+            assertEquals("", turn.user.searchContext)
+        }
+    }
+    @Test fun toolRoundsAreBoundedThenTheModelMustAnswer() = runBlocking {
+        val model = ToolModel(List(AiWebTools.MAX_ROUNDS) { n -> { _: List<org.json.JSONObject>, _: org.json.JSONArray?, _: String -> call("web_search", """{"queries":["q$n"]}""", "c$n") } } +
+            listOf({ tail, _, choice ->
+                assertEquals("none", choice)
+                assertTrue(tail.last().getString("content").endsWith("（${AiWebTools.LIMIT_NOTICE}）"))
+                assertEquals(1, tail.count { it.optString("content").contains(AiWebTools.LIMIT_NOTICE) })
+                AiReply("够了")
+            }))
+        ask(model, true) { sessions, id ->
+            assertEquals(AiWebTools.MAX_ROUNDS, model.searches.size)
+            assertEquals("够了", sessions.chats[id]!!.turns.single().answer)
+        }
+    }
+    @Test fun badArgumentsAndUnknownToolsAreAnsweredNotRun() = runBlocking {
+        val model = ToolModel(listOf(
+            { _, _, _ -> AiReply(calls = listOf(AiToolCall("a", "web_search", "{not json"), AiToolCall("b", "shell", "{}"))) },
+            { tail, _, _ -> assertEquals(listOf("a", "b"), tail.drop(1).map { it.getString("tool_call_id") }); AiReply("好") },
+        ))
+        ask(model, true) { _, _ -> assertTrue(model.searches.isEmpty()) }
     }
 }

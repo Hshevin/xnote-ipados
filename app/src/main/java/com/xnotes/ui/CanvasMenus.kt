@@ -558,7 +558,17 @@ private fun StepDot(glyph: String, label: String, enabled: Boolean, onClick: () 
  */
 @Composable
 fun ScreenshotMenu(editor: Editor, onShare: (java.io.File) -> Unit) {
-    val askAi = rememberAskAi(editor.state.document.title, editor.currentUri, editor.state.document.pdfFile, editor.state.document.identity.documentId)
+    // The tool this pane had before the AI card's capture mode armed it; given back when the mode ends.
+    var toolBeforeAi by remember { mutableStateOf<com.xnotes.core.tools.Tool?>(null) }
+    val askAi = rememberAskAi(editor.state.document.title, editor.currentUri, editor.state.document.pdfFile, editor.state.document.identity.documentId,
+        onCapture = {
+            if (editor.tool != com.xnotes.core.tools.Tool.SCREENSHOT) toolBeforeAi = editor.tool
+            editor.selectTool(com.xnotes.core.tools.Tool.SCREENSHOT)
+        },
+        onRelease = {
+            val before = toolBeforeAi; toolBeforeAi = null
+            if (editor.tool == com.xnotes.core.tools.Tool.SCREENSHOT) { editor.dismissScreenshot(); before?.let(editor::selectTool) }
+        })
     val rect = editor.screenshotMenu ?: return
     val palette = LocalPalette.current
     val density = LocalDensity.current
@@ -602,18 +612,27 @@ fun ScreenshotMenu(editor: Editor, onShare: (java.io.File) -> Unit) {
         ActionIcon(XnotesIcons.share, stringResource(R.string.share)) { editor.screenshotImageForShare()?.let(onShare) }
         Box(Modifier.width(1.dp).height(24.dp).background(palette.border.toComposeColor()))
         Row(
-            Modifier.clickable { editor.screenshotImageForShare()?.let(askAi) }.padding(horizontal = Space.s16, vertical = Space.s12),
+            Modifier.clickable { editor.screenshotImageForShare(keepTool = askAi.addsToOpenChat)?.let(askAi.take) }.padding(horizontal = Space.s16, vertical = Space.s12),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(XnotesIcons.ai, null, tint = palette.text.toComposeColor(), modifier = Modifier.size(20.dp))
-            Text(stringResource(R.string.ai_label), color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge, modifier = Modifier.padding(start = Space.s8))
+            Text(stringResource(if (askAi.addsToOpenChat) R.string.ai_add_screenshot else R.string.ai_label), color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge, modifier = Modifier.padding(start = Space.s8))
         }
     }
 }
 
 @Composable
 fun ScreenshotMenu(editor: InfiniteEditor, onShare: (java.io.File) -> Unit) {
-    val askAi = rememberAskAi(editor.document.title, editor.document.path, documentId = editor.document.identity.documentId)
+    var toolBeforeAi by remember { mutableStateOf<com.xnotes.core.tools.Tool?>(null) }
+    val askAi = rememberAskAi(editor.document.title, editor.document.path, documentId = editor.document.identity.documentId,
+        onCapture = {
+            if (editor.tool != com.xnotes.core.tools.Tool.SCREENSHOT) toolBeforeAi = editor.tool
+            editor.armTool(com.xnotes.core.tools.Tool.SCREENSHOT)
+        },
+        onRelease = {
+            val before = toolBeforeAi; toolBeforeAi = null
+            if (editor.tool == com.xnotes.core.tools.Tool.SCREENSHOT) { editor.interaction.clearCapture(); before?.let(editor::armTool) }
+        })
     val rect = editor.screenshotMenu ?: return
     val palette = LocalPalette.current
     val density = LocalDensity.current
@@ -657,11 +676,11 @@ fun ScreenshotMenu(editor: InfiniteEditor, onShare: (java.io.File) -> Unit) {
         ActionIcon(XnotesIcons.share, stringResource(R.string.share)) { editor.screenshotImageForShare()?.let(onShare) }
         Box(Modifier.width(1.dp).height(24.dp).background(palette.border.toComposeColor()))
         Row(
-            Modifier.clickable { editor.screenshotImageForShare()?.let(askAi) }.padding(horizontal = Space.s16, vertical = Space.s12),
+            Modifier.clickable { editor.screenshotImageForShare()?.let(askAi.take) }.padding(horizontal = Space.s16, vertical = Space.s12),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(XnotesIcons.ai, null, tint = palette.text.toComposeColor(), modifier = Modifier.size(20.dp))
-            Text(stringResource(R.string.ai_label), color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge, modifier = Modifier.padding(start = Space.s8))
+            Text(stringResource(if (askAi.addsToOpenChat) R.string.ai_add_screenshot else R.string.ai_label), color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge, modifier = Modifier.padding(start = Space.s8))
         }
     }
 }
