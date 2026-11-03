@@ -74,4 +74,5 @@
     <string name="ai_msg_models_http_failed">获取模型列表失败（HTTP %1$d），请检查地址与 API Key</string>
     <string name="ai_msg_models_response_too_large">模型列表过大</string>
     <string name="ai_msg_models_invalid_reply">服务未返回可识别的模型列表</string>
+    <string name="ai_msg_config_too_many_models">最多保存 %1$d 个模型，请先移除不用的模型</string>
 </resources>

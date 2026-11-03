@@ -127,4 +127,16 @@
     <plurals name="ai_models_count">
         <item quantity="other">%d 个模型</item>
     </plurals>
+    <string name="ai_models_saved_count">已保存 %1$d / %2$d</string>
+    <string name="ai_settings_new_chat">新会话默认</string>
+    <string name="ai_settings_new_chat_note">每个会话仍可在输入栏单独修改模型、思考和联网。</string>
+    <string name="ai_default_model">默认模型</string>
+    <string name="ai_default_search">默认开启联网搜索</string>
+    <string name="ai_default_search_note">需要填写下方的搜索密钥；开启后每次提问多一次模型调用。</string>
+    <string name="ai_default_attach_pdf">自动附加当前 PDF</string>
+    <string name="ai_default_attach_pdf_note">从 PDF 截图提问时自动附加该文件，模型可按需读取页面。</string>
+    <string name="ai_instructions_restore">恢复默认</string>
+    <string name="ai_instructions_default_zh">默认（中文）</string>
+    <string name="ai_instructions_default_en">默认（英文）</string>
+    <string name="ai_instructions_clear">清空</string>
 </resources>

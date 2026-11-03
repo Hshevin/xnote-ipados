@@ -189,6 +189,17 @@ private fun AiSegmented(options: List<Pair<String, String>>, selected: String, m
     }
 }
 
+/** A setting that is on or off: label and note on the left, the switch on the right; the whole row toggles. */
+@Composable
+private fun AiSwitchRow(title: String, detail: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = MinTouchTarget).clip(MaterialTheme.shapes.small)
+        .toggleable(checked, role = Role.Switch, onValueChange = onChange).padding(horizontal = Space.s4),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
+        SettingsLabel(title, detail, Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = null)
+    }
+}
+
 @Composable
 private fun effortOptions(): List<Pair<String, String>> = AiThinking.LEVELS.map { it to stringResource(effortRes(it)) }
 
@@ -209,20 +220,24 @@ private fun AiModelRow(name: String, isDefault: Boolean, onDefault: () -> Unit, 
 
 /** The provider's model list, searchable; ticking adds a model to the saved list. */
 @Composable
-private fun AiModelPicker(available: List<String>, chosen: List<String>, onToggle: (String) -> Unit, close: () -> Unit) {
+private fun AiModelPicker(available: List<String>, chosen: List<String>, onToggle: (String) -> Boolean, close: () -> Unit) {
     val palette = LocalPalette.current
     var query by remember { mutableStateOf("") }
+    var full by remember { mutableStateOf(false) }
     val shown = available.filter { it.contains(query.trim(), ignoreCase = true) }
     AlertDialog(onDismissRequest = close, title = { Text(stringResource(R.string.ai_models_fetched_title), fontSize = TextSize.heading) }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), singleLine = true,
                 leadingIcon = { Icon(XnotesIcons.search, null, Modifier.size(18.dp)) }, placeholder = { Text(stringResource(R.string.ai_models_filter)) })
-            Text(pluralStringResource(R.plurals.ai_models_count, shown.size, shown.size), color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
+            Text(pluralStringResource(R.plurals.ai_models_count, shown.size, shown.size) + " · " +
+                stringResource(R.string.ai_models_saved_count, chosen.size, AiProtocol.MAX_MODELS), color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
+            // Ticking past the limit is refused here, not trimmed on save.
+            if (full) Text(AiText.t(AiMsg.CONFIG_TOO_MANY_MODELS, AiProtocol.MAX_MODELS), color = palette.text.toComposeColor(), fontSize = TextSize.label)
             androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 360.dp)) {
                 items(shown.size, key = { shown[it] }) { index ->
                     val id = shown[index]
                     val on = id in chosen
-                    Row(Modifier.fillMaxWidth().heightIn(min = MinTouchTarget).toggleable(on, role = Role.Checkbox) { onToggle(id) }.padding(horizontal = Space.s4),
+                    Row(Modifier.fillMaxWidth().heightIn(min = MinTouchTarget).toggleable(on, role = Role.Checkbox) { full = !onToggle(id) }.padding(horizontal = Space.s4),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                         Box(Modifier.size(20.dp).clip(MaterialTheme.shapes.extraSmall)
                             .then(if (on) Modifier.background(palette.selectionBackground.toComposeColor()) else Modifier.border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.extraSmall)),
@@ -238,8 +253,8 @@ private fun AiModelPicker(available: List<String>, chosen: List<String>, onToggl
 }
 
 /**
- * The whole AI setup on one sheet, grouped as DSH groups it: provider, models, thinking,
- * personalisation, web search. Nothing is sent anywhere except an explicit model-list fetch.
+ * The whole AI setup on one sheet, grouped as DSH groups it: provider, models, new-chat defaults,
+ * thinking, personalisation, web search. Nothing is sent anywhere except an explicit model-list fetch.
  */
 @Composable
 private fun AiSettings(close: () -> Unit) {
@@ -257,14 +272,24 @@ private fun AiSettings(close: () -> Unit) {
     var fetching by remember { mutableStateOf<AiConnection?>(null) }
     var fetched by remember { mutableStateOf<List<String>?>(null) }
     var fetchError by remember { mutableStateOf("") }
+    var modelError by remember { mutableStateOf("") }
+    var defaultModelMenu by remember { mutableStateOf(false) }
+    var promptMenu by remember { mutableStateOf(false) }
+    val localDefaultPrompt = AiDefaults.instructions(context.resources.configuration.locales[0].toLanguageTag())
     DisposableEffect(Unit) { onDispose { fetching?.cancel() } }
     fun choices() = config.modelChoices
-    fun setChoices(list: List<String>, default: String = config.model) {
+    /** False, with the reason shown, when the list would pass [AiProtocol.MAX_MODELS]; shrinking is always allowed. */
+    fun setChoices(list: List<String>, default: String = config.model): Boolean {
         val clean = list.map(String::trim).filter(String::isNotEmpty).distinct()
+        if (clean.size > AiProtocol.MAX_MODELS && clean.size > choices().size) {
+            modelError = AiText.t(AiMsg.CONFIG_TOO_MANY_MODELS, AiProtocol.MAX_MODELS); return false
+        }
+        modelError = ""
         val model = default.takeIf { it in clean } ?: clean.firstOrNull().orEmpty()
         config = config.copy(model = model, models = clean)
+        return true
     }
-    fun addModel() { newModel.trim().takeIf { it.isNotEmpty() }?.let { setChoices(choices() + it) }; newModel = "" }
+    fun addModel() { newModel.trim().takeIf { it.isNotEmpty() }?.let { if (setChoices(choices() + it)) newModel = "" } }
     fun save() {
         val tokens = maxTokens.trim().toIntOrNull()
         if (tokens == null || tokens !in AiProtocol.MIN_MAX_TOKENS..AiProtocol.MAX_MAX_TOKENS) {
@@ -293,7 +318,8 @@ private fun AiSettings(close: () -> Unit) {
                     OutlinedTextField(config.url, { config = config.copy(url = it) }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.ai_settings_url)) }, singleLine = true)
                     OutlinedTextField(config.key, { config = config.copy(key = it) }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.ai_settings_key)) }, singleLine = true, visualTransformation = PasswordVisualTransformation())
                 }
-                SettingsGroup(stringResource(R.string.ai_settings_models), stringResource(R.string.ai_settings_models_note)) {
+                SettingsGroup(stringResource(R.string.ai_settings_models),
+                    stringResource(R.string.ai_settings_models_note) + " " + stringResource(R.string.ai_models_saved_count, choices().size, AiProtocol.MAX_MODELS)) {
                     if (choices().isEmpty()) Text(stringResource(R.string.ai_models_empty), color = palette.textDim.toComposeColor(), fontSize = TextSize.body)
                     Column {
                         choices().forEachIndexed { index, name ->
@@ -324,11 +350,34 @@ private fun AiSettings(close: () -> Unit) {
                         }
                     }
                     if (fetchError.isNotEmpty()) Text(fetchError, color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
+                    if (modelError.isNotEmpty()) Text(modelError, color = palette.text.toComposeColor(), fontSize = TextSize.label)
                 }
-                SettingsGroup(stringResource(R.string.ai_settings_thinking), stringResource(R.string.ai_settings_thinking_note)) {
+                SettingsGroup(stringResource(R.string.ai_settings_new_chat), stringResource(R.string.ai_settings_new_chat_note)) {
+                    Box {
+                        Row(Modifier.fillMaxWidth().heightIn(min = MinTouchTarget).clip(MaterialTheme.shapes.small)
+                            .clickable(enabled = choices().isNotEmpty()) { defaultModelMenu = true }.padding(horizontal = Space.s4),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            SettingsLabel(stringResource(R.string.ai_default_model), modifier = Modifier.weight(1f))
+                            Text(config.model.ifBlank { stringResource(R.string.ai_settings_no_model) }, Modifier.widthIn(max = 260.dp),
+                                color = palette.text.toComposeColor(), fontSize = TextSize.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Icon(XnotesIcons.chevronDown, null, Modifier.padding(start = Space.s4).size(16.dp), tint = palette.textDim.toComposeColor())
+                        }
+                        DropdownMenu(expanded = defaultModelMenu, onDismissRequest = { defaultModelMenu = false }, modifier = Modifier.heightIn(max = 360.dp)) {
+                            choices().forEach { name ->
+                                DropdownMenuItem(text = { Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis) }, onClick = { setChoices(choices(), name); defaultModelMenu = false },
+                                    trailingIcon = { if (name == config.model) Icon(XnotesIcons.check, null, Modifier.size(16.dp)) })
+                            }
+                        }
+                    }
+                    HorizontalDivider(color = palette.border.toComposeColor())
                     SettingsLabel(stringResource(R.string.ai_thinking_default))
                     AiSegmented(effortOptions(), config.effort, Modifier.fillMaxWidth()) { config = config.copy(effort = it) }
                     HorizontalDivider(color = palette.border.toComposeColor())
+                    AiSwitchRow(stringResource(R.string.ai_default_search), stringResource(R.string.ai_default_search_note), config.searchByDefault) { config = config.copy(searchByDefault = it) }
+                    HorizontalDivider(color = palette.border.toComposeColor())
+                    AiSwitchRow(stringResource(R.string.ai_default_attach_pdf), stringResource(R.string.ai_default_attach_pdf_note), config.attachPdfByDefault) { config = config.copy(attachPdfByDefault = it) }
+                }
+                SettingsGroup(stringResource(R.string.ai_settings_thinking), stringResource(R.string.ai_settings_thinking_note)) {
                     Box {
                         Row(Modifier.fillMaxWidth().heightIn(min = MinTouchTarget).clip(MaterialTheme.shapes.small).clickable { formatMenu = true }.padding(horizontal = Space.s4),
                             verticalAlignment = Alignment.CenterVertically) {
@@ -354,6 +403,20 @@ private fun AiSettings(close: () -> Unit) {
                         label = { Text(stringResource(R.string.ai_instructions)) }, placeholder = { Text(stringResource(R.string.ai_instructions_hint)) },
                         minLines = 4, maxLines = 10,
                         supportingText = { Text("${config.instructions.length} / ${AiProtocol.MAX_INSTRUCTIONS}") })
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box {
+                            TextButton(onClick = { promptMenu = true }, contentPadding = PaddingValues(horizontal = Space.s4)) {
+                                Icon(XnotesIcons.restore, null, Modifier.size(16.dp)); Spacer(Modifier.width(Space.s8)); Text(stringResource(R.string.ai_instructions_restore))
+                            }
+                            DropdownMenu(expanded = promptMenu, onDismissRequest = { promptMenu = false }) {
+                                DropdownMenuItem(text = { Text(stringResource(R.string.ai_instructions_default_zh)) }, onClick = { config = config.copy(instructions = AiDefaults.INSTRUCTIONS_ZH); promptMenu = false })
+                                DropdownMenuItem(text = { Text(stringResource(R.string.ai_instructions_default_en)) }, onClick = { config = config.copy(instructions = AiDefaults.INSTRUCTIONS_EN); promptMenu = false })
+                            }
+                        }
+                        TextButton(onClick = { config = config.copy(instructions = "") }, enabled = config.instructions.isNotEmpty(), contentPadding = PaddingValues(horizontal = Space.s4)) {
+                            Icon(XnotesIcons.close, null, Modifier.size(16.dp)); Spacer(Modifier.width(Space.s8)); Text(stringResource(R.string.ai_instructions_clear))
+                        }
+                    }
                 }
                 SettingsGroup(stringResource(R.string.ai_settings_search), stringResource(R.string.ai_settings_search_note)) {
                     OutlinedTextField(config.searchKey, { config = config.copy(searchKey = it) }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.ai_settings_search_key)) }, singleLine = true, visualTransformation = PasswordVisualTransformation())
@@ -364,7 +427,7 @@ private fun AiSettings(close: () -> Unit) {
                     Text(stringResource(R.string.ai_settings_clear_confirm), Modifier.weight(1f), color = palette.text.toComposeColor(), fontSize = TextSize.body)
                     TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.cancel)) }
                     TextButton(onClick = {
-                        store.clear(); config = AiConfig(); maxTokens = config.maxTokens.toString(); confirmClear = false
+                        store.clear(); config = AiConfig(instructions = localDefaultPrompt); maxTokens = config.maxTokens.toString(); confirmClear = false
                         AiSessions.get(context).configRevision++; error = context.getString(R.string.ai_settings_cleared)
                     }) { Text(stringResource(R.string.ai_settings_clear_do), fontWeight = FontWeight.Bold) }
                 } else TextButton(onClick = { confirmClear = true }, contentPadding = PaddingValues(horizontal = Space.s4)) {
@@ -391,7 +454,7 @@ internal fun rememberAskAi(source: String, sourceUri: String?, currentPdf: File?
             val bytes = file.readBytes()
             val id = sessions.newChat(source, sourceUri.orEmpty(), documentId.ifBlank { sourceUri ?: source }, documentId)
             sessions.setScreenshot(id, bytes)
-            currentPdf?.let { sessions.currentPdfs[id] = android.net.Uri.fromFile(it).toString() to "$source.pdf" }
+            currentPdf?.let { sessions.offerCurrentPdf(id, android.net.Uri.fromFile(it).toString(), "$source.pdf") }
         }.onFailure { failure = it.message ?: context.getString(R.string.ai_screenshot_failed) }
     }
 }

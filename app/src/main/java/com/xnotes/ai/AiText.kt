@@ -8,6 +8,7 @@ package com.xnotes.ai
 enum class AiMsg(val zh: String) {
     CONFIG_MAX_TOKENS_INVALID("最大输出长度须在 %1\$d–%2\$d 之间"),
     CONFIG_INSTRUCTIONS_TOO_LONG("自定义提示词不能超过 %1\$d 个字符"),
+    CONFIG_TOO_MANY_MODELS("最多保存 %1\$d 个模型，请先移除不用的模型"),
     CONFIG_THINKING_INVALID("思考设置无效"),
     MODELS_HTTP_FAILED("获取模型列表失败（HTTP %1\$d），请检查地址与 API Key"),
     MODELS_RESPONSE_TOO_LARGE("模型列表过大"),

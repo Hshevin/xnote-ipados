@@ -29,6 +29,7 @@ internal fun AiMsg.resId(): Int = when (this) {
     AiMsg.PDF_LOCAL_ONLY -> R.string.ai_msg_pdf_local_only
     AiMsg.CONFIG_MAX_TOKENS_INVALID -> R.string.ai_msg_config_max_tokens_invalid
     AiMsg.CONFIG_INSTRUCTIONS_TOO_LONG -> R.string.ai_msg_config_instructions_too_long
+    AiMsg.CONFIG_TOO_MANY_MODELS -> R.string.ai_msg_config_too_many_models
     AiMsg.CONFIG_THINKING_INVALID -> R.string.ai_msg_config_thinking_invalid
     AiMsg.MODELS_HTTP_FAILED -> R.string.ai_msg_models_http_failed
     AiMsg.MODELS_RESPONSE_TOO_LARGE -> R.string.ai_msg_models_response_too_large

@@ -136,10 +136,20 @@ class AiSessions(
         val previous=if(floatingOwner!=null && this.floatingOwner==floatingOwner) activeId?.let { chats[it] } else null
         val chat = AiChat(source = source.ifBlank { previous?.source.orEmpty() }, sourceUri = sourceUri.ifBlank { previous?.sourceUri.orEmpty() }, sourceDocumentId = sourceDocumentId.ifBlank { previous?.sourceDocumentId.orEmpty() })
         val previousPdf = if (floatingOwner != null && this.floatingOwner == floatingOwner) activeId?.let { currentPdfs[it] } else null
-        previousPdf?.let { currentPdfs[chat.id] = it }
         this.floatingOwner = floatingOwner
-        chats[chat.id] = chat; activeId = chat.id; persist(chat)
+        // Unreadable settings only lose the defaults; the chat itself still opens.
+        val defaults = runCatching { config() }.getOrNull()
+        val started = if (defaults?.searchByDefault == true) chat.copy(draft = chat.draft.copy(search = true)) else chat
+        if (started.draft.search) searchEnabled[chat.id] = true
+        chats[chat.id] = started; activeId = chat.id; persist(started)
+        previousPdf?.let { (uri, name) -> offerCurrentPdf(chat.id, uri, name, defaults) }
         return chat.id
+    }
+    /** The document's own PDF, offered in the ＋ menu; attached at once when the settings ask for it. */
+    fun offerCurrentPdf(id: String, uri: String, name: String, defaults: AiConfig? = runCatching { config() }.getOrNull()) {
+        if (!chats.containsKey(id)) return
+        currentPdfs[id] = uri to name
+        if (defaults?.attachPdfByDefault == true && pdfAttachments[id] == null && importStates[id] == null) importPdf(id, uri, name)
     }
     fun close() { activeId = null; floatingOwner = null }
     fun reconcileFloating(visibleDocuments: Set<String>) {

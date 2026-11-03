@@ -18,6 +18,7 @@ import org.json.JSONObject
  * The provider and how to ask it. [model] is the default for new chats and [models] the user's pick
  * list; [effort] is the default thinking level ("" leaves it to the provider) and [thinkingFormat]
  * which request field carries it. [instructions] is the user's own system prompt for answers.
+ * [searchByDefault] and [attachPdfByDefault] are how a new chat starts out.
  */
 data class AiConfig(
     val url: String = "", val model: String = "", val key: String = "", val searchKey: String = "",
@@ -26,6 +27,8 @@ data class AiConfig(
     val thinkingFormat: String = AiThinking.AUTO,
     val maxTokens: Int = AiProtocol.DEFAULT_MAX_TOKENS,
     val instructions: String = "",
+    val searchByDefault: Boolean = false,
+    val attachPdfByDefault: Boolean = false,
 ) {
     /** The saved pick list in the user's order, always holding the default model. */
     val modelChoices: List<String> get() = (if (model.trim() in models.map(String::trim)) models else listOf(model) + models).map(String::trim).filter(String::isNotEmpty).distinct()
@@ -35,6 +38,8 @@ data class AiConfig(
 
 /** Keystore-encrypted, atomic, excluded from Android backup and note exports. */
 class AiConfigStore(context: Context) {
+    /** The default system prompt in the UI language, for a setup that has never chosen one. */
+    private val defaultInstructions = AiDefaults.instructions(context.resources.configuration.locales[0].toLanguageTag())
     private val file = AtomicFile(File(context.noBackupFilesDir, "ask-ai.config"))
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
@@ -45,7 +50,7 @@ class AiConfigStore(context: Context) {
         }.generateKey()
     }
     fun load(): AiConfig {
-        if (!file.baseFile.exists()) return AiConfig()
+        if (!file.baseFile.exists()) return AiConfig(instructions = defaultInstructions)
         val bytes = file.readFully()
         require(bytes.size > 12)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
@@ -56,26 +61,38 @@ class AiConfigStore(context: Context) {
             models = models, effort = json.optString("effort", "").takeIf { it in AiThinking.LEVELS } ?: "",
             thinkingFormat = json.optString("thinkingFormat", AiThinking.AUTO).takeIf { it in AiThinking.FORMATS } ?: AiThinking.AUTO,
             maxTokens = json.optInt("maxTokens", AiProtocol.DEFAULT_MAX_TOKENS).coerceIn(AiProtocol.MIN_MAX_TOKENS, AiProtocol.MAX_MAX_TOKENS),
-            instructions = json.optString("instructions", ""))
+            // A config saved before prompts existed gets the default; an emptied prompt stays empty.
+            instructions = if (json.has("instructions")) json.optString("instructions", "") else defaultInstructions,
+            searchByDefault = json.optBoolean("searchByDefault", false), attachPdfByDefault = json.optBoolean("attachPdfByDefault", false))
     }
     fun save(config: AiConfig) {
-        AiProtocol.endpoint(config.url)
-        require(config.model.isNotBlank() && config.key.isNotBlank()) { AiText.t(AiMsg.CONFIG_MODEL_KEY_REQUIRED) }
-        require(!config.key.contains('\n') && !config.key.contains('\r')) { AiText.t(AiMsg.CONFIG_KEY_INVALID) }
-        require(!config.searchKey.contains('\n') && !config.searchKey.contains('\r')) { AiText.t(AiMsg.CONFIG_SEARCH_KEY_INVALID) }
-        require(config.maxTokens in AiProtocol.MIN_MAX_TOKENS..AiProtocol.MAX_MAX_TOKENS) { AiText.t(AiMsg.CONFIG_MAX_TOKENS_INVALID, AiProtocol.MIN_MAX_TOKENS, AiProtocol.MAX_MAX_TOKENS) }
-        require(config.instructions.length <= AiProtocol.MAX_INSTRUCTIONS) { AiText.t(AiMsg.CONFIG_INSTRUCTIONS_TOO_LONG, AiProtocol.MAX_INSTRUCTIONS) }
-        require(config.effort in AiThinking.LEVELS && config.thinkingFormat in AiThinking.FORMATS) { AiText.t(AiMsg.CONFIG_THINKING_INVALID) }
+        validate(config)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, key())
         val json = JSONObject().put("url", config.url.trim()).put("model", config.model.trim()).put("key", config.key.trim()).put("searchKey", config.searchKey.trim())
-            .put("models", org.json.JSONArray(config.modelChoices.take(AiProtocol.MAX_MODELS))).put("effort", config.effort).put("thinkingFormat", config.thinkingFormat)
+            .put("models", org.json.JSONArray(config.modelChoices)).put("effort", config.effort).put("thinkingFormat", config.thinkingFormat)
             .put("maxTokens", config.maxTokens).put("instructions", config.instructions.trim())
+            .put("searchByDefault", config.searchByDefault).put("attachPdfByDefault", config.attachPdfByDefault)
         val bytes = cipher.iv + cipher.doFinal(json.toString().toByteArray(Charsets.UTF_8))
         val out = file.startWrite()
         try { out.write(bytes); file.finishWrite(out) } catch (e: Exception) { file.failWrite(out); throw e }
     }
     fun clear() = file.delete()
+
+
+    companion object {
+        /** Everything [save] refuses, checked before anything is written; the previous file stays. */
+        fun validate(config: AiConfig) {
+            AiProtocol.endpoint(config.url)
+            require(config.model.isNotBlank() && config.key.isNotBlank()) { AiText.t(AiMsg.CONFIG_MODEL_KEY_REQUIRED) }
+            require(!config.key.contains('\n') && !config.key.contains('\r')) { AiText.t(AiMsg.CONFIG_KEY_INVALID) }
+            require(!config.searchKey.contains('\n') && !config.searchKey.contains('\r')) { AiText.t(AiMsg.CONFIG_SEARCH_KEY_INVALID) }
+            require(config.modelChoices.size <= AiProtocol.MAX_MODELS) { AiText.t(AiMsg.CONFIG_TOO_MANY_MODELS, AiProtocol.MAX_MODELS) }
+            require(config.maxTokens in AiProtocol.MIN_MAX_TOKENS..AiProtocol.MAX_MAX_TOKENS) { AiText.t(AiMsg.CONFIG_MAX_TOKENS_INVALID, AiProtocol.MIN_MAX_TOKENS, AiProtocol.MAX_MAX_TOKENS) }
+            require(config.instructions.length <= AiProtocol.MAX_INSTRUCTIONS) { AiText.t(AiMsg.CONFIG_INSTRUCTIONS_TOO_LONG, AiProtocol.MAX_INSTRUCTIONS) }
+            require(config.effort in AiThinking.LEVELS && config.thinkingFormat in AiThinking.FORMATS) { AiText.t(AiMsg.CONFIG_THINKING_INVALID) }
+        }
+    }
 }
 
 interface AiTransport {

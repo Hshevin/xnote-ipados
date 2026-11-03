@@ -125,5 +125,57 @@ class AiSettingsOptionsTest {
         } finally { job.cancelAndJoin(); dir.deleteRecursively() }
     }
 
+    @Test fun saveRefusesMoreModelsThanTheLimitInsteadOfTrimming() {
+        val base = AiConfig("https://example.com/v1", "m0", "k")
+        AiConfigStore.validate(base.copy(models = (0 until AiProtocol.MAX_MODELS).map { "m$it" }))
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            AiConfigStore.validate(base.copy(models = (0..AiProtocol.MAX_MODELS).map { "m$it" }))
+        }
+        assertTrue(error.message!!.contains(AiProtocol.MAX_MODELS.toString()))
+    }
+
+    @Test fun defaultInstructionsFollowUiLanguageAndFitTheLimit() {
+        assertEquals(AiDefaults.INSTRUCTIONS_ZH, AiDefaults.instructions("zh-Hans-CN"))
+        assertEquals(AiDefaults.INSTRUCTIONS_ZH, AiDefaults.instructions("zh-CN"))
+        assertEquals(AiDefaults.INSTRUCTIONS_EN, AiDefaults.instructions("en-GB"))
+        assertEquals(AiDefaults.INSTRUCTIONS_EN, AiDefaults.instructions("ja"))
+        listOf(AiDefaults.INSTRUCTIONS_ZH, AiDefaults.INSTRUCTIONS_EN).forEach {
+            assertTrue(it.length <= AiProtocol.MAX_INSTRUCTIONS)
+            AiConfigStore.validate(AiConfig("https://example.com/v1", "m", "k", instructions = it))
+        }
+    }
+
+    @Test fun newChatStartsWithConfiguredDefaults() = runBlocking {
+        val dir = Files.createTempDirectory("sessions").toFile()
+        val job = SupervisorJob(); val scope = CoroutineScope(coroutineContext + job)
+        try {
+            var defaults = AiConfig("https://example.com/v1", "m", "k", searchByDefault = true, attachPdfByDefault = true)
+            val imported = mutableListOf<String>()
+            val sessions = AiSessions(AiHistoryStore(dir), scope, { defaults }, preparePdf = { uri, name ->
+                imported.add(uri); AiPdf(name ?: "a.pdf", pageCount = 1)
+            })
+            until { sessions.ready }
+            val id = sessions.newChat(floatingOwner = "doc")
+            assertEquals(true, sessions.searchEnabled[id])
+            assertTrue(sessions.chats[id]!!.draft.search)
+            sessions.offerCurrentPdf(id, "file:///a.pdf", "a.pdf")
+            until { sessions.pdfAttachments[id] != null }
+            assertEquals(listOf("file:///a.pdf"), imported)
+            // A new chat from the same floating window carries the PDF on and attaches it again.
+            val next = sessions.newChat(floatingOwner = "doc")
+            until { sessions.pdfAttachments[next] != null }
+            assertEquals(2, imported.size)
+            sessions.flush()
+            assertTrue(AiHistoryStore(dir).readAll().first.first { it.id == id }.draft.search)
+            // With the defaults off, the PDF is only offered and search starts off.
+            defaults = defaults.copy(searchByDefault = false, attachPdfByDefault = false)
+            val plain = sessions.newChat(floatingOwner = "doc")
+            assertNotEquals(true, sessions.searchEnabled[plain])
+            assertEquals("file:///a.pdf" to "a.pdf", sessions.currentPdfs[plain])
+            assertNull(sessions.importStates[plain]); assertNull(sessions.pdfAttachments[plain])
+            assertEquals(2, imported.size)
+        } finally { job.cancelAndJoin(); dir.deleteRecursively() }
+    }
+
     private suspend fun until(condition: () -> Boolean) = withTimeout(5000) { while (!condition()) delay(5) }
 }

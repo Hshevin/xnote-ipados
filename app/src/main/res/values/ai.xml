@@ -129,4 +129,16 @@
         <item quantity="one">%d model</item>
         <item quantity="other">%d models</item>
     </plurals>
+    <string name="ai_models_saved_count">%1$d / %2$d saved</string>
+    <string name="ai_settings_new_chat">New chat defaults</string>
+    <string name="ai_settings_new_chat_note">Each chat can still change its model, thinking and web search from the input bar.</string>
+    <string name="ai_default_model">Default model</string>
+    <string name="ai_default_search">Web search on</string>
+    <string name="ai_default_search_note">Needs the search key below. Each question then adds one model call.</string>
+    <string name="ai_default_attach_pdf">Attach the current PDF</string>
+    <string name="ai_default_attach_pdf_note">Asking from a PDF attaches it so the model can read pages as needed.</string>
+    <string name="ai_instructions_restore">Restore default</string>
+    <string name="ai_instructions_default_zh">Default (Chinese)</string>
+    <string name="ai_instructions_default_en">Default (English)</string>
+    <string name="ai_instructions_clear">Clear</string>
 </resources>
