@@ -201,14 +201,17 @@ class GlWetPad(context: Context, onTop: Boolean = false) : SurfaceView(context),
      * the driver is still queueing a pad frame crashes inside BLASTBufferQueue. Nothing knows about
      * this layer's queue, so nothing syncs it. Before Android 12 there is no such sync.
      */
-    private fun openLayer(holder: SurfaceHolder): Surface? {
+    private fun openLayer(
+        holder: SurfaceHolder,
+        width: Int = holder.surfaceFrame.width(),
+        height: Int = holder.surfaceFrame.height(),
+    ): Surface? {
         if (android.os.Build.VERSION.SDK_INT < 31) return null
         val parent = surfaceControl?.takeIf { it.isValid } ?: return null
-        val frame = holder.surfaceFrame
         val child = SurfaceControl.Builder()
             .setName("xnotes-wet-pad")
             .setParent(parent)
-            .setBufferSize(frame.width().coerceAtLeast(1), frame.height().coerceAtLeast(1))
+            .setBufferSize(width.coerceAtLeast(1), height.coerceAtLeast(1))
             .setFormat(android.graphics.PixelFormat.TRANSLUCENT)
             .build()
         // Above the SurfaceView's own layer, which never gets a buffer now.
@@ -287,6 +290,7 @@ class GlWetPad(context: Context, onTop: Boolean = false) : SurfaceView(context),
         clip: com.xnotes.core.infinite.PixelRect? = null,
     ): Boolean {
         if (!frontBuffering || !ready || covered) return false
+        if (width != surfaceW || height != surfaceH) return false
         if (!ink.extend(scrollX, scrollY, zoom, width, height, clip, lightBlackInk)) return false
         // Cancels a handover still waiting to wipe the pad this stroke has just taken over.
         post { releaseGen++ }
@@ -577,22 +581,23 @@ class GlWetPad(context: Context, onTop: Boolean = false) : SurfaceView(context),
         if (w == surfaceW && h == surfaceH) return
         // A pad that never came up will not come up for being asked twice.
         if (!ready) return
-        val surface = target ?: return
+        var surface = target ?: return
         // Every pixel goes with the surface, so nothing on it may be joined or handed over.
         ink.forget()
         mainHandler.post { onSurfaceLost?.invoke() }
         destroyEgl()
-        sizeLayer(w, h)
+        if (layer != null) {
+            // A new EGLSurface alone still connects to the old native window's shared-buffer
+            // queue. After split resizing it can report SINGLE and the correct dimensions while
+            // the compositor keeps reading the previous buffer. Give the new EGL context a new
+            // queue as well, so its transition swap publishes the buffer it will actually write.
+            closeLayer()
+            surface = openLayer(holder, w, h) ?: holder.surface
+            target = surface
+        }
         createEgl(surface)
         setLayerVisible(false)
         Log.i(TAG, "wet pad surface rebuilt for ${w}x$h, got ${surfaceW}x$surfaceH")
-    }
-
-    /** SurfaceView sizes its own queue, so the pad's layer is the pad's to size. */
-    private fun sizeLayer(w: Int, h: Int) {
-        if (android.os.Build.VERSION.SDK_INT < 31) return
-        val child = layer?.takeIf { it.isValid } ?: return
-        SurfaceControl.Transaction().use { it.setBufferSize(child, w, h).apply() }
     }
 
     /**
@@ -681,6 +686,8 @@ class GlWetPad(context: Context, onTop: Boolean = false) : SurfaceView(context),
     }
 
     private fun destroyEgl() {
+        // Wipes and visibility callbacks belong to the old buffer, even if the same View survives.
+        releaseGen++
         if (eglDisplay == EGL14.EGL_NO_DISPLAY) return
         EGL14.eglMakeCurrent(eglDisplay, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)
         if (eglSurface != EGL14.EGL_NO_SURFACE) EGL14.eglDestroySurface(eglDisplay, eglSurface)
