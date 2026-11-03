@@ -60,6 +60,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.ZoneId
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /**
  * Trash: what was deleted, where it came from, when, and how long it has left before it is permanently deleted. Items
@@ -105,31 +107,31 @@ internal fun TrashPane(editor: Editor, sidebarOpen: Boolean, onShowSidebar: () -
                         }
                     }
                 }
-                Text(stringResource(R.string.trash), color = palette.text.toComposeColor(), fontWeight = FontWeight.Bold, fontSize = 20.sp, maxLines = 1, modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.trash), color = palette.text.toComposeColor(), fontWeight = FontWeight.Bold, fontSize = TextSize.headline, maxLines = 1, modifier = Modifier.weight(1f))
                 ExplorerSearchField(query, { query = it }, expandedWidth = searchRoom.coerceIn(40.dp, 300.dp))
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(Space.s12))
                 val shape = MaterialTheme.shapes.extraLarge
                 val enabled = !busy && !items.isNullOrEmpty()
                 Row(
                     Modifier.onSizeChanged { emptyWidth = with(density) { it.width.toDp() } }
                         .height(40.dp).clip(shape).border(1.dp, palette.border.toComposeColor(), shape)
-                        .clickable(enabled = enabled) { confirmEmpty = true }.padding(horizontal = 16.dp),
+                        .clickable(enabled = enabled) { confirmEmpty = true }.padding(horizontal = Space.s16),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(Space.s8),
                 ) {
                     val tint = if (enabled) palette.accent.toComposeColor() else palette.textDim.toComposeColor().copy(alpha = 0.5f)
                     Icon(XnotesIcons.trash, null, tint = tint, modifier = Modifier.size(18.dp))
-                    Text(stringResource(R.string.empty_trash), color = if (enabled) palette.text.toComposeColor() else tint, fontSize = 14.sp, maxLines = 1)
+                    Text(stringResource(R.string.empty_trash), color = if (enabled) palette.text.toComposeColor() else tint, fontSize = TextSize.bodyLarge, maxLines = 1)
                 }
             }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Space.s8))
         val bannerShape = MaterialTheme.shapes.medium
         Row(
             Modifier.fillMaxWidth().clip(bannerShape).background(palette.surface.toComposeColor())
-                .border(1.dp, palette.border.toComposeColor(), bannerShape).padding(horizontal = 14.dp, vertical = 10.dp),
+                .border(1.dp, palette.border.toComposeColor(), bannerShape).padding(horizontal = Space.s16, vertical = Space.s12),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(Space.s12),
         ) {
             Icon(XnotesIcons.clock, null, tint = palette.textDim.toComposeColor(), modifier = Modifier.size(18.dp))
             Text(
@@ -138,14 +140,14 @@ internal fun TrashPane(editor: Editor, sidebarOpen: Boolean, onShowSidebar: () -
                     Preferences.TRASH_FOREVER -> stringResource(R.string.trash_forever_hint)
                     else -> pluralStringResource(R.plurals.trash_deleted_after, prefs.trashDays, prefs.trashDays)
                 },
-                color = palette.text.toComposeColor(), fontSize = 13.5.sp, modifier = Modifier.weight(1f),
+                color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge, modifier = Modifier.weight(1f),
             )
             Text(
-                stringResource(R.string.change), color = palette.accent.toComposeColor(), fontSize = 13.5.sp, fontWeight = FontWeight.Medium,
-                modifier = Modifier.clip(MaterialTheme.shapes.extraSmall).clickable(onClick = onOpenPreferences).padding(horizontal = 6.dp, vertical = 4.dp),
+                stringResource(R.string.change), color = palette.accent.toComposeColor(), fontSize = TextSize.bodyLarge, fontWeight = FontWeight.Medium,
+                modifier = Modifier.clip(MaterialTheme.shapes.extraSmall).clickable(onClick = onOpenPreferences).padding(horizontal = Space.s6, vertical = Space.s4),
             )
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(Space.s12))
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val wide = maxWidth >= 720.dp
             val list = items
@@ -155,8 +157,8 @@ internal fun TrashPane(editor: Editor, sidebarOpen: Boolean, onShowSidebar: () -
                 list.isEmpty() -> EmptyPane(stringResource(R.string.trash_empty), EmptyArt.TRASH)
                 shown.isEmpty() -> EmptyPane(stringResource(R.string.trash_no_match, query.trim()))
                 else -> Column(Modifier.fillMaxSize()) {
-                    Row(Modifier.fillMaxWidth().height(36.dp).padding(start = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        TrashHead(stringResource(R.string.sort_name), Modifier.weight(1f).padding(start = 54.dp))
+                    Row(Modifier.fillMaxWidth().height(36.dp).padding(start = Space.s8, end = Space.s4), verticalAlignment = Alignment.CenterVertically) {
+                        TrashHead(stringResource(R.string.sort_name), Modifier.weight(1f).padding(start = Space.s48))
                         if (wide) {
                             TrashHead(stringResource(R.string.trash_was_in), Modifier.width(170.dp))
                             TrashHead(stringResource(R.string.trash_deleted), Modifier.width(150.dp), on = true)
@@ -187,7 +189,7 @@ internal fun TrashPane(editor: Editor, sidebarOpen: Boolean, onShowSidebar: () -
                     }
                     Text(
                         stringResource(R.string.restore_hint, rootName ?: stringResource(R.string.the_top_folder)),
-                        color = palette.textDim.toComposeColor(), fontSize = 12.5.sp, modifier = Modifier.padding(start = 8.dp, top = 10.dp),
+                        color = palette.textDim.toComposeColor(), fontSize = TextSize.body, modifier = Modifier.padding(start = Space.s8, top = Space.s12),
                     )
                 }
             }
@@ -238,7 +240,7 @@ private fun label(item: TrashItem): String = if (item.entry.isDir) item.entry.na
 @Composable
 private fun TrashHead(text: String, modifier: Modifier, on: Boolean = false) {
     val palette = LocalPalette.current
-    Text(text, color = (if (on) palette.accent else palette.textDim).toComposeColor(), fontSize = 12.5.sp, fontWeight = FontWeight.Medium, maxLines = 1, modifier = modifier)
+    Text(text, color = (if (on) palette.accent else palette.textDim).toComposeColor(), fontSize = TextSize.body, fontWeight = FontWeight.Medium, maxLines = 1, modifier = modifier)
 }
 
 @Composable
@@ -262,7 +264,7 @@ private fun TrashRow(
     val wasIn = item.path.lastOrNull() ?: rootName
     val deleted = formatWhen(words, item.deleted, now, "day", true, clock24, zone)
     val left = if (days > 0) (days - ((now - item.deleted) / 86_400_000L).toInt()).coerceAtLeast(0) else null
-    Row(Modifier.fillMaxWidth().height(60.dp).padding(start = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().height(60.dp).padding(start = Space.s8, end = Space.s4), verticalAlignment = Alignment.CenterVertically) {
         val shape = MaterialTheme.shapes.small
         if (e.isDir) {
             Box(Modifier.size(40.dp).clip(shape).background(palette.surface.toComposeColor()), contentAlignment = Alignment.Center) {
@@ -271,34 +273,34 @@ private fun TrashRow(
         } else {
             EntryThumb(editor, e, ThumbShape.TOP, Modifier.size(40.dp).clip(shape).border(1.dp, palette.border.toComposeColor(), shape))
         }
-        Column(Modifier.weight(1f).padding(start = 14.dp)) {
-            Text(label(item), color = palette.text.toComposeColor(), fontSize = 14.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        Column(Modifier.weight(1f).padding(start = Space.s16)) {
+            Text(label(item), color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
                 Icon(kindIcon(kind), null, tint = dim, modifier = Modifier.size(12.dp))
                 val sub = if (wide) kindLabel(kind) else stringResource(R.string.trash_row_sub, kindLabel(kind), wasIn, deleted)
-                Text(sub, color = dim, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(sub, color = dim, fontSize = TextSize.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         if (wide) {
-            Row(Modifier.width(170.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.width(170.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s6)) {
                 Icon(XnotesIcons.folder, null, tint = dim, modifier = Modifier.size(14.dp))
-                Text(wasIn, color = dim, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(wasIn, color = dim, fontSize = TextSize.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Text(deleted, color = dim, fontSize = 13.sp, maxLines = 1, modifier = Modifier.width(150.dp))
+            Text(deleted, color = dim, fontSize = TextSize.body, maxLines = 1, modifier = Modifier.width(150.dp))
             Text(
                 when (left) { null -> stringResource(R.string.never); 0 -> stringResource(R.string.today); else -> pluralStringResource(R.plurals.days_count, left, left) },
                 color = if (left != null && left <= 3) palette.danger.toComposeColor() else palette.text.toComposeColor(),
-                fontSize = 13.sp, maxLines = 1, modifier = Modifier.width(110.dp),
+                fontSize = TextSize.body, maxLines = 1, modifier = Modifier.width(110.dp),
             )
         }
         Row(Modifier.width(150.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.End) {
             Row(
-                Modifier.clip(MaterialTheme.shapes.small).clickable(onClick = onRestore).padding(horizontal = 8.dp, vertical = 8.dp),
+                Modifier.clip(MaterialTheme.shapes.small).clickable(onClick = onRestore).padding(horizontal = Space.s8, vertical = Space.s8),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(Space.s6),
             ) {
                 Icon(XnotesIcons.restore, null, tint = palette.accent.toComposeColor(), modifier = Modifier.size(16.dp))
-                Text(stringResource(R.string.restore), color = palette.accent.toComposeColor(), fontSize = 13.5.sp, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.restore), color = palette.accent.toComposeColor(), fontSize = TextSize.bodyLarge, fontWeight = FontWeight.Medium)
             }
             var menu by remember { mutableStateOf(false) }
             Box {

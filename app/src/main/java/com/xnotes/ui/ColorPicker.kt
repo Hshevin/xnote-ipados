@@ -61,6 +61,8 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 // --- The 13×13 swatch matrix --------------------------------------------------------------------
 // 13 hues across; 12 hue×shade rows that ramp from a pale tint at the top, through the pure hue,
@@ -128,12 +130,12 @@ internal fun ColorPickerPopup(
     fun commit(c: Rgba) { applyLive(c); onPick(c) }
 
     DropdownMenu(expanded = true, onDismissRequest = onDismiss) {
-        Column(Modifier.width(GRID_W.dp).padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.width(GRID_W.dp).padding(horizontal = Space.s12, vertical = Space.s8)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s6)) {
                 TabChip(stringResource(R.string.swatches), tab == 0) { tab = 0 }
                 TabChip(stringResource(R.string.spectrum), tab == 1) { tab = 1 }
             }
-            Spacer(Modifier.size(12.dp))
+            Spacer(Modifier.size(Space.s12))
             when (tab) {
                 0 -> SwatchesTab(recents, current) { commit(it) }
                 else -> Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -152,9 +154,9 @@ internal fun ColorPickerPopup(
                     )
                 }
             }
-            Spacer(Modifier.size(12.dp))
+            Spacer(Modifier.size(Space.s12))
             Box(Modifier.fillMaxWidth().height(1.dp).background(palette.border.toComposeColor()))
-            Spacer(Modifier.size(10.dp))
+            Spacer(Modifier.size(Space.s12))
             ColorFooter(current) { commit(it) }
         }
     }
@@ -164,23 +166,23 @@ internal fun ColorPickerPopup(
 private fun SwatchesTab(recents: List<Rgba>, current: Rgba, onPick: (Rgba) -> Unit) {
     // The full-width rows give every cell an equal `weight` so 13 columns divide the row exactly —
     // a fixed cell size would accumulate dp→px rounding and clip the rightmost column.
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Space.s2)) {
         if (recents.isNotEmpty()) {
             Caption(stringResource(R.string.caption_recent))
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                 recents.take(13).forEach { c -> SwatchCell(c, c == current, Modifier.size(CELL.dp)) { onPick(c) } }
             }
-            Spacer(Modifier.size(6.dp))
+            Spacer(Modifier.size(Space.s6))
         }
         SWATCH_SHADES.forEach { (s, v) ->
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                 SWATCH_HUES.forEach { h ->
                     val c = ColorMath.hsvToRgb(h, s, v)
                     SwatchCell(c, c == current, Modifier.weight(1f).aspectRatio(1f)) { onPick(c) }
                 }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
             (0..12).forEach { i ->
                 val g = ((1.0 - i / 12.0) * 255).roundToInt()
                 val c = Rgba(g, g, g)
@@ -193,16 +195,16 @@ private fun SwatchesTab(recents: List<Rgba>, current: Rgba, onPick: (Rgba) -> Un
 /** The full hue×shade matrix plus the greyscale row at fixed cell size, for menus outside the picker. */
 @Composable
 internal fun FullSwatchGrid(onPick: (Rgba) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Space.s2)) {
         SWATCH_SHADES.forEach { (s, v) ->
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                 SWATCH_HUES.forEach { h ->
                     val c = ColorMath.hsvToRgb(h, s, v)
                     SwatchCell(c, false, Modifier.size(CELL.dp)) { onPick(c) }
                 }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
             (0..12).forEach { i ->
                 val g = ((1.0 - i / 12.0) * 255).roundToInt()
                 val c = Rgba(g, g, g)
@@ -354,8 +356,8 @@ private fun DrawScope.drawWheel(hue: Double, sat: Double, value: Double, border:
 @Composable
 private fun ColorFooter(current: Rgba, onColor: (Rgba) -> Unit) {
     val palette = LocalPalette.current
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Space.s6)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             Box(
                 Modifier
                     .size(30.dp)
@@ -365,7 +367,7 @@ private fun ColorFooter(current: Rgba, onColor: (Rgba) -> Unit) {
             )
             HexField(current, onColor, Modifier.weight(1f))
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.s6)) {
             ChannelField("R", current.r, Modifier.weight(1f)) { onColor(current.copy(r = it)) }
             ChannelField("G", current.g, Modifier.weight(1f)) { onColor(current.copy(g = it)) }
             ChannelField("B", current.b, Modifier.weight(1f)) { onColor(current.copy(b = it)) }
@@ -377,11 +379,11 @@ private fun ColorFooter(current: Rgba, onColor: (Rgba) -> Unit) {
 private fun HexField(current: Rgba, onColor: (Rgba) -> Unit, modifier: Modifier = Modifier) {
     val palette = LocalPalette.current
     FieldFrame(modifier) {
-        Text("#", color = palette.textDim.toComposeColor(), fontSize = 13.sp)
+        Text("#", color = palette.textDim.toComposeColor(), fontSize = TextSize.body)
         NativeField(
             value = Rgba.toHex(current).removePrefix("#").uppercase(),
             onText = { raw -> if (raw.length == 6) Rgba.fromHex("#$raw")?.let { onColor(it.copy(a = 255)) } },
-            modifier = Modifier.weight(1f).padding(start = 4.dp),
+            modifier = Modifier.weight(1f).padding(start = Space.s4),
             maxLen = 6,
             hexOnly = true,
         )
@@ -392,11 +394,11 @@ private fun HexField(current: Rgba, onColor: (Rgba) -> Unit, modifier: Modifier 
 private fun ChannelField(label: String, value: Int, modifier: Modifier = Modifier, onChange: (Int) -> Unit) {
     val palette = LocalPalette.current
     FieldFrame(modifier) {
-        Text(label, color = palette.textDim.toComposeColor(), fontSize = 13.sp)
+        Text(label, color = palette.textDim.toComposeColor(), fontSize = TextSize.body)
         NativeField(
             value = value.toString(),
             onText = { raw -> raw.toIntOrNull()?.let { onChange(it.coerceIn(0, 255)) } },
-            modifier = Modifier.weight(1f).padding(start = 6.dp),
+            modifier = Modifier.weight(1f).padding(start = Space.s6),
             numeric = true,
             maxLen = 3,
             endAlign = true,
@@ -502,7 +504,7 @@ internal fun FieldFrame(modifier: Modifier = Modifier, content: @Composable RowS
             .clip(MaterialTheme.shapes.extraSmall)
             .background(palette.surface.toComposeColor())
             .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.extraSmall)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(horizontal = Space.s8, vertical = Space.s6),
         verticalAlignment = Alignment.CenterVertically,
     ) { content() }
 }
@@ -516,13 +518,13 @@ private fun TabChip(label: String, selected: Boolean, onClick: () -> Unit) {
             .background(if (selected) palette.selectionBackground.toComposeColor() else palette.surface.toComposeColor())
             .border(1.dp, if (selected) palette.accent.toComposeColor() else palette.border.toComposeColor(), MaterialTheme.shapes.extraSmall)
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 6.dp),
+            .padding(horizontal = Space.s16, vertical = Space.s6),
     ) {
         Text(
             label,
             color = if (selected) palette.selectionForeground.toComposeColor() else palette.text.toComposeColor(),
             fontWeight = FontWeight.Medium,
-            fontSize = 12.sp,
+            fontSize = TextSize.label,
         )
     }
 }
@@ -532,7 +534,7 @@ private fun Caption(text: String) {
     Text(
         text,
         color = LocalPalette.current.textDim.toComposeColor(),
-        fontSize = 12.sp,
-        modifier = Modifier.padding(vertical = 2.dp),
+        fontSize = TextSize.label,
+        modifier = Modifier.padding(vertical = Space.s2),
     )
 }

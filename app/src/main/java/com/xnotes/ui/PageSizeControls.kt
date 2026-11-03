@@ -29,6 +29,8 @@ import com.xnotes.core.model.PageSize
 import com.xnotes.core.model.PageSizeChoice
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /** The page size menu: every named size and Custom, after an [unset] choice (picking null) when one is named. */
 @Composable
@@ -41,9 +43,9 @@ internal fun SizeDropdown(size: PageSize?, unset: String? = null, onSelect: (Pag
                 .clip(MaterialTheme.shapes.small)
                 .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.small)
                 .clickable { expanded = true }
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+                .padding(horizontal = Space.s12, vertical = Space.s6),
         ) {
-            Text(size?.let { pageSizeLabel(it) } ?: unset.orEmpty(), color = palette.text.toComposeColor(), fontSize = 14.sp)
+            Text(size?.let { pageSizeLabel(it) } ?: unset.orEmpty(), color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge)
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             if (unset != null) DropdownMenuItem(text = { Text(unset) }, onClick = { onSelect(null); expanded = false })
@@ -71,16 +73,16 @@ internal fun PageSizeDialog(initial: PageSizeChoice, onApply: (PageSizeChoice) -
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.page_size)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.s12)) {
                 SizeDropdown(choice.size) { size -> size?.let { choice = choice.copy(size = it) } }
                 val c = choice
                 if (c.size == PageSize.CUSTOM) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                         SideField(stringResource(R.string.width_mm), c.customWidthMm, Modifier.weight(1f)) { mm -> choice = choice.copy(customWidthMm = mm) }
                         SideField(stringResource(R.string.height_mm), c.customHeightMm, Modifier.weight(1f)) { mm -> choice = choice.copy(customHeightMm = mm) }
                     }
                 } else {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s6), verticalArrangement = Arrangement.spacedBy(Space.s6)) {
                         ModeChip(stringResource(R.string.orientation_portrait), c.orientation == Orientation.PORTRAIT) {
                             choice = c.copy(orientation = Orientation.PORTRAIT)
                         }

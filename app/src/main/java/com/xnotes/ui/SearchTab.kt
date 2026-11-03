@@ -70,6 +70,8 @@ import com.xnotes.core.search.SearchSnippet
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /**
  * The side panel's Search tab: the query and its toggles, where the current match stands with
@@ -112,19 +114,19 @@ private fun QueryField(editor: Editor) {
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(start = 8.dp, end = 8.dp, top = 2.dp, bottom = 2.dp)
+            .padding(start = Space.s8, end = Space.s8, top = Space.s2, bottom = Space.s2)
             .height(36.dp)
             .clip(CircleShape)
             .background(palette.surface.toComposeColor())
             .border(1.dp, palette.border.toComposeColor(), CircleShape)
-            .padding(horizontal = 10.dp),
+            .padding(horizontal = Space.s12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(XnotesIcons.search, null, tint = palette.textDim.toComposeColor(), modifier = Modifier.size(16.dp))
-        Spacer(Modifier.width(6.dp))
+        Spacer(Modifier.width(Space.s6))
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
             if (field.text.isEmpty()) {
-                Text(stringResource(R.string.find_in_note), color = palette.textDim.toComposeColor(), fontSize = 13.sp, maxLines = 1)
+                Text(stringResource(R.string.find_in_note), color = palette.textDim.toComposeColor(), fontSize = TextSize.body, maxLines = 1)
             }
             BasicTextField(
                 value = field,
@@ -133,7 +135,7 @@ private fun QueryField(editor: Editor) {
                     editor.searchFor(it.text)
                 },
                 singleLine = true,
-                textStyle = TextStyle(color = palette.text.toComposeColor(), fontSize = 13.sp),
+                textStyle = TextStyle(color = palette.text.toComposeColor(), fontSize = TextSize.body),
                 cursorBrush = SolidColor(palette.accent.toComposeColor()),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { editor.searchStep(forward = true) }),
@@ -171,13 +173,13 @@ private fun QueryField(editor: Editor) {
 private fun QueryBar(editor: Editor, results: SearchResults?) {
     val palette = LocalPalette.current
     val any = results != null && results.count > 0
-    Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = Space.s6), verticalAlignment = Alignment.CenterVertically) {
         Toggle("Aa", stringResource(R.string.match_case), editor.searchMatchCase) { editor.toggleSearchMatchCase() }
         Toggle("W", stringResource(R.string.whole_words), editor.searchWholeWords) { editor.toggleSearchWholeWords() }
         Text(
             position(editor, results),
             color = palette.textDim.toComposeColor(),
-            fontSize = 12.sp,
+            fontSize = TextSize.label,
             textAlign = TextAlign.Center,
             maxLines = 1,
             modifier = Modifier.weight(1f),
@@ -204,7 +206,7 @@ private fun Toggle(label: String, description: String, on: Boolean, onToggle: ()
         Box(
             Modifier
                 .size(32.dp)
-                .padding(3.dp)
+                .padding(Space.s2)
                 .clip(RoundedCornerShape(6.dp))
                 .background(if (on) palette.selectionBackground.toComposeColor() else Color.Transparent)
                 .toggleable(value = on, role = Role.Checkbox, onValueChange = { onToggle() })
@@ -214,7 +216,7 @@ private fun Toggle(label: String, description: String, on: Boolean, onToggle: ()
             Text(
                 label,
                 color = (if (on) palette.selectionForeground else palette.textDim).toComposeColor(),
-                fontSize = 12.sp,
+                fontSize = TextSize.label,
                 fontWeight = FontWeight.SemiBold,
             )
         }
@@ -235,7 +237,7 @@ private fun StepButton(icon: ImageVector, description: String, enabled: Boolean,
 @Composable
 private fun Progress(results: SearchResults?) {
     val palette = LocalPalette.current
-    Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp).height(2.dp)) {
+    Box(Modifier.fillMaxWidth().padding(horizontal = Space.s12).height(2.dp)) {
         if (results != null && !results.done && results.toRead > 0) {
             Box(Modifier.fillMaxSize().clip(CircleShape).background(palette.border.toComposeColor()))
             Box(
@@ -277,8 +279,8 @@ private fun MatchList(editor: Editor, results: SearchResults, onPick: () -> Unit
                 else -> Text(
                     stringResource(R.string.page_n, (row as Int) + 1),
                     color = palette.textDim.toComposeColor(),
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 2.dp),
+                    fontSize = TextSize.caption,
+                    modifier = Modifier.padding(start = Space.s12, end = Space.s12, top = Space.s12, bottom = Space.s2),
                 )
             }
         }
@@ -300,16 +302,16 @@ private fun MatchRow(hit: SearchHit, current: Boolean, onClick: () -> Unit) {
     Text(
         text,
         color = (if (current) palette.selectionForeground else palette.text).toComposeColor(),
-        fontSize = 12.sp,
+        fontSize = TextSize.label,
         lineHeight = 16.sp,
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 6.dp, vertical = 1.dp)
+            .padding(horizontal = Space.s6, vertical = 1.dp)
             .clip(RoundedCornerShape(6.dp))
             .background(if (current) palette.selectionBackground.toComposeColor() else Color.Transparent)
             .clickable(onClick = onClick)
-            .padding(horizontal = 6.dp, vertical = 5.dp),
+            .padding(horizontal = Space.s6, vertical = Space.s4),
     )
 }

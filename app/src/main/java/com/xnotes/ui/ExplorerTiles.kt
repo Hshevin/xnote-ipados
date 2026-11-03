@@ -73,6 +73,8 @@ import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
 import java.time.ZoneId
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /** What tiles do when they're used: every callback an explorer tile reaches for, built once per folder tree. */
 @Stable
@@ -316,20 +318,20 @@ internal fun GridFileTile(b: ExplorerBody, e: BrowseEntry) {
             EntryThumb(b.editor, e, b.view.thumb, Modifier.fillMaxSize())
             if (selected) Box(Modifier.fillMaxSize().background(palette.selectionBackground.withAlpha(77).toComposeColor()))
             ThumbBadges(b, e)
-            if (selecting) CheckRing(selected, Modifier.align(Alignment.TopStart).padding(8.dp))
+            if (selecting) CheckRing(selected, Modifier.align(Alignment.TopStart).padding(Space.s8))
         }
         Row(
             Modifier
                 .fillMaxWidth()
                 .heightIn(min = 50.dp)
-                .padding(start = 10.dp, end = 2.dp, top = 7.dp, bottom = 8.dp),
+                .padding(start = Space.s12, end = Space.s2, top = Space.s6, bottom = Space.s8),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(b.label(e), color = palette.text.toComposeColor(), fontSize = 13.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
+                Text(b.label(e), color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val meta = b.metaText(e)
                 if (meta.isNotEmpty()) {
-                    Text(meta, color = palette.textDim.toComposeColor(), fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(meta, color = palette.textDim.toComposeColor(), fontSize = TextSize.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             if (!selecting) EntryMenuButton(b, e, palette.textDim.toComposeColor())
@@ -377,15 +379,15 @@ internal fun FolderChipTile(b: ExplorerBody, e: BrowseEntry, height: Dp = 60.dp)
                 onLongClick = { b.host.onLongClick(e) },
             )
             .alpha(if (b.host.isCut(e)) 0.4f else 1f)
-            .padding(start = 12.dp, end = 2.dp),
+            .padding(start = Space.s12, end = Space.s2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(XnotesIcons.folder, null, tint = if (active) onAccent else (code ?: palette.textDim.toComposeColor()), modifier = Modifier.size(22.dp))
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(b.label(e), color = if (active) onAccent else palette.text.toComposeColor(), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.width(Space.s12))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
+            Text(b.label(e), color = if (active) onAccent else palette.text.toComposeColor(), fontSize = TextSize.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val meta = b.metaOverride?.invoke(e) ?: b.counts[e.documentUri]?.let { itemsLabel(b.words, it) }
-            if (meta != null) Text(meta, color = if (active) onAccent else palette.textDim.toComposeColor(), fontSize = 11.5.sp, maxLines = 1)
+            if (meta != null) Text(meta, color = if (active) onAccent else palette.textDim.toComposeColor(), fontSize = TextSize.label, maxLines = 1)
         }
         if (b.host.isPinned(e)) Icon(XnotesIcons.pin, stringResource(R.string.pinned_to_sidebar), tint = if (active) onAccent else palette.textDim.toComposeColor(), modifier = Modifier.size(14.dp))
         // Kept in select mode so the chip never changes width; there it only ends the selection.
@@ -427,18 +429,18 @@ internal fun FolderCardTile(b: ExplorerBody, e: BrowseEntry) {
             contentAlignment = Alignment.Center,
         ) {
             Icon(XnotesIcons.folder, null, tint = code ?: palette.textDim.toComposeColor(), modifier = Modifier.size(44.dp))
-            if (selecting) CheckRing(b.host.isSelected(e), Modifier.align(Alignment.TopStart).padding(8.dp))
+            if (selecting) CheckRing(b.host.isSelected(e), Modifier.align(Alignment.TopStart).padding(Space.s8))
         }
         Row(
             Modifier
                 .fillMaxWidth()
                 .heightIn(min = 50.dp)
-                .padding(start = 10.dp, end = 2.dp, top = 7.dp, bottom = 8.dp),
+                .padding(start = Space.s12, end = Space.s2, top = Space.s6, bottom = Space.s8),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(b.label(e), color = palette.text.toComposeColor(), fontSize = 13.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(b.metaText(e), color = palette.textDim.toComposeColor(), fontSize = 11.5.sp, maxLines = 1)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
+                Text(b.label(e), color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(b.metaText(e), color = palette.textDim.toComposeColor(), fontSize = TextSize.label, maxLines = 1)
             }
             if (!selecting) EntryMenuButton(b, e, palette.textDim.toComposeColor())
         }
@@ -470,12 +472,12 @@ internal fun ListRow(b: ExplorerBody, e: BrowseEntry, wide: Boolean) {
                 onClick = { b.host.onClick(e) },
                 onLongClick = if (e.isDir) ({ b.host.onLongClick(e) }) else null,
             )
-            .padding(start = 8.dp, end = 4.dp),
+            .padding(start = Space.s8, end = Space.s4),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (selecting) {
             RowCheck(b.host.isSelected(e))
-            Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.width(Space.s16))
         }
         val box = if (compact) 28.dp else 40.dp
         val shape = MaterialTheme.shapes.small
@@ -486,30 +488,30 @@ internal fun ListRow(b: ExplorerBody, e: BrowseEntry, wide: Boolean) {
         } else {
             EntryThumb(b.editor, e, ThumbShape.TOP, Modifier.size(box).clip(shape).border(1.dp, palette.border.toComposeColor(), shape))
         }
-        Row(Modifier.weight(1f).padding(start = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.weight(1f).padding(start = Space.s16), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             Column(Modifier.weight(1f, fill = false)) {
-                Text(b.label(e), color = fg, fontSize = 14.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(b.label(e), color = fg, fontSize = TextSize.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val where = b.whereOf?.invoke(e)
-                if (!wide && !compact) Text(listOfNotNull(where, b.metaText(e).ifEmpty { null }).joinToString(" · "), color = dim, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                else if (where != null && !compact) Text(where, color = dim, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (!wide && !compact) Text(listOfNotNull(where, b.metaText(e).ifEmpty { null }).joinToString(" · "), color = dim, fontSize = TextSize.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                else if (where != null && !compact) Text(where, color = dim, fontSize = TextSize.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (code != null && !e.isDir) Box(Modifier.size(8.dp).clip(CircleShape).background(code))
             if (b.host.isPinned(e)) Icon(XnotesIcons.pin, stringResource(R.string.pinned_to_sidebar), tint = dim, modifier = Modifier.size(14.dp))
         }
         if (wide) {
-            Row(Modifier.width(LIST_KIND_W), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.width(LIST_KIND_W), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                 Icon(kindIcon(kind), null, tint = dim, modifier = Modifier.size(16.dp))
-                Text(kindLabel(kind), color = dim, fontSize = 13.sp, maxLines = 1)
+                Text(kindLabel(kind), color = dim, fontSize = TextSize.body, maxLines = 1)
             }
-            Text(if (e.isDir || kind == EntryKind.CANVAS) "–" else b.pages(e).takeIf { it > 0 }?.toString() ?: "", color = fg, fontSize = 13.sp, textAlign = TextAlign.End, modifier = Modifier.width(LIST_PAGES_W))
+            Text(if (e.isDir || kind == EntryKind.CANVAS) "–" else b.pages(e).takeIf { it > 0 }?.toString() ?: "", color = fg, fontSize = TextSize.body, textAlign = TextAlign.End, modifier = Modifier.width(LIST_PAGES_W))
             Text(
                 if (e.isDir) b.counts[e.documentUri]?.let { itemsLabel(b.words, it) } ?: "" else formatSize(e.size),
-                color = if (e.isDir) dim else fg, fontSize = 13.sp, textAlign = TextAlign.End, maxLines = 1,
+                color = if (e.isDir) dim else fg, fontSize = TextSize.body, textAlign = TextAlign.End, maxLines = 1,
                 modifier = Modifier.width(LIST_SIZE_W),
             )
-            Text(b.metaOverride?.invoke(e) ?: b.whenText(e, withTime = true), color = dim, fontSize = 13.sp, maxLines = 1, modifier = Modifier.width(LIST_WHEN_W).padding(start = 28.dp))
+            Text(b.metaOverride?.invoke(e) ?: b.whenText(e, withTime = true), color = dim, fontSize = TextSize.body, maxLines = 1, modifier = Modifier.width(LIST_WHEN_W).padding(start = Space.s32))
         }
-        if (!selecting) EntryMenuButton(b, e, dim, size = 40.dp) else Spacer(Modifier.width(40.dp))
+        if (!selecting) EntryMenuButton(b, e, dim, size = 40.dp) else Spacer(Modifier.width(Space.s40))
     }
 }
 
@@ -548,17 +550,17 @@ internal fun GalleryItem(b: ExplorerBody, e: BrowseEntry, shelf: Dp) {
                 Box(Modifier.offset(0.dp, 8.dp).size(pageW, pageH).clip(sheet).border(if (selected) 2.dp else 1.dp, edge, sheet)) {
                     ThumbImage(img, whole = true, Modifier.fillMaxSize())
                     if (selected) Box(Modifier.fillMaxSize().background(palette.selectionBackground.withAlpha(77).toComposeColor()))
-                    if (selecting) CheckRing(selected, Modifier.align(Alignment.TopStart).padding(6.dp))
+                    if (selecting) CheckRing(selected, Modifier.align(Alignment.TopStart).padding(Space.s6))
                 }
             }
         }
-        Spacer(Modifier.height(10.dp))
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.padding(horizontal = 4.dp)) {
+        Spacer(Modifier.height(Space.s12))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s6), modifier = Modifier.padding(horizontal = Space.s4)) {
             if (code != null) Box(Modifier.size(8.dp).clip(CircleShape).background(code))
-            Text(b.label(e), color = palette.text.toComposeColor(), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(b.label(e), color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Spacer(Modifier.height(3.dp))
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.padding(horizontal = 4.dp)) {
+        Spacer(Modifier.height(Space.s2))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s4), modifier = Modifier.padding(horizontal = Space.s4)) {
             if (b.view.showKind && (kind == EntryKind.PDF || kind == EntryKind.CANVAS)) {
                 Icon(kindIcon(kind), null, tint = palette.textDim.toComposeColor(), modifier = Modifier.size(13.dp))
             }
@@ -568,7 +570,7 @@ internal fun GalleryItem(b: ExplorerBody, e: BrowseEntry, shelf: Dp) {
                 pages > 0 -> pluralStringResource(R.plurals.pages_count, pages, pages)
                 else -> null
             }
-            Text(listOfNotNull(count, b.metaText(e).ifEmpty { null }).joinToString(" · "), color = palette.textDim.toComposeColor(), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(listOfNotNull(count, b.metaText(e).ifEmpty { null }).joinToString(" · "), color = palette.textDim.toComposeColor(), fontSize = TextSize.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -587,7 +589,7 @@ internal fun TimelineCard(b: ExplorerBody, e: BrowseEntry, side: Dp) {
             .alpha(if (b.host.isCut(e)) 0.4f else 1f)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { b.host.onClick(e) }
             .registered(b, e),
-        verticalArrangement = Arrangement.spacedBy(7.dp),
+        verticalArrangement = Arrangement.spacedBy(Space.s6),
     ) {
         Box(Modifier.size(side).clip(shape).border(if (selected) 2.dp else 1.dp, if (selected) palette.accent.toComposeColor() else (code ?: palette.border.toComposeColor()), shape)) {
             EntryThumb(b.editor, e, ThumbShape.TOP, Modifier.fillMaxSize())
@@ -595,19 +597,19 @@ internal fun TimelineCard(b: ExplorerBody, e: BrowseEntry, side: Dp) {
             if (b.view.showKind) {
                 val kind = b.kind(e)
                 if (kind == EntryKind.PDF || kind == EntryKind.CANVAS) {
-                    TileBadge(kindIcon(kind), if (kind == EntryKind.PDF) "PDF" else stringResource(R.string.kind_canvas), Modifier.align(Alignment.BottomStart).padding(6.dp))
+                    TileBadge(kindIcon(kind), if (kind == EntryKind.PDF) "PDF" else stringResource(R.string.kind_canvas), Modifier.align(Alignment.BottomStart).padding(Space.s6))
                 }
             }
-            if (selecting) CheckRing(selected, Modifier.align(Alignment.TopStart).padding(6.dp))
+            if (selecting) CheckRing(selected, Modifier.align(Alignment.TopStart).padding(Space.s6))
         }
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(b.label(e), color = palette.text.toComposeColor(), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(formatClock(b.words, b.view.timelineTime(e), b.clock24, b.zone), color = palette.textDim.toComposeColor(), fontSize = 11.5.sp, maxLines = 1)
+        Column(verticalArrangement = Arrangement.spacedBy(Space.s2)) {
+            Text(b.label(e), color = palette.text.toComposeColor(), fontSize = TextSize.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
+                Text(formatClock(b.words, b.view.timelineTime(e), b.clock24, b.zone), color = palette.textDim.toComposeColor(), fontSize = TextSize.label, maxLines = 1)
                 val where = b.whereOf?.invoke(e)
                 if (where != null) {
                     Icon(XnotesIcons.folder, null, tint = palette.textDim.toComposeColor(), modifier = Modifier.size(12.dp))
-                    Text(where, color = palette.textDim.toComposeColor(), fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(where, color = palette.textDim.toComposeColor(), fontSize = TextSize.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -636,14 +638,14 @@ internal fun GalleryFolderChip(b: ExplorerBody, e: BrowseEntry) {
                 onClick = { b.host.onClick(e) },
                 onLongClick = { b.host.onLongClick(e) },
             )
-            .padding(start = 12.dp, end = 16.dp),
+            .padding(start = Space.s12, end = Space.s16),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(Space.s12),
     ) {
         val fg = if (active) palette.selectionForeground.toComposeColor() else palette.text.toComposeColor()
         Icon(XnotesIcons.folder, null, tint = if (active) fg else (code ?: palette.textDim.toComposeColor()), modifier = Modifier.size(20.dp))
-        Text(b.label(e), color = fg, fontSize = 14.sp, maxLines = 1)
-        b.counts[e.documentUri]?.let { Text("$it", color = if (active) fg else palette.textDim.toComposeColor(), fontSize = 12.sp) }
+        Text(b.label(e), color = fg, fontSize = TextSize.bodyLarge, maxLines = 1)
+        b.counts[e.documentUri]?.let { Text("$it", color = if (active) fg else palette.textDim.toComposeColor(), fontSize = TextSize.label) }
     }
 }
 
@@ -672,43 +674,43 @@ internal fun HomeShelves(
     onOpenPin: (com.xnotes.settings.PinnedFolder) -> Unit,
 ) {
     val palette = LocalPalette.current
-    Column(Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+    Column(Modifier.fillMaxWidth().padding(bottom = Space.s4)) {
         if (recents.isNotEmpty()) {
             ShelfTitle(stringResource(R.string.recent), stringResource(R.string.see_all), onSeeAll)
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(Space.s16)) {
                 items(recents.take(8).size) { i -> RecentCard(b, recents[i], onOpenRecent) }
             }
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(Space.s20))
         }
         if (pins.isNotEmpty() || pinnedNotes.isNotEmpty()) {
             ShelfTitle(stringResource(R.string.pinned))
         }
         if (pinnedNotes.isNotEmpty()) {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(Space.s16)) {
                 items(pinnedNotes, key = { it.documentUri }) { PinnedCard(b, it, wholePins) }
             }
             Spacer(Modifier.height(if (pins.isNotEmpty()) 16.dp else 20.dp))
         }
         if (pins.isNotEmpty()) {
-            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
                 pins.forEach { pin ->
                     val shape = MaterialTheme.shapes.small
                     Row(
                         Modifier.height(44.dp).clip(shape).border(1.dp, palette.border.toComposeColor(), shape)
-                            .clickable { onOpenPin(pin) }.padding(start = 12.dp, end = 16.dp),
+                            .clickable { onOpenPin(pin) }.padding(start = Space.s12, end = Space.s16),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(Space.s12),
                     ) {
                         Icon(XnotesIcons.folder, null, tint = palette.textDim.toComposeColor(), modifier = Modifier.size(20.dp))
-                        Text(pin.name, color = palette.text.toComposeColor(), fontSize = 14.sp, maxLines = 1)
+                        Text(pin.name, color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge, maxLines = 1)
                     }
                 }
             }
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(Space.s20))
         }
-        Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.in_folder, rootName), color = palette.text.toComposeColor(), fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-            Text(counts, color = palette.textDim.toComposeColor(), fontSize = 12.5.sp)
+        Row(Modifier.fillMaxWidth().padding(bottom = Space.s6), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.in_folder, rootName), color = palette.text.toComposeColor(), fontSize = TextSize.title, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+            Text(counts, color = palette.textDim.toComposeColor(), fontSize = TextSize.body)
         }
     }
 }
@@ -722,19 +724,19 @@ private fun RecentCard(b: ExplorerBody, r: RecentEntry, onOpen: (BrowseEntry) ->
     val code = b.colorOf(e)?.let { codeTint(it, palette) }
     Column(
         Modifier.width(168.dp).clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onOpen(e) },
-        verticalArrangement = Arrangement.spacedBy(3.dp),
+        verticalArrangement = Arrangement.spacedBy(Space.s2),
     ) {
         Box(Modifier.size(168.dp).clip(shape).border(1.dp, code ?: palette.border.toComposeColor(), shape)) {
             EntryThumb(b.editor, e, ThumbShape.TOP, Modifier.fillMaxSize())
             ThumbBadges(b, e, 6.dp)
         }
-        Spacer(Modifier.height(4.dp))
-        Text(b.label(e), color = palette.text.toComposeColor(), fontSize = 13.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(openedLabel(b.words, r.opened, b.now, b.zone), color = palette.textDim.toComposeColor(), fontSize = 11.5.sp, maxLines = 1)
+        Spacer(Modifier.height(Space.s4))
+        Text(b.label(e), color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(openedLabel(b.words, r.opened, b.now, b.zone), color = palette.textDim.toComposeColor(), fontSize = TextSize.label, maxLines = 1)
         r.where?.let { where ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
                 Icon(XnotesIcons.folder, null, tint = palette.textDim.toComposeColor(), modifier = Modifier.size(12.dp))
-                Text(where, color = palette.textDim.toComposeColor(), fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(where, color = palette.textDim.toComposeColor(), fontSize = TextSize.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -757,7 +759,7 @@ internal fun PinnedCard(b: ExplorerBody, e: BrowseEntry, whole: Boolean) {
             .alpha(if (b.host.isCut(e)) 0.4f else 1f)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { b.host.onClick(e) }
             .registered(b, e),
-        verticalArrangement = Arrangement.spacedBy(3.dp),
+        verticalArrangement = Arrangement.spacedBy(Space.s2),
     ) {
         if (whole) {
             // Every card keeps an upright page's height, so the names line up whatever shape stands on it.
@@ -769,7 +771,7 @@ internal fun PinnedCard(b: ExplorerBody, e: BrowseEntry, whole: Boolean) {
                     ThumbImage(img, whole = true, Modifier.fillMaxSize())
                     if (selected) Box(Modifier.fillMaxSize().background(palette.selectionBackground.withAlpha(77).toComposeColor()))
                     ThumbBadges(b, e, 6.dp)
-                    if (selecting) CheckRing(selected, Modifier.align(Alignment.TopStart).padding(6.dp))
+                    if (selecting) CheckRing(selected, Modifier.align(Alignment.TopStart).padding(Space.s6))
                 }
             }
         } else {
@@ -778,17 +780,17 @@ internal fun PinnedCard(b: ExplorerBody, e: BrowseEntry, whole: Boolean) {
                 EntryThumb(b.editor, e, ThumbShape.TOP, Modifier.fillMaxSize())
                 if (selected) Box(Modifier.fillMaxSize().background(palette.selectionBackground.withAlpha(77).toComposeColor()))
                 ThumbBadges(b, e, 6.dp)
-                if (selecting) CheckRing(selected, Modifier.align(Alignment.TopStart).padding(6.dp))
+                if (selecting) CheckRing(selected, Modifier.align(Alignment.TopStart).padding(Space.s6))
             }
         }
-        Spacer(Modifier.height(4.dp))
-        Text(b.label(e), color = palette.text.toComposeColor(), fontSize = 13.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.height(Space.s4))
+        Text(b.label(e), color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
         val meta = b.metaText(e)
-        if (meta.isNotEmpty()) Text(meta, color = palette.textDim.toComposeColor(), fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (meta.isNotEmpty()) Text(meta, color = palette.textDim.toComposeColor(), fontSize = TextSize.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
         b.pinnedWhere(e)?.let { where ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
                 Icon(XnotesIcons.folder, null, tint = palette.textDim.toComposeColor(), modifier = Modifier.size(12.dp))
-                Text(where, color = palette.textDim.toComposeColor(), fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(where, color = palette.textDim.toComposeColor(), fontSize = TextSize.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -798,11 +800,11 @@ internal fun PinnedCard(b: ExplorerBody, e: BrowseEntry, whole: Boolean) {
 @Composable
 internal fun ShelfTitle(title: String, action: String? = null, onAction: () -> Unit = {}) {
     val palette = LocalPalette.current
-    Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, color = palette.text.toComposeColor(), fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+    Row(Modifier.fillMaxWidth().padding(top = Space.s4, bottom = Space.s8), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, color = palette.text.toComposeColor(), fontSize = TextSize.title, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
         if (action != null) {
-            Text(action, color = palette.accent.toComposeColor(), fontSize = 13.5.sp, fontWeight = FontWeight.Medium,
-                modifier = Modifier.clip(MaterialTheme.shapes.extraSmall).clickable(onClick = onAction).padding(horizontal = 8.dp, vertical = 4.dp))
+            Text(action, color = palette.accent.toComposeColor(), fontSize = TextSize.bodyLarge, fontWeight = FontWeight.Medium,
+                modifier = Modifier.clip(MaterialTheme.shapes.extraSmall).clickable(onClick = onAction).padding(horizontal = Space.s8, vertical = Space.s4))
         }
     }
 }

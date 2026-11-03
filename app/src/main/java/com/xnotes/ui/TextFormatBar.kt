@@ -73,6 +73,8 @@ import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
 import kotlin.math.roundToInt
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /**
  * The bottom text-format strip, shown while the inline text tool is armed (and no
@@ -198,7 +200,7 @@ private fun HeadingButton(editor: Editor, level: Int, enabled: Boolean) {
                 Text(
                     if (level > 0) "H$level" else "H",
                     color = tint.toComposeColor(),
-                    fontSize = if (level > 0) 12.sp else 15.sp,
+                    fontSize = if (level > 0) TextSize.label else TextSize.title,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -211,7 +213,7 @@ private fun HeadingButton(editor: Editor, level: Int, enabled: Boolean) {
                         Text(
                             if (n == 0) stringResource(R.string.body_text) else stringResource(R.string.heading_n, n),
                             color = fg,
-                            fontSize = 14.sp,
+                            fontSize = TextSize.bodyLarge,
                             fontWeight = if (n > 0) FontWeight.SemiBold else FontWeight.Normal,
                         )
                     },
@@ -220,7 +222,7 @@ private fun HeadingButton(editor: Editor, level: Int, enabled: Boolean) {
                             Text(
                                 "#".repeat(n),
                                 color = fg.copy(alpha = 0.72f),
-                                fontSize = 12.sp,
+                                fontSize = TextSize.label,
                             )
                         }
                     } else {
@@ -260,7 +262,7 @@ private fun CodeBlockButton(editor: Editor, lang: String?, enabled: Boolean) {
                     Text(
                         shortLangLabel(lang),
                         color = palette.accent.toComposeColor(),
-                        fontSize = 12.sp,
+                        fontSize = TextSize.label,
                         fontWeight = FontWeight.SemiBold,
                     )
                 } else {
@@ -286,7 +288,7 @@ private fun CodeBlockButton(editor: Editor, lang: String?, enabled: Boolean) {
                         Text(
                             if (token == "plain") stringResource(R.string.code_plain) else token,
                             color = fg,
-                            fontSize = 14.sp,
+                            fontSize = TextSize.bodyLarge,
                         )
                     },
                     onClick = {
@@ -327,7 +329,7 @@ private fun BarDivider() {
         Modifier
             .width(1.dp)
             .fillMaxHeight()
-            .padding(vertical = 12.dp)
+            .padding(vertical = Space.s12)
             .background(LocalPalette.current.border.toComposeColor()),
     )
 }
@@ -348,7 +350,7 @@ private fun FontColorButton(editor: Editor, current: Rgba?) {
                     Text(
                         "A",
                         color = palette.text.toComposeColor(),
-                        fontSize = 15.sp,
+                        fontSize = TextSize.title,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Box(
@@ -396,7 +398,7 @@ private fun HighlightButton(editor: Editor, current: Rgba?) {
                 ) {
                     Text(
                         "A",
-                        fontSize = 13.sp,
+                        fontSize = TextSize.body,
                         fontWeight = FontWeight.SemiBold,
                         color = if (current != null) swatchInk(current) else palette.textDim.toComposeColor(),
                     )
@@ -432,7 +434,7 @@ private fun FontFaceButton(editor: Editor, current: FontFace?) {
                     .fillMaxHeight()
                     .clip(MaterialTheme.shapes.small)
                     .clickable { open = true }
-                    .padding(horizontal = 10.dp),
+                    .padding(horizontal = Space.s12),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -441,7 +443,7 @@ private fun FontFaceButton(editor: Editor, current: FontFace?) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.widthIn(max = 120.dp),
-                    style = TextStyle(fontFamily = shown.toComposeFamily(), fontSize = 14.sp),
+                    style = TextStyle(fontFamily = shown.toComposeFamily(), fontSize = TextSize.bodyLarge),
                 )
             }
         }
@@ -466,7 +468,7 @@ private fun SizeStepper(size: Double, onDelta: (Double) -> Unit) {
         Text(
             size.roundToInt().toString(),
             color = palette.text.toComposeColor(),
-            fontSize = 14.sp,
+            fontSize = TextSize.bodyLarge,
             textAlign = TextAlign.Center,
             modifier = Modifier.width(26.dp),
         )

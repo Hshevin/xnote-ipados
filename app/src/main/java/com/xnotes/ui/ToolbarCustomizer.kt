@@ -48,6 +48,8 @@ import com.xnotes.core.tools.ToolbarSection
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /**
  * The toolbar customizer, rendered inline inside Preferences. Each section is a bordered card whose
@@ -85,8 +87,8 @@ fun ToolbarCustomizerBody(
     val draggingSection = dragSection != null
     FlowRow(
         Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(Space.s8),
+        verticalArrangement = Arrangement.spacedBy(Space.s8),
     ) {
         layout.sections.forEachIndexed { sec, section ->
             if (draggingSection && sectionDropTarget == sec) SectionCaret()
@@ -106,13 +108,13 @@ fun ToolbarCustomizerBody(
                     Text(
                         stringResource(R.string.drop_here),
                         color = (if (dragging && dropTarget == sec to 0) palette.accent else palette.textDim).toComposeColor(),
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                        fontSize = TextSize.caption,
+                        modifier = Modifier.padding(horizontal = Space.s8, vertical = Space.s6),
                     )
                 } else {
                     FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(Space.s4),
+                        verticalArrangement = Arrangement.spacedBy(Space.s4),
                     ) {
                         section.entries.forEachIndexed { idx, entry ->
                             if (dragging && dropTarget == sec to idx) InsertionCaret()
@@ -212,7 +214,7 @@ private fun SectionCard(
             .onGloballyPositioned { onBounds(it.boundsInRoot()) }
             .clip(MaterialTheme.shapes.small)
             .border(1.dp, (if (targeted) palette.accent else palette.border).toComposeColor(), MaterialTheme.shapes.small)
-            .padding(start = 6.dp, top = 2.dp, end = 2.dp, bottom = 6.dp),
+            .padding(start = Space.s6, top = Space.s2, end = Space.s2, bottom = Space.s6),
         header = {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 SectionDragStrip(
@@ -335,12 +337,12 @@ private fun ChipFace(item: ToolbarItem, visible: Boolean, modifier: Modifier = M
             .clip(MaterialTheme.shapes.small)
             .background(palette.surface.toComposeColor())
             .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.small)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(horizontal = Space.s8, vertical = Space.s6),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(itemIcon(item), null, tint = palette.textDim.toComposeColor(), modifier = Modifier.size(14.dp))
-        Spacer(Modifier.width(4.dp))
-        Text(stringResource(item.labelRes), color = palette.text.toComposeColor(), fontSize = 12.sp)
+        Spacer(Modifier.width(Space.s4))
+        Text(stringResource(item.labelRes), color = palette.text.toComposeColor(), fontSize = TextSize.label)
     }
 }
 
@@ -354,12 +356,12 @@ fun ToolbarDragGhost(item: ToolbarItem) {
             .clip(MaterialTheme.shapes.small)
             .background(palette.surface.toComposeColor())
             .border(1.dp, palette.accent.toComposeColor(), MaterialTheme.shapes.small)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(horizontal = Space.s8, vertical = Space.s6),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(itemIcon(item), null, tint = palette.accent.toComposeColor(), modifier = Modifier.size(14.dp))
-        Spacer(Modifier.width(4.dp))
-        Text(stringResource(item.labelRes), color = palette.accent.toComposeColor(), fontSize = 12.sp)
+        Spacer(Modifier.width(Space.s4))
+        Text(stringResource(item.labelRes), color = palette.accent.toComposeColor(), fontSize = TextSize.label)
     }
 }
 
@@ -379,7 +381,7 @@ fun SectionCardGhost(section: ToolbarSection, widthPx: Float) {
             .clip(MaterialTheme.shapes.small)
             .background(palette.menuBg.toComposeColor())
             .border(1.dp, palette.accent.toComposeColor(), MaterialTheme.shapes.small)
-            .padding(start = 6.dp, top = 2.dp, end = 2.dp, bottom = 6.dp),
+            .padding(start = Space.s6, top = Space.s2, end = Space.s2, bottom = Space.s6),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Spacer(Modifier.weight(1f))
@@ -389,13 +391,13 @@ fun SectionCardGhost(section: ToolbarSection, widthPx: Float) {
         }
         if (section.entries.isEmpty()) {
             Text(
-                stringResource(R.string.drop_here), color = palette.textDim.toComposeColor(), fontSize = 11.sp,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                stringResource(R.string.drop_here), color = palette.textDim.toComposeColor(), fontSize = TextSize.caption,
+                modifier = Modifier.padding(horizontal = Space.s8, vertical = Space.s6),
             )
         } else {
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(Space.s4),
+                verticalArrangement = Arrangement.spacedBy(Space.s4),
             ) {
                 section.entries.forEach { e -> ChipFace(e.item, e.visible) }
             }
@@ -411,12 +413,12 @@ private fun AddSectionChip(onClick: () -> Unit) {
             .clip(MaterialTheme.shapes.small)
             .border(1.dp, palette.accent.toComposeColor(), MaterialTheme.shapes.small)
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 10.dp),
+            .padding(horizontal = Space.s12, vertical = Space.s12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(XnotesIcons.plus, stringResource(R.string.add_section), tint = palette.accent.toComposeColor(), modifier = Modifier.size(14.dp))
-        Spacer(Modifier.width(4.dp))
-        Text(stringResource(R.string.add_section), color = palette.accent.toComposeColor(), fontSize = 12.sp)
+        Spacer(Modifier.width(Space.s4))
+        Text(stringResource(R.string.add_section), color = palette.accent.toComposeColor(), fontSize = TextSize.label)
     }
 }
 

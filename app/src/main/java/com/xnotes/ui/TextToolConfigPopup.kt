@@ -31,6 +31,8 @@ import com.xnotes.platform.FontCatalog
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
 import kotlin.math.roundToInt
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /**
  * The inline text tool's config popup (re-tap the armed tool): the flow's page
@@ -56,22 +58,22 @@ internal fun TextToolConfigPopup(editor: Editor, onDismiss: () -> Unit) {
     }
 
     DropdownMenu(expanded = true, onDismissRequest = onDismiss) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-            Text(stringResource(R.string.tool_text), color = palette.text.toComposeColor(), fontSize = 15.sp)
+        Column(Modifier.padding(horizontal = Space.s16, vertical = Space.s6)) {
+            Text(stringResource(R.string.tool_text), color = palette.text.toComposeColor(), fontSize = TextSize.title)
 
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
-                Text(stringResource(R.string.font), color = palette.textDim.toComposeColor(), fontSize = 13.sp, modifier = Modifier.width(74.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = Space.s8)) {
+                Text(stringResource(R.string.font), color = palette.textDim.toComposeColor(), fontSize = TextSize.body, modifier = Modifier.width(74.dp))
                 FaceDropdown(config.face) { apply(config.copy(face = it)) }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.mono_font), color = palette.textDim.toComposeColor(), fontSize = 13.sp, modifier = Modifier.width(74.dp))
+                Text(stringResource(R.string.mono_font), color = palette.textDim.toComposeColor(), fontSize = TextSize.body, modifier = Modifier.width(74.dp))
                 FaceDropdown(config.monoFace, monoOnly = true) { apply(config.copy(monoFace = it)) }
             }
             SpinField(stringResource(R.string.size_pt), config.sizePt, min = 6.0, max = 96.0) { apply(config.copy(sizePt = it)) }
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
-                Text(stringResource(R.string.colour), color = palette.textDim.toComposeColor(), fontSize = 13.sp, modifier = Modifier.width(74.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = Space.s4)) {
+                Text(stringResource(R.string.colour), color = palette.textDim.toComposeColor(), fontSize = TextSize.body, modifier = Modifier.width(74.dp))
                 ModeChip(stringResource(R.string.auto), config.color == null) { apply(config.copy(color = null)) }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(Space.s8))
                 ColorPickerDot(
                     config.color,
                     custom = config.color != null,
@@ -83,8 +85,8 @@ internal fun TextToolConfigPopup(editor: Editor, onDismiss: () -> Unit) {
             Text(
                 stringResource(R.string.margins_mm),
                 color = palette.textDim.toComposeColor(),
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 10.dp, bottom = 2.dp),
+                fontSize = TextSize.label,
+                modifier = Modifier.padding(top = Space.s12, bottom = Space.s2),
             )
             val m = config.margins
             SpinField(stringResource(R.string.edge_left), m.leftMm, FlowMargins.MIN_MM, FlowMargins.MAX_MM) { apply(config.copy(margins = m.copy(leftMm = it))) }
@@ -92,14 +94,14 @@ internal fun TextToolConfigPopup(editor: Editor, onDismiss: () -> Unit) {
             SpinField(stringResource(R.string.edge_top), m.topMm, FlowMargins.MIN_MM, FlowMargins.MAX_MM) { apply(config.copy(margins = m.copy(topMm = it))) }
             SpinField(stringResource(R.string.edge_bottom), m.bottomMm, FlowMargins.MIN_MM, FlowMargins.MAX_MM) { apply(config.copy(margins = m.copy(bottomMm = it))) }
 
-            Spacer(Modifier.size(8.dp))
+            Spacer(Modifier.size(Space.s8))
             // App preferences, not document defaults: Reset and the new-note row skip them.
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.offset(x = (-14).dp)) {
                 Checkbox(checked = editor.markdownInput, onCheckedChange = { editor.setMarkdownInputPref(it) })
                 Text(
                     stringResource(R.string.markdown_shortcuts),
                     color = palette.text.toComposeColor(),
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.offset(x = (-14).dp)) {
@@ -107,7 +109,7 @@ internal fun TextToolConfigPopup(editor: Editor, onDismiss: () -> Unit) {
                 Text(
                     stringResource(R.string.slash_commands),
                     color = palette.text.toComposeColor(),
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                 )
             }
             if (showNewNoteRow && config != editor.factoryFlow) {
@@ -120,10 +122,10 @@ internal fun TextToolConfigPopup(editor: Editor, onDismiss: () -> Unit) {
                     Text(
                         stringResource(R.string.default_for_new_notes),
                         color = palette.text.toComposeColor(),
-                        fontSize = 12.sp,
+                        fontSize = TextSize.label,
                     )
                 }
-                Spacer(Modifier.size(4.dp))
+                Spacer(Modifier.size(Space.s4))
             }
             Row(Modifier.align(Alignment.End)) {
                 ModeChip(stringResource(R.string.reset), false) { apply(editor.factoryFlow) }
@@ -137,13 +139,13 @@ private fun FaceDropdown(current: FontFace, monoOnly: Boolean = false, onPick: (
     val palette = LocalPalette.current
     var open by remember { mutableStateOf(false) }
     Box {
-        Row(Modifier.clickable { open = true }.padding(vertical = 6.dp, horizontal = 4.dp)) {
+        Row(Modifier.clickable { open = true }.padding(vertical = Space.s6, horizontal = Space.s4)) {
             Text(
                 fontLabel(current),
                 color = palette.text.toComposeColor(),
-                style = TextStyle(fontFamily = current.toComposeFamily(), fontSize = 14.sp),
+                style = TextStyle(fontFamily = current.toComposeFamily(), fontSize = TextSize.bodyLarge),
             )
-            Text(" ▾", color = palette.textDim.toComposeColor(), fontSize = 11.sp)
+            Text(" ▾", color = palette.textDim.toComposeColor(), fontSize = TextSize.caption)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             FontMenuItems(current = current, monoOnly = monoOnly) {
@@ -159,18 +161,18 @@ private fun FaceDropdown(current: FontFace, monoOnly: Boolean = false, onPick: (
 private fun SpinField(label: String, value: Double, min: Double, max: Double, onChange: (Double) -> Unit) {
     val palette = LocalPalette.current
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = palette.textDim.toComposeColor(), fontSize = 13.sp, modifier = Modifier.width(74.dp))
+        Text(label, color = palette.textDim.toComposeColor(), fontSize = TextSize.body, modifier = Modifier.width(74.dp))
         Box(Modifier.size(34.dp).clickable { onChange((value - 1.0).coerceIn(min, max)) }, contentAlignment = Alignment.Center) {
-            Text("−", color = palette.text.toComposeColor(), fontSize = 18.sp)
+            Text("−", color = palette.text.toComposeColor(), fontSize = TextSize.heading)
         }
         Text(
             value.roundToInt().toString(),
             color = palette.text.toComposeColor(),
-            fontSize = 14.sp,
+            fontSize = TextSize.bodyLarge,
             modifier = Modifier.width(30.dp),
         )
         Box(Modifier.size(34.dp).clickable { onChange((value + 1.0).coerceIn(min, max)) }, contentAlignment = Alignment.Center) {
-            Text("+", color = palette.text.toComposeColor(), fontSize = 18.sp)
+            Text("+", color = palette.text.toComposeColor(), fontSize = TextSize.heading)
         }
     }
 }

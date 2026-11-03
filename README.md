@@ -7,6 +7,7 @@ This fork targets Wacom MovinkPad Pro 14 and Pro Pen 3. Three-button mappings an
 - [Linux build and repository structure](docs/movinkpad/server-build.md)
 - [Workspace switching and consistent pen settings](docs/movinkpad/workspace-switch-2026-10-31.md)
 - [Branch split and upstream sync](docs/movinkpad/github-sync-2026-11-02.md)
+- [Black/white hierarchy, type and spacing tokens](docs/movinkpad/ui-monochrome-tokens-2026-11-03.md)
 - [Planned PDF and cursor work](tasks/plan.md)
 
 ## 当前开发状态（2026-11-03）

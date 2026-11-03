@@ -10,7 +10,8 @@
 - Run relevant unit and Android event tests; hardware acceptance must separately record device/system/pen details. Do not claim hardware compatibility from emulator results.
 - If a Python environment is needed, create it with uv.
 
-- UI uses pure white #FFFFFF / black #000000, inverted in night mode; no coloured accents, gradients or decorative shadows. Full visual and target-device acceptance remains pending.
+- UI is black and white only: paper, panels and menus are pure white #FFFFFF / black #000000, inverted in night mode, and selection is full inversion. Since 2026-11-03 the user allows neutral grey steps (r = g = b) for hierarchy (secondary text, hairlines, fills, backdrop); still no coloured accents, gradients or decorative shadows. Ink colours and PDFs are content, not chrome.
+- Chrome text sizes and gaps come only from `ui/theme/Tokens.kt` (`TextSize`, `Space`); controls keep a 48 dp touch target (`MinTouchTarget`). Add a new token there rather than a literal. Details: `docs/movinkpad/ui-monochrome-tokens-2026-11-03.md`. Full visual and target-device acceptance remains pending.
 - PDF source and read-only imported originals must remain unchanged; annotations and disposable display caches are separate. Large scanned-PDF and tool-cursor work is planned in `tasks/plan.md` and `tasks/todo.md`, not completed.
 - Notes must persist locally. Verify recovery and failure paths for storage, import, deletion and migration changes.
 - Preserve raw button masks and axes. Compare buttonState transitions on MOVE/HOVER_MOVE and deduplicate independent button events; distinguish stylus, finger and cancellation.

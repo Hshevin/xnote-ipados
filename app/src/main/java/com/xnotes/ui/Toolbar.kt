@@ -85,6 +85,8 @@ import kotlin.math.sin
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 @Composable
 fun Toolbar(
@@ -575,12 +577,12 @@ internal fun Swatch(
     val bar = LocalBar.current
     Box(
         modifier = Modifier
-            .then(if (bar.vertical) Modifier.padding(vertical = 3.dp) else Modifier.padding(horizontal = 3.dp))
+            .then(if (bar.vertical) Modifier.padding(vertical = Space.s2) else Modifier.padding(horizontal = Space.s2))
             .size(bar.swatch)
             .then(if (drag != null && ink != null) Modifier.colorDragSource(drag, ink, bar.vertical) else Modifier)
             // The selection ring takes the swatch's own colour, not the theme accent.
             .then(if (active) Modifier.border(2.dp, color, CircleShape) else Modifier)
-            .padding(4.dp)
+            .padding(Space.s4)
             .clip(CircleShape)
             .background(color)
             .clickable(onClick = onClick),
@@ -595,13 +597,13 @@ internal fun Label(text: String, modifier: Modifier = Modifier) {
         fontSize = LocalBar.current.label,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
-        modifier = modifier.padding(horizontal = 4.dp),
+        modifier = modifier.padding(horizontal = Space.s4),
     )
 }
 
 @Composable
 internal fun Separator() {
-    Box(Modifier.padding(if (LocalBar.current.vertical) PaddingValues(vertical = 4.dp) else PaddingValues(horizontal = 4.dp))) { Rule() }
+    Box(Modifier.padding(if (LocalBar.current.vertical) PaddingValues(vertical = Space.s4) else PaddingValues(horizontal = Space.s4))) { Rule() }
 }
 
 /** A hairline across the bar. */
@@ -622,7 +624,7 @@ private fun PageCounter(current: Int, count: Int, modifier: Modifier) {
         Label("$current / $count", modifier)
         return
     }
-    Column(modifier.padding(vertical = 2.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(modifier.padding(vertical = Space.s2), horizontalAlignment = Alignment.CenterHorizontally) {
         Label("$current")
         Rule()
         Label("$count")
@@ -665,8 +667,8 @@ private fun StickersMenu(editor: Editor, onAddStickers: () -> Unit, onDismiss: (
             Text(
                 stringResource(R.string.no_stickers),
                 color = palette.textDim.toComposeColor(),
-                fontSize = 13.sp,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                fontSize = TextSize.body,
+                modifier = Modifier.padding(horizontal = Space.s16, vertical = Space.s12),
             )
         } else {
             // Both dimensions must be fixed: the menu measures its content by intrinsics, which a
@@ -674,10 +676,10 @@ private fun StickersMenu(editor: Editor, onAddStickers: () -> Unit, onDismiss: (
             val rows = ((editor.stickers.size + 2) / 3).coerceAtMost(3)
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(Space.s6),
+                verticalArrangement = Arrangement.spacedBy(Space.s6),
                 modifier = Modifier
-                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                    .padding(horizontal = Space.s12, vertical = Space.s4)
                     .width(72.dp * 3 + 6.dp * 2)
                     .height(72.dp * rows + 6.dp * (rows - 1)),
             ) {
@@ -692,8 +694,8 @@ private fun StickersMenu(editor: Editor, onAddStickers: () -> Unit, onDismiss: (
             Text(
                 stringResource(R.string.stickers_hint),
                 color = palette.textDim.toComposeColor(),
-                fontSize = 11.sp,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                fontSize = TextSize.caption,
+                modifier = Modifier.padding(horizontal = Space.s16, vertical = Space.s6),
             )
         }
     }
@@ -722,7 +724,7 @@ private fun StickerTile(file: java.io.File, onInsert: () -> Unit, onRemove: () -
                 bitmap = it,
                 contentDescription = stringResource(R.string.sticker),
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize().padding(3.dp),
+                modifier = Modifier.fillMaxSize().padding(Space.s2),
             )
         }
     }

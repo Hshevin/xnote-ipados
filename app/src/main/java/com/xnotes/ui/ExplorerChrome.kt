@@ -33,7 +33,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawOutline
@@ -66,6 +65,8 @@ import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.Palette
 import com.xnotes.ui.theme.toComposeColor
 import kotlin.math.roundToInt
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 internal fun layoutIcon(l: ExplorerLayout): ImageVector = when (l) {
     ExplorerLayout.GRID -> XnotesIcons.layoutGrid
@@ -129,10 +130,10 @@ private fun ChipBody(
             .clickable(onClick = onClick)
             .padding(start = if (icon != null) 8.dp else 12.dp, end = if (trailing != null || !labelled) 8.dp else 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+        horizontalArrangement = Arrangement.spacedBy(Space.s6, Alignment.CenterHorizontally),
     ) {
         if (icon != null) Icon(icon, if (labelled) null else label, tint = iconTint, modifier = Modifier.size(16.dp))
-        if (labelled) Text(label, color = fg, fontSize = 13.5.sp, maxLines = 1, softWrap = false)
+        if (labelled) Text(label, color = fg, fontSize = TextSize.bodyLarge, maxLines = 1, softWrap = false)
         if (trailing != null) Icon(trailing, null, tint = iconTint, modifier = Modifier.size(14.dp))
     }
 }
@@ -146,7 +147,7 @@ internal fun FittedChipRow(modifier: Modifier = Modifier, content: @Composable R
             SubcomposeLayout { c ->
                 val loose = Constraints(maxHeight = c.maxHeight)
                 fun pass(labelled: Boolean) = subcompose(labelled) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { content(labelled) }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) { content(labelled) }
                 }.map { it.measure(loose) }
                 // The labelled pass is always measured; when it's too wide it stays composed but is never placed.
                 val full = pass(true)
@@ -165,13 +166,8 @@ internal val EXPLORER_HEADER = 56.dp
 /** Keeps a pointer from reaching whatever lies under this element, without consuming it. */
 private val BlockPointer = Modifier.pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } }
 
-/** A floating control's own surface, edge and shadow, faded in by [lift] (0 to 1) while files scroll under it. */
-internal fun Modifier.floatingBacking(lift: () -> Float, shape: Shape, fill: Color, edge: Color, shadow: () -> Float = lift): Modifier = this
-    .graphicsLayer {
-        shadowElevation = 3.dp.toPx() * shadow()
-        this.shape = shape
-        clip = false
-    }
+/** A floating control's own surface and edge, faded in by [lift] (0 to 1) while files scroll under it. */
+internal fun Modifier.floatingBacking(lift: () -> Float, shape: Shape, fill: Color, edge: Color): Modifier = this
     .drawWithCache {
         val outline = shape.createOutline(size, layoutDirection, this)
         val stroke = Stroke(1.dp.toPx())
@@ -238,10 +234,10 @@ internal fun ExplorerIcon(icon: ImageVector, desc: String, tint: Color? = null, 
 @Composable
 internal fun GroupHeader(label: String, count: Int, color: Rgba? = null, modifier: Modifier = Modifier) {
     val palette = LocalPalette.current
-    Row(modifier.height(30.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(modifier.height(30.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
         if (color != null) Box(Modifier.size(10.dp).clip(CircleShape).background(codeTint(color, palette)))
-        Text(label, color = palette.text.toComposeColor(), fontSize = 13.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.2.sp)
-        Text("$count", color = palette.textDim.toComposeColor(), fontSize = 13.sp)
+        Text(label, color = palette.text.toComposeColor(), fontSize = TextSize.body, fontWeight = FontWeight.Medium, letterSpacing = 0.2.sp)
+        Text("$count", color = palette.textDim.toComposeColor(), fontSize = TextSize.body)
     }
 }
 
@@ -263,11 +259,11 @@ internal fun SelectionBar(
     Row(
         // Opaque under its fill, since it stays put while files scroll beneath it, and edged so the
         // pinned bar reads as a surface rather than a tint over the ones sliding past.
-        Modifier.fillMaxWidth().height(44.dp).shadow(3.dp, shape)
+        Modifier.fillMaxWidth().height(44.dp)
             .clip(shape).background(palette.bg.toComposeColor())
             .background(palette.selectionBackground.toComposeColor())
             .border(1.dp, fg.copy(alpha = 0.25f), shape)
-            .then(BlockPointer).padding(start = 4.dp, end = 6.dp),
+            .then(BlockPointer).padding(start = Space.s4, end = Space.s6),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ExplorerIcon(XnotesIcons.close, stringResource(R.string.clear_selection), fg, onClick = onClear)
@@ -275,15 +271,15 @@ internal fun SelectionBar(
         SubcomposeLayout(Modifier.weight(1f)) { c ->
             val loose = Constraints(maxHeight = c.maxHeight)
             val counted = subcompose("count") {
-                Text(stringResource(R.string.n_selected, count), color = fg.copy(alpha = 0.75f), fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 4.dp, end = 10.dp))
+                Text(stringResource(R.string.n_selected, count), color = fg.copy(alpha = 0.75f), fontSize = TextSize.bodyLarge, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = Space.s4, end = Space.s12))
             }.first().measure(loose)
             val all = subcompose("all") {
                 if (onSelectAll != null) Text(
                     stringResource(R.string.select_all),
                     color = fg,
-                    fontSize = 13.5.sp,
+                    fontSize = TextSize.bodyLarge,
                     fontWeight = FontWeight.Medium,
-                    modifier = Modifier.clip(MaterialTheme.shapes.extraSmall).clickable(onClick = onSelectAll).padding(horizontal = 8.dp, vertical = 6.dp),
+                    modifier = Modifier.clip(MaterialTheme.shapes.extraSmall).clickable(onClick = onSelectAll).padding(horizontal = Space.s8, vertical = Space.s6),
                 )
             }.firstOrNull()?.measure(loose)
             val tools = subcompose("tools") {
@@ -308,7 +304,7 @@ internal fun SelectionBar(
 internal fun SelectionDivider() {
     val palette = LocalPalette.current
     Box(
-        Modifier.padding(horizontal = 4.dp).width(1.dp).height(20.dp)
+        Modifier.padding(horizontal = Space.s4).width(1.dp).height(20.dp)
             .background(palette.selectionForeground.toComposeColor().copy(alpha = 0.25f)),
     )
 }
@@ -326,10 +322,10 @@ internal fun TileBadge(icon: ImageVector, text: String, modifier: Modifier = Mod
             .border(1.dp, palette.border.toComposeColor(), shape)
             .padding(start = 6.dp, end = if (text.isEmpty()) 6.dp else 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(Space.s4),
     ) {
         Icon(icon, null, tint = palette.textDim.toComposeColor(), modifier = Modifier.size(13.dp))
-        if (text.isNotEmpty()) Text(text, color = palette.text.toComposeColor(), fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        if (text.isNotEmpty()) Text(text, color = palette.text.toComposeColor(), fontSize = TextSize.caption, fontWeight = FontWeight.Medium, maxLines = 1)
     }
 }
 
@@ -383,20 +379,20 @@ internal fun ViewOptionsContent(
 ) {
     val palette = LocalPalette.current
     val layout = view.layout
-    Column(Modifier.widthIn(max = 372.dp).padding(start = 18.dp, end = 12.dp, top = 6.dp, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.widthIn(max = 372.dp).padding(start = Space.s20, end = Space.s12, top = Space.s6, bottom = Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.toolbar_view), color = palette.text.toComposeColor(), fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+            Text(stringResource(R.string.toolbar_view), color = palette.text.toComposeColor(), fontSize = TextSize.title, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
             Text(
                 stringResource(R.string.reset),
                 color = palette.accent.toComposeColor(),
-                fontSize = 13.5.sp,
+                fontSize = TextSize.bodyLarge,
                 fontWeight = FontWeight.Medium,
-                modifier = Modifier.clip(MaterialTheme.shapes.extraSmall).clickable(onClick = onReset).padding(horizontal = 8.dp, vertical = 6.dp),
+                modifier = Modifier.clip(MaterialTheme.shapes.extraSmall).clickable(onClick = onReset).padding(horizontal = Space.s8, vertical = Space.s6),
             )
             ExplorerIcon(XnotesIcons.close, stringResource(R.string.close_view_options), palette.textDim.toComposeColor(), onClick = onClose)
         }
         OptionBlock(stringResource(R.string.opt_layout)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                 layouts.forEach { l ->
                     val on = l == layout
                     val shape = MaterialTheme.shapes.medium
@@ -413,32 +409,32 @@ internal fun ViewOptionsContent(
                     ) {
                         val tint = (if (on) palette.selectionForeground else palette.textDim).toComposeColor()
                         Icon(layoutIcon(l), null, tint = tint, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.height(5.dp))
-                        Text(stringResource(l.labelRes), color = tint, fontSize = 11.5.sp, lineHeight = 14.sp, maxLines = 1)
+                        Spacer(Modifier.height(Space.s4))
+                        Text(stringResource(l.labelRes), color = tint, fontSize = TextSize.label, lineHeight = 14.sp, maxLines = 1)
                     }
                 }
             }
         }
         if (layout == ExplorerLayout.LIST) {
             OptionBlock(stringResource(R.string.opt_rows)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                     ExplorerChip(stringResource(R.string.rows_comfortable), !view.compactRows) { onChange(view.copy(compactRows = false)) }
                     ExplorerChip(stringResource(R.string.rows_compact), view.compactRows) { onChange(view.copy(compactRows = true)) }
                 }
             }
         } else if (layout != ExplorerLayout.COLUMNS) {
             OptionBlock(stringResource(R.string.opt_tile_size)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                     TileSize.entries.forEach { t -> ExplorerChip(t.label, view.tileSize == t, Modifier.widthIn(min = 48.dp)) { onChange(view.copy(tileSize = t)) } }
                 }
                 if (layout == ExplorerLayout.GRID) {
-                    Text(stringResource(R.string.pinch_hint), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+                    Text(stringResource(R.string.pinch_hint), color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
                 }
             }
         }
         if (layout == ExplorerLayout.TIMELINE) {
             OptionBlock(stringResource(R.string.opt_place_by)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                     ExplorerChip(stringResource(R.string.sort_created), view.timelineByCreated) { onChange(view.copy(timelineByCreated = true)) }
                     ExplorerChip(stringResource(R.string.sort_modified), !view.timelineByCreated) { onChange(view.copy(timelineByCreated = false)) }
                 }
@@ -446,7 +442,7 @@ internal fun ViewOptionsContent(
         }
         if (layout == ExplorerLayout.GRID) {
             OptionBlock(stringResource(R.string.opt_thumbnail)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                     ExplorerChip(stringResource(R.string.thumb_top), view.thumb == ThumbShape.TOP) { onChange(view.copy(thumb = ThumbShape.TOP)) }
                     ExplorerChip(stringResource(R.string.thumb_page), view.thumb == ThumbShape.PAGE) { onChange(view.copy(thumb = ThumbShape.PAGE)) }
                 }
@@ -454,7 +450,7 @@ internal fun ViewOptionsContent(
         }
         if (layout == ExplorerLayout.GRID || layout == ExplorerLayout.GALLERY || layout == ExplorerLayout.TIMELINE) {
             OptionBlock(stringResource(R.string.opt_show_on_tiles)) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                     @Composable
                     fun toggle(label: String, on: Boolean, flip: () -> ExplorerView) =
                         ExplorerChip(label, on, icon = if (on) XnotesIcons.check else XnotesIcons.plus) { onChange(flip()) }
@@ -470,18 +466,18 @@ internal fun ViewOptionsContent(
         }
         if (layout != ExplorerLayout.COLUMNS && layout != ExplorerLayout.TIMELINE) {
             OptionBlock(stringResource(R.string.opt_group_by)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                     GroupBy.entries.forEach { g -> ExplorerChip(stringResource(g.labelRes), view.groupBy == g) { onChange(view.copy(groupBy = g)) } }
                 }
             }
         }
         if (layout != ExplorerLayout.TIMELINE) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.sort_by), color = palette.accent.toComposeColor(), fontSize = 13.sp, modifier = Modifier.weight(1f))
-                    Text(directionLabel(view.sortKey, view.descending), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+                    Text(stringResource(R.string.sort_by), color = palette.accent.toComposeColor(), fontSize = TextSize.body, modifier = Modifier.weight(1f))
+                    Text(directionLabel(view.sortKey, view.descending), color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
                 }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                     listOf(ExplorerSortKey.NAME to stringResource(R.string.sort_name), ExplorerSortKey.MODIFIED to stringResource(R.string.modified), ExplorerSortKey.CREATED to stringResource(R.string.created), ExplorerSortKey.SIZE to stringResource(R.string.sort_size)).forEach { (k, label) ->
                         val active = view.sortKey == k
                         ExplorerChip(label, active, trailing = if (active) (if (view.descending) XnotesIcons.arrowDown else XnotesIcons.arrowUp) else null) {
@@ -491,21 +487,21 @@ internal fun ViewOptionsContent(
                 }
             }
             OptionBlock(stringResource(R.string.kind_folders)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                     FolderPlacement.entries.forEach { f -> ExplorerChip(stringResource(f.labelRes), view.folders == f) { onChange(view.copy(folders = f)) } }
                 }
             }
         }
         HorizontalDivider(color = palette.border.toComposeColor())
         Row(
-            Modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraSmall).clickable { onEveryFolder(!everyFolder) }.padding(vertical = 2.dp),
+            Modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraSmall).clickable { onEveryFolder(!everyFolder) }.padding(vertical = Space.s2),
             verticalAlignment = Alignment.Top,
         ) {
-            RowCheck(everyFolder, Modifier.padding(top = 3.dp))
-            Spacer(Modifier.width(12.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(stringResource(R.string.view_every_folder), color = palette.text.toComposeColor(), fontSize = 14.sp)
-                Text(stringResource(R.string.view_every_folder_hint), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+            RowCheck(everyFolder, Modifier.padding(top = Space.s2))
+            Spacer(Modifier.width(Space.s12))
+            Column(verticalArrangement = Arrangement.spacedBy(Space.s2)) {
+                Text(stringResource(R.string.view_every_folder), color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge)
+                Text(stringResource(R.string.view_every_folder_hint), color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
             }
         }
     }
@@ -513,8 +509,8 @@ internal fun ViewOptionsContent(
 
 @Composable
 private fun OptionBlock(label: String, content: @Composable () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, color = LocalPalette.current.accent.toComposeColor(), fontSize = 13.sp)
+    Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+        Text(label, color = LocalPalette.current.accent.toComposeColor(), fontSize = TextSize.body)
         content()
     }
 }
@@ -529,6 +525,6 @@ internal fun Hairline(modifier: Modifier = Modifier) {
 @Composable
 internal fun EmptyNote(text: String, modifier: Modifier = Modifier) {
     Box(modifier.heightIn(min = 160.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Text(text, color = LocalPalette.current.textDim.toComposeColor(), fontSize = 14.sp, textAlign = TextAlign.Center, overflow = TextOverflow.Ellipsis)
+        Text(text, color = LocalPalette.current.textDim.toComposeColor(), fontSize = TextSize.bodyLarge, textAlign = TextAlign.Center, overflow = TextOverflow.Ellipsis)
     }
 }

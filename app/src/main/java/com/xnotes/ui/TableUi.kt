@@ -66,6 +66,8 @@ import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /** Table chrome over the canvas: the edit-mode handles and the restyle dialog. */
 @Composable
@@ -113,7 +115,7 @@ fun TableDialog(editor: Editor, table: FlowTable?, onDismiss: () -> Unit) {
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 TablePreview(if (table == null) rows else 4, if (table == null) cols else 3, style, editor.tableRuleColor())
-                Spacer(Modifier.size(10.dp))
+                Spacer(Modifier.size(Space.s12))
                 if (table == null) {
                     Stepper(stringResource(R.string.table_rows), "$rows", { update(r = rows - 1) }, { update(r = rows + 1) })
                     Stepper(stringResource(R.string.table_columns), "$cols", { update(c = cols - 1) }, { update(c = cols + 1) })
@@ -131,19 +133,19 @@ fun TableDialog(editor: Editor, table: FlowTable?, onDismiss: () -> Unit) {
                 ColorRow(stringResource(R.string.table_line_colour), style.lineColor, editor.tableRuleColor(), editor) {
                     update(s = style.copy(lineColor = it))
                 }
-                Spacer(Modifier.size(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Spacer(Modifier.size(Space.s6))
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.s6)) {
                     for (b in BORDER_CHOICES) {
                         ModeChip(stringResource(b.labelRes), style.borders == b) { update(s = style.copy(borders = b)) }
                     }
                 }
-                Spacer(Modifier.size(6.dp))
+                Spacer(Modifier.size(Space.s6))
                 SwitchRow(stringResource(R.string.table_header_row), style.headerRow) { update(s = style.copy(headerRow = it)) }
                 SwitchRow(stringResource(R.string.table_banded_rows), style.banded) { update(s = style.copy(banded = it)) }
                 if (style.headerRow || style.banded) {
                     ColorRow(stringResource(R.string.table_tint), style.tint, palette.accent, editor) { update(s = style.copy(tint = it)) }
                 }
-                Spacer(Modifier.size(8.dp))
+                Spacer(Modifier.size(Space.s8))
                 if (showDefaultRow && !current().isFactory) {
                     // The checkbox's 48dp touch frame insets the drawn box; pull the row back to align it.
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.offset(x = (-14).dp)) {
@@ -154,7 +156,7 @@ fun TableDialog(editor: Editor, table: FlowTable?, onDismiss: () -> Unit) {
                         Text(
                             stringResource(R.string.default_for_new_tables),
                             color = palette.text.toComposeColor(),
-                            fontSize = 12.sp,
+                            fontSize = TextSize.label,
                         )
                     }
                 }
@@ -227,19 +229,19 @@ private fun TablePreview(rows: Int, cols: Int, style: TableStyle, autoRule: com.
 private fun Stepper(label: String, value: String, onMinus: () -> Unit, onPlus: () -> Unit) {
     val palette = LocalPalette.current
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = palette.textDim.toComposeColor(), fontSize = 13.sp, modifier = Modifier.width(96.dp))
+        Text(label, color = palette.textDim.toComposeColor(), fontSize = TextSize.body, modifier = Modifier.width(96.dp))
         Box(Modifier.size(34.dp).clickable(onClick = onMinus), contentAlignment = Alignment.Center) {
-            Text("−", color = palette.text.toComposeColor(), fontSize = 18.sp)
+            Text("−", color = palette.text.toComposeColor(), fontSize = TextSize.heading)
         }
         Text(
             value,
             color = palette.text.toComposeColor(),
-            fontSize = 14.sp,
+            fontSize = TextSize.bodyLarge,
             modifier = Modifier.width(72.dp),
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
         Box(Modifier.size(34.dp).clickable(onClick = onPlus), contentAlignment = Alignment.Center) {
-            Text("+", color = palette.text.toComposeColor(), fontSize = 18.sp)
+            Text("+", color = palette.text.toComposeColor(), fontSize = TextSize.heading)
         }
     }
 }
@@ -250,7 +252,7 @@ private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Un
         Text(
             label,
             color = LocalPalette.current.textDim.toComposeColor(),
-            fontSize = 13.sp,
+            fontSize = TextSize.body,
             modifier = Modifier.width(202.dp),
         )
         Switch(checked = checked, onCheckedChange = onChange)
@@ -267,10 +269,10 @@ private fun ColorRow(
     onChange: (com.xnotes.core.model.Rgba?) -> Unit,
 ) {
     val palette = LocalPalette.current
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
-        Text(label, color = palette.textDim.toComposeColor(), fontSize = 13.sp, modifier = Modifier.width(96.dp))
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = Space.s4)) {
+        Text(label, color = palette.textDim.toComposeColor(), fontSize = TextSize.body, modifier = Modifier.width(96.dp))
         ModeChip(stringResource(R.string.auto), value == null) { onChange(null) }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(Space.s8))
         ColorPickerDot(value, custom = value != null, onPick = { onChange(it) }, dismissOnPick = false) { d, p ->
             ColorPickerPopup(value ?: auto, editor.recentColors, d, p)
         }

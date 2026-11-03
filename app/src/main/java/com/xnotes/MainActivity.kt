@@ -48,6 +48,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -110,6 +111,8 @@ import com.xnotes.ui.theme.toComposeColor
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /** Minimum time the launch loader stays up, so its animation is briefly seen even
  *  when the session restores instantly. */
@@ -1268,7 +1271,7 @@ private fun EditorScreen(
                             } }
                         }) {
                             Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(stringResource(R.string.home), Modifier.weight(1f).padding(horizontal = 16.dp),
+                                Text(stringResource(R.string.home), Modifier.weight(1f).padding(horizontal = Space.s16),
                                     color = com.xnotes.ui.theme.LocalPalette.current.text.toComposeColor())
                                 androidx.compose.material3.IconButton(onClick = {
                                     closePaneHome(pane)
@@ -1702,7 +1705,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions, homes: Set<com.xnote
                     .then(paneSize(if (sourceFirst) secondExtent else firstExtent))
                     .border(3.dp, palette.text.toComposeColor())) {
                     Text(stringResource(R.string.split_drop_swap), Modifier.align(Alignment.Center)
-                        .background(palette.bg.toComposeColor()).border(1.dp, palette.text.toComposeColor()).padding(12.dp),
+                        .background(palette.bg.toComposeColor()).border(1.dp, palette.text.toComposeColor()).padding(Space.s12),
                         color = palette.text.toComposeColor())
                 }
             }
@@ -1713,7 +1716,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions, homes: Set<com.xnote
             }
             Text(if (drag.source.canvasOpen) drag.source.infinite.title else drag.source.title,
                 Modifier.offset { androidx.compose.ui.unit.IntOffset(ghost.x.roundToInt(), ghost.y.roundToInt()) }
-                    .width(140.dp).background(palette.bg.toComposeColor()).border(2.dp, palette.text.toComposeColor()).padding(10.dp),
+                    .width(140.dp).background(palette.bg.toComposeColor()).border(2.dp, palette.text.toComposeColor()).padding(Space.s12),
                 color = palette.text.toComposeColor(), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
         }
@@ -1850,12 +1853,12 @@ private fun EditorPane(
                 },
         ) {
             if (closable) {
-                Row(Modifier.fillMaxWidth().height(56.dp).border(1.dp, palette.text.toComposeColor()),
+                Row(Modifier.fillMaxWidth().height(56.dp).background(palette.panel.toComposeColor()).border(1.dp, palette.border.toComposeColor()),
                     verticalAlignment = Alignment.CenterVertically) {
                     Text(if (editor.canvasOpen) editor.infinite.title else editor.title,
                         Modifier.width(titleWidth).fillMaxHeight().then(dragTitle)
-                            .background(palette.bg.toComposeColor())
-                            .clickable { app.focusPane(editor.pane) }.padding(horizontal = 10.dp, vertical = 8.dp),
+                            .clickable { app.focusPane(editor.pane) }.padding(horizontal = Space.s12, vertical = Space.s8)
+                            .wrapContentHeight(Alignment.CenterVertically),
                         color = palette.text.toComposeColor(), maxLines = 1,
                         textDecoration = if (focused) androidx.compose.ui.text.style.TextDecoration.Underline else androidx.compose.ui.text.style.TextDecoration.None,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
@@ -1872,11 +1875,11 @@ private fun EditorPane(
                             }
                         }
                     }
-                    androidx.compose.material3.IconButton(onClick = { actions.onPickDocument(editor) }, modifier = Modifier.size(40.dp)) {
-                        Icon(XnotesIcons.folder, stringResource(R.string.split_replace_document), tint = palette.text.toComposeColor())
+                    androidx.compose.material3.IconButton(onClick = { actions.onPickDocument(editor) }, modifier = Modifier.size(com.xnotes.ui.theme.MinTouchTarget)) {
+                        Icon(XnotesIcons.folder, stringResource(R.string.split_replace_document), tint = palette.textDim.toComposeColor())
                     }
-                    androidx.compose.material3.IconButton(onClick = { actions.onClosePane(editor) }, modifier = Modifier.size(40.dp)) {
-                        Icon(XnotesIcons.close, stringResource(R.string.split_close_document), tint = palette.text.toComposeColor())
+                    androidx.compose.material3.IconButton(onClick = { actions.onClosePane(editor) }, modifier = Modifier.size(com.xnotes.ui.theme.MinTouchTarget)) {
+                        Icon(XnotesIcons.close, stringResource(R.string.split_close_document), tint = palette.textDim.toComposeColor())
                     }
                 }
             }
@@ -2023,18 +2026,18 @@ private fun SplitDivider(
         Box(Modifier.fillMaxSize().padding(
             horizontal = if (sideBySide) (DIVIDER - if (active) 4.dp else DIVIDER_LINE) / 2 else 0.dp,
             vertical = if (sideBySide) 0.dp else (DIVIDER - if (active) 4.dp else DIVIDER_LINE) / 2,
-        ).background(palette.text.toComposeColor()))
+        ).background((if (active) palette.text else palette.border).toComposeColor()))
         Box(
             Modifier.requiredSize(
                 if (sideBySide) (if (active) 46.dp else 24.dp) else 64.dp,
                 if (sideBySide) 64.dp else (if (active) 32.dp else 24.dp),
-            ).clip(RoundedCornerShape(6.dp))
-                .background((if (active) palette.text else palette.bg).toComposeColor())
-                .border(2.dp, palette.text.toComposeColor(), RoundedCornerShape(6.dp)),
+            ).clip(RoundedCornerShape(Space.s6))
+                .background((if (active) palette.text else palette.panel).toComposeColor())
+                .border(1.dp, (if (active) palette.text else palette.textDim).toComposeColor(), RoundedCornerShape(Space.s6)),
             contentAlignment = Alignment.Center,
         ) {
             Text(if (active) (if (centered) "50%" else "${(ratio * 100).roundToInt()}%") else if (sideBySide) "⋮" else "⋯",
-                color = (if (active) palette.bg else palette.text).toComposeColor(), fontSize = if (active) 12.sp else 22.sp)
+                color = (if (active) palette.bg else palette.text).toComposeColor(), fontSize = if (active) TextSize.label else TextSize.headline)
         }
     }
 }
@@ -2068,7 +2071,7 @@ private fun PdfExportDialog(done: Int, total: Int, counting: String, onCancel: (
                 .clip(MaterialTheme.shapes.large)
                 .background(palette.surface.toComposeColor())
                 .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.large)
-                .padding(horizontal = 32.dp, vertical = 26.dp),
+                .padding(horizontal = Space.s32, vertical = Space.s24),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box(modifier = Modifier.size(72.dp), contentAlignment = Alignment.Center) {
@@ -2083,7 +2086,7 @@ private fun PdfExportDialog(done: Int, total: Int, counting: String, onCancel: (
                     Text(
                         "${(fraction * 100).roundToInt()}%",
                         color = palette.text.toComposeColor(),
-                        fontSize = 15.sp,
+                        fontSize = TextSize.title,
                     )
                 } else {
                     androidx.compose.material3.CircularProgressIndicator(
@@ -2093,13 +2096,13 @@ private fun PdfExportDialog(done: Int, total: Int, counting: String, onCancel: (
                     )
                 }
             }
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(Space.s20))
             Text(
                 stringResource(R.string.exporting_pdf),
                 color = palette.text.toComposeColor(),
-                fontSize = 15.sp,
+                fontSize = TextSize.title,
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(Space.s4))
             Text(
                 when {
                     writing -> stringResource(R.string.writing_pdf)
@@ -2108,9 +2111,9 @@ private fun PdfExportDialog(done: Int, total: Int, counting: String, onCancel: (
                     else -> pluralStringResource(if (counting == "item") R.plurals.export_writing_items else R.plurals.export_writing_pages, total, total)
                 },
                 color = palette.textDim.toComposeColor(),
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
             )
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(Space.s16))
             androidx.compose.material3.TextButton(onClick = onCancel) {
                 Text(stringResource(R.string.cancel), color = palette.accent.toComposeColor())
             }
@@ -2134,7 +2137,7 @@ private fun SpinnerDialog(title: String, onCancel: () -> Unit) {
                 .clip(MaterialTheme.shapes.large)
                 .background(palette.surface.toComposeColor())
                 .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.large)
-                .padding(horizontal = 32.dp, vertical = 26.dp),
+                .padding(horizontal = Space.s32, vertical = Space.s24),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box(modifier = Modifier.size(72.dp), contentAlignment = Alignment.Center) {
@@ -2144,11 +2147,11 @@ private fun SpinnerDialog(title: String, onCancel: () -> Unit) {
                     strokeWidth = 4.dp,
                 )
             }
-            Spacer(Modifier.height(18.dp))
-            Text(title, color = palette.text.toComposeColor(), fontSize = 15.sp)
-            Spacer(Modifier.height(4.dp))
-            Text(stringResource(R.string.may_take_moment), color = palette.textDim.toComposeColor(), fontSize = 13.sp)
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(Space.s20))
+            Text(title, color = palette.text.toComposeColor(), fontSize = TextSize.title)
+            Spacer(Modifier.height(Space.s4))
+            Text(stringResource(R.string.may_take_moment), color = palette.textDim.toComposeColor(), fontSize = TextSize.body)
+            Spacer(Modifier.height(Space.s16))
             androidx.compose.material3.TextButton(onClick = onCancel) {
                 Text(stringResource(R.string.cancel), color = palette.accent.toComposeColor())
             }
@@ -2172,7 +2175,7 @@ private fun SavingDialog() {
                 .clip(MaterialTheme.shapes.large)
                 .background(palette.surface.toComposeColor())
                 .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.large)
-                .padding(horizontal = 32.dp, vertical = 26.dp),
+                .padding(horizontal = Space.s32, vertical = Space.s24),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box(modifier = Modifier.size(72.dp), contentAlignment = Alignment.Center) {
@@ -2182,10 +2185,10 @@ private fun SavingDialog() {
                     strokeWidth = 4.dp,
                 )
             }
-            Spacer(Modifier.height(18.dp))
-            Text(stringResource(R.string.saving_notes), color = palette.text.toComposeColor(), fontSize = 15.sp)
-            Spacer(Modifier.height(4.dp))
-            Text(stringResource(R.string.may_take_moment), color = palette.textDim.toComposeColor(), fontSize = 13.sp)
+            Spacer(Modifier.height(Space.s20))
+            Text(stringResource(R.string.saving_notes), color = palette.text.toComposeColor(), fontSize = TextSize.title)
+            Spacer(Modifier.height(Space.s4))
+            Text(stringResource(R.string.may_take_moment), color = palette.textDim.toComposeColor(), fontSize = TextSize.body)
         }
     }
 }
@@ -2213,7 +2216,7 @@ private fun PdfImportBatchDialog(done: Int, total: Int, onCancel: () -> Unit) {
                 .clip(MaterialTheme.shapes.large)
                 .background(palette.surface.toComposeColor())
                 .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.large)
-                .padding(horizontal = 32.dp, vertical = 26.dp),
+                .padding(horizontal = Space.s32, vertical = Space.s24),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box(modifier = Modifier.size(72.dp), contentAlignment = Alignment.Center) {
@@ -2224,17 +2227,17 @@ private fun PdfImportBatchDialog(done: Int, total: Int, onCancel: () -> Unit) {
                     trackColor = palette.border.toComposeColor(),
                     strokeWidth = 4.dp,
                 )
-                Text("$done/$total", color = palette.text.toComposeColor(), fontSize = 15.sp)
+                Text("$done/$total", color = palette.text.toComposeColor(), fontSize = TextSize.title)
             }
-            Spacer(Modifier.height(18.dp))
-            Text(stringResource(R.string.importing_pdfs), color = palette.text.toComposeColor(), fontSize = 15.sp)
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(Space.s20))
+            Text(stringResource(R.string.importing_pdfs), color = palette.text.toComposeColor(), fontSize = TextSize.title)
+            Spacer(Modifier.height(Space.s4))
             Text(
                 stringResource(R.string.import_progress, done, total),
                 color = palette.textDim.toComposeColor(),
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
             )
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(Space.s16))
             androidx.compose.material3.TextButton(onClick = onCancel) {
                 Text(stringResource(R.string.cancel), color = palette.accent.toComposeColor())
             }
@@ -2264,7 +2267,7 @@ private fun PdfBatchExportDialog(p: com.xnotes.platform.PdfBatch.Progress, onCan
                 .clip(MaterialTheme.shapes.large)
                 .background(palette.surface.toComposeColor())
                 .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.large)
-                .padding(horizontal = 32.dp, vertical = 26.dp),
+                .padding(horizontal = Space.s32, vertical = Space.s24),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box(modifier = Modifier.size(72.dp), contentAlignment = Alignment.Center) {
@@ -2285,17 +2288,17 @@ private fun PdfBatchExportDialog(p: com.xnotes.platform.PdfBatch.Progress, onCan
                     Text(
                         if (p.count > 1) "${p.index + 1}/${p.count}" else "${(p.fraction * 100).roundToInt()}%",
                         color = palette.text.toComposeColor(),
-                        fontSize = 15.sp,
+                        fontSize = TextSize.title,
                     )
                 }
             }
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(Space.s20))
             Text(
                 stringResource(if (p.count == 1) R.string.exporting_pdf else R.string.exporting_pdfs),
                 color = palette.text.toComposeColor(),
-                fontSize = 15.sp,
+                fontSize = TextSize.title,
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(Space.s4))
             val canvas = com.xnotes.core.util.DocumentKind.ofName(p.name) == com.xnotes.core.util.DocumentKind.CANVAS
             val step = when {
                 p.total < 0 || (p.total > 0 && p.done >= p.total) -> stringResource(R.string.export_writing_short)
@@ -2306,11 +2309,11 @@ private fun PdfBatchExportDialog(p: com.xnotes.platform.PdfBatch.Progress, onCan
                 if (p.count == 0) stringResource(R.string.preparing)
                 else listOfNotNull(com.xnotes.core.util.DocumentKind.stripSuffix(p.name), step).joinToString(" · "),
                 color = palette.textDim.toComposeColor(),
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 maxLines = 1,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(Space.s16))
             androidx.compose.material3.TextButton(onClick = onCancel) {
                 Text(stringResource(R.string.cancel), color = palette.accent.toComposeColor())
             }
@@ -2349,7 +2352,7 @@ private fun BoxScope.ZoomLockHint(editor: Editor) {
     val locked = editor.zoomLocked
     AnimatedVisibility(
         visible = visible,
-        modifier = Modifier.align(Alignment.TopCenter).padding(com.xnotes.ui.LocalToolbarCover.current).padding(top = 8.dp),
+        modifier = Modifier.align(Alignment.TopCenter).padding(com.xnotes.ui.LocalToolbarCover.current).padding(top = Space.s8),
         enter = fadeIn(),
         exit = fadeOut(),
     ) {
@@ -2359,7 +2362,7 @@ private fun BoxScope.ZoomLockHint(editor: Editor) {
                 .background(palette.surface.toComposeColor())
                 .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.small)
                 .clickable { editor.toggleZoomLock(); armToken++ }
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = Space.s12, vertical = Space.s8),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -2368,11 +2371,11 @@ private fun BoxScope.ZoomLockHint(editor: Editor) {
                 tint = (if (locked) palette.accent else palette.textDim).toComposeColor(),
                 modifier = Modifier.size(18.dp),
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Space.s8))
             Text(
                 if (locked) stringResource(R.string.unlock_zoom) else stringResource(R.string.lock_zoom),
                 color = palette.text.toComposeColor(),
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
             )
         }
     }

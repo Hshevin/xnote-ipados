@@ -53,6 +53,8 @@ import com.xnotes.core.audio.AudioTime
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /** A play triangle, or two pause bars while [playing], filled in [color]. */
 @Composable
@@ -96,21 +98,21 @@ internal fun PlaybackChip(session: AudioPlayback.Session) {
             .semantics { contentDescription = label }
         if (bar.vertical) {
             Column(
-                base.width(bar.circle).padding(vertical = 9.dp),
+                base.width(bar.circle).padding(vertical = Space.s8),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(2.dp),
+                verticalArrangement = Arrangement.spacedBy(Space.s2),
             ) {
                 PlayGlyph(session.playing, fg, 11.dp)
                 for (part in time.split(':')) Text(part, color = fg, fontSize = bar.label, fontWeight = FontWeight.Medium)
             }
         } else {
             Row(
-                base.height(bar.circle).padding(start = 10.dp, end = 13.dp),
+                base.height(bar.circle).padding(start = Space.s12, end = Space.s12),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                horizontalArrangement = Arrangement.spacedBy(Space.s6),
             ) {
                 PlayGlyph(session.playing, fg, 12.dp)
-                Text(time, color = fg, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(time, color = fg, fontSize = TextSize.bodyLarge, fontWeight = FontWeight.Medium)
             }
         }
         if (open) PlayerPanel(session) { open = false }
@@ -160,33 +162,33 @@ internal fun RecordingChip(session: AudioRecording.Session) {
         }
         if (bar.vertical) {
             Column(
-                base.width(bar.circle).padding(vertical = 9.dp),
+                base.width(bar.circle).padding(vertical = Space.s8),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(2.dp),
+                verticalArrangement = Arrangement.spacedBy(Space.s2),
             ) {
                 marker()
                 for (part in time.split(':')) Text(part, color = fg, fontSize = bar.label, fontWeight = FontWeight.Medium)
             }
         } else {
             Row(
-                base.height(bar.circle).padding(start = 11.dp, end = 13.dp),
+                base.height(bar.circle).padding(start = Space.s12, end = Space.s12),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(Space.s8),
             ) {
                 marker()
-                Text(time, color = fg, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(time, color = fg, fontSize = TextSize.bodyLarge, fontWeight = FontWeight.Medium)
             }
         }
         if (open) {
             DropdownMenu(expanded = true, onDismissRequest = { open = false }) {
                 Row(
-                    Modifier.padding(start = 16.dp, end = 18.dp, top = 6.dp, bottom = 6.dp).widthIn(min = 200.dp),
+                    Modifier.padding(start = Space.s16, end = Space.s20, top = Space.s6, bottom = Space.s6).widthIn(min = 200.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
                         stringResource(if (session.paused) R.string.recording_paused else R.string.recording),
                         color = palette.textDim.toComposeColor(),
-                        fontSize = 12.sp,
+                        fontSize = TextSize.label,
                         modifier = Modifier.weight(1f),
                     )
                     LevelMeter(session, m.error.toComposeColor(), palette.border.toComposeColor())
@@ -197,7 +199,7 @@ internal fun RecordingChip(session: AudioRecording.Session) {
                     InsertMenuRow(XnotesIcons.pause, stringResource(R.string.recording_pause)) { open = false; AudioRecording.pause() }
                 }
                 InsertMenuRow(XnotesIcons.stop, stringResource(R.string.recording_stop_place)) { open = false; AudioRecording.stop() }
-                HorizontalDivider(Modifier.padding(vertical = 6.dp), color = palette.border.toComposeColor())
+                HorizontalDivider(Modifier.padding(vertical = Space.s6), color = palette.border.toComposeColor())
                 InsertMenuRow(XnotesIcons.trash, stringResource(R.string.recording_discard), color = palette.danger.toComposeColor()) {
                     open = false
                     AudioRecording.discard()
@@ -251,26 +253,26 @@ private fun PlayerPanel(session: AudioPlayback.Session, onDismiss: () -> Unit) {
     val long = session.duration >= 3_600_000
     // Not focusable, so a tap on the page passes through: on ink it seeks, elsewhere it closes this.
     DropdownMenu(expanded = true, onDismissRequest = onDismiss, properties = PopupProperties(focusable = false)) {
-        Column(Modifier.width(360.dp).padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 2.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.width(360.dp).padding(start = Space.s16, end = Space.s16, top = Space.s6, bottom = Space.s2)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                 Icon(XnotesIcons.mic, contentDescription = null, tint = accent, modifier = Modifier.size(16.dp))
                 Text(
                     session.item.name,
                     color = palette.text.toComposeColor(),
-                    fontSize = 14.sp,
+                    fontSize = TextSize.bodyLarge,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Scrubber(session, accent, palette.border.toComposeColor(), Modifier.padding(top = 10.dp))
+            Scrubber(session, accent, palette.border.toComposeColor(), Modifier.padding(top = Space.s12))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(AudioTime.format(session.position, long), color = dim, fontSize = 12.sp)
-                Text(AudioTime.format(session.duration, long), color = dim, fontSize = 12.sp)
+                Text(AudioTime.format(session.position, long), color = dim, fontSize = TextSize.label)
+                Text(AudioTime.format(session.duration, long), color = dim, fontSize = TextSize.label)
             }
             Row(
-                Modifier.fillMaxWidth().padding(top = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(22.dp, Alignment.CenterHorizontally),
+                Modifier.fillMaxWidth().padding(top = Space.s4),
+                horizontalArrangement = Arrangement.spacedBy(Space.s24, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 SkipButton(XnotesIcons.skipBack, stringResource(R.string.audio_back)) { AudioPlayback.skip(-10_000) }
@@ -288,7 +290,7 @@ private fun PlayerPanel(session: AudioPlayback.Session, onDismiss: () -> Unit) {
                 }
                 SkipButton(XnotesIcons.skipForward, stringResource(R.string.audio_forward)) { AudioPlayback.skip(10_000) }
             }
-            HorizontalDivider(Modifier.padding(top = 8.dp), color = palette.border.toComposeColor())
+            HorizontalDivider(Modifier.padding(top = Space.s8), color = palette.border.toComposeColor())
             Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
                 val followLabel = stringResource(R.string.audio_follow)
                 androidx.compose.material3.Switch(
@@ -296,7 +298,7 @@ private fun PlayerPanel(session: AudioPlayback.Session, onDismiss: () -> Unit) {
                     onCheckedChange = { AudioPlayback.follow = it },
                     modifier = Modifier.semantics { contentDescription = followLabel },
                 )
-                Text(followLabel, color = palette.text.toComposeColor(), fontSize = 14.sp, modifier = Modifier.padding(start = 10.dp))
+                Text(followLabel, color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge, modifier = Modifier.padding(start = Space.s12))
                 Spacer(Modifier.weight(1f))
                 val speedLabel = stringResource(R.string.audio_speed)
                 Box(
@@ -307,21 +309,21 @@ private fun PlayerPanel(session: AudioPlayback.Session, onDismiss: () -> Unit) {
                         .border(1.dp, palette.border.toComposeColor(), RoundedCornerShape(8.dp))
                         .clickable { AudioPlayback.cycleSpeed() }
                         .semantics { contentDescription = speedLabel }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .padding(horizontal = Space.s12, vertical = Space.s6),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(speedText(AudioPlayback.speed), color = palette.text.toComposeColor(), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text(speedText(AudioPlayback.speed), color = palette.text.toComposeColor(), fontSize = TextSize.body, fontWeight = FontWeight.Medium)
                 }
                 Text(
                     stringResource(R.string.audio_close),
                     color = accent,
-                    fontSize = 14.sp,
+                    fontSize = TextSize.bodyLarge,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier
-                        .padding(start = 8.dp)
+                        .padding(start = Space.s8)
                         .clip(RoundedCornerShape(18.dp))
                         .clickable { onDismiss(); AudioPlayback.close() }
-                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                        .padding(horizontal = Space.s12, vertical = Space.s8),
                 )
             }
         }
@@ -338,7 +340,7 @@ private fun SkipButton(icon: androidx.compose.ui.graphics.vector.ImageVector, la
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = null, tint = dim, modifier = Modifier.size(26.dp))
-        Text("10", color = dim, fontSize = 9.sp, fontWeight = FontWeight.Medium)
+        Text("10", color = dim, fontSize = TextSize.micro, fontWeight = FontWeight.Medium)
     }
 }
 

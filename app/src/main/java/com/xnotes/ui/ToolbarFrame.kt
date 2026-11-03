@@ -28,18 +28,19 @@ import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.xnotes.settings.ToolbarLook
 import com.xnotes.settings.ToolbarPosition
 import com.xnotes.settings.ToolbarSize
 import com.xnotes.ui.theme.LocalPalette
+import com.xnotes.ui.theme.TextSize
+import com.xnotes.ui.theme.MinTouchTarget
 import com.xnotes.ui.theme.toComposeColor
+import com.xnotes.ui.theme.Space
 
 /** The toolbar look from Preferences, provided once above both panes. */
 val LocalToolbarLook = staticCompositionLocalOf { ToolbarLook() }
@@ -58,10 +59,11 @@ internal data class BarMetrics(
     val thickness: Dp get() = button + 8.dp
 }
 
+/** Every size keeps a [MinTouchTarget] button; smaller sizes shrink only what is drawn inside it. */
 internal fun barMetrics(size: ToolbarSize): BarMetrics = when (size) {
-    ToolbarSize.COMPACT -> BarMetrics(36.dp, 30.dp, 20.dp, 24.dp, 22.dp, 11.sp)
-    ToolbarSize.REGULAR -> BarMetrics(42.dp, 34.dp, 22.dp, 28.dp, 26.dp, 12.sp)
-    ToolbarSize.COMFORTABLE -> BarMetrics(50.dp, 40.dp, 26.dp, 34.dp, 30.dp, 13.sp)
+    ToolbarSize.COMPACT -> BarMetrics(MinTouchTarget, 32.dp, 20.dp, 24.dp, 22.dp, TextSize.caption)
+    ToolbarSize.REGULAR -> BarMetrics(52.dp, 38.dp, 22.dp, 28.dp, 26.dp, TextSize.label)
+    ToolbarSize.COMFORTABLE -> BarMetrics(56.dp, 42.dp, 26.dp, 34.dp, 30.dp, TextSize.body)
 }
 
 internal val LocalBar = staticCompositionLocalOf { barMetrics(ToolbarSize.REGULAR) }
@@ -149,7 +151,6 @@ internal fun ToolbarFrame(
         Modifier.background(palette.panel.toComposeColor())
     } else {
         Modifier
-            .shadow(6.dp, shape)
             .clip(shape)
             .background(palette.panel.toComposeColor())
             .border(1.dp, palette.border.toComposeColor(), shape)
@@ -179,7 +180,7 @@ internal fun ToolbarFrame(
                     Modifier
                         .weight(1f, fill = !look.floating)
                         .verticalScroll(rememberScrollState())
-                        .padding(vertical = 4.dp)
+                        .padding(vertical = Space.s4)
                         .toolGlide(glide, armed),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) { content() }
@@ -195,7 +196,7 @@ internal fun ToolbarFrame(
                     Modifier
                         .weight(1f, fill = !look.floating)
                         .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 4.dp)
+                        .padding(horizontal = Space.s4)
                         .toolGlide(glide, armed),
                     verticalAlignment = Alignment.CenterVertically,
                 ) { content() }

@@ -35,6 +35,8 @@ import com.xnotes.core.text.EmojiShortcodes
 import com.xnotes.core.text.SlashCommands
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 private val ROW_HEIGHT = 36.dp
 private val MENU_WIDTH = 252.dp
@@ -88,7 +90,7 @@ fun SlashMenu(editor: Editor) {
             .clip(MaterialTheme.shapes.medium)
             .background(palette.menuBg.toComposeColor())
             .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.medium)
-            .padding(vertical = 4.dp)
+            .padding(vertical = Space.s4)
             .verticalScroll(scroll),
     ) {
         for (entry in entries) {
@@ -122,30 +124,30 @@ private fun SlashRow(
             .height(ROW_HEIGHT)
             .background(if (highlighted) palette.selectionBackground.toComposeColor() else Color.Transparent)
             .clickable(enabled = ready, onClick = onPick)
-            .padding(horizontal = 10.dp),
+            .padding(horizontal = Space.s12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             entry.id,
             color = fg,
-            fontSize = 13.sp,
+            fontSize = TextSize.body,
             fontWeight = if (highlighted) FontWeight.SemiBold else FontWeight.Normal,
             maxLines = 1,
         )
         entry.param?.let {
-            Spacer(Modifier.width(5.dp))
+            Spacer(Modifier.width(Space.s4))
             Text(
                 it,
                 color = dim,
-                fontSize = 11.sp,
+                fontSize = TextSize.caption,
                 maxLines = 1,
             )
         }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(Space.s8))
         Text(
             slashLabel(entry),
             color = dim,
-            fontSize = 11.sp,
+            fontSize = TextSize.caption,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f, fill = false),
@@ -155,7 +157,7 @@ private fun SlashRow(
             Text(
                 it,
                 color = dim,
-                fontSize = 11.sp,
+                fontSize = TextSize.caption,
             )
         }
     }
@@ -190,7 +192,7 @@ fun EmojiMenu(editor: Editor) {
             .clip(MaterialTheme.shapes.medium)
             .background(palette.menuBg.toComposeColor())
             .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.medium)
-            .padding(vertical = 4.dp),
+            .padding(vertical = Space.s4),
     ) {
         for ((i, match) in matches.withIndex()) {
             val (name, emoji) = match
@@ -202,15 +204,15 @@ fun EmojiMenu(editor: Editor) {
                     .height(ROW_HEIGHT)
                     .background(if (highlighted) palette.selectionBackground.toComposeColor() else Color.Transparent)
                     .clickable { editor.pickEmoji(query, emoji) }
-                    .padding(horizontal = 10.dp),
+                    .padding(horizontal = Space.s12),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(emoji, fontSize = 18.sp)
-                Spacer(Modifier.width(10.dp))
+                Text(emoji, fontSize = TextSize.heading)
+                Spacer(Modifier.width(Space.s12))
                 Text(
                     ":$name:",
                     color = fg,
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     fontWeight = if (highlighted) FontWeight.SemiBold else FontWeight.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

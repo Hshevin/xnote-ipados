@@ -59,6 +59,8 @@ import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
 import kotlin.math.roundToInt
+import com.xnotes.ui.theme.Space
+import com.xnotes.ui.theme.TextSize
 
 /**
  * What the selection menu needs from whichever editor is open.
@@ -391,12 +393,12 @@ private fun SelectionStylePopup(host: SelectionMenuHost, onDismiss: () -> Unit) 
     if (fillsOnly && fills.isEmpty()) return
 
     DropdownMenu(expanded = true, onDismissRequest = onDismiss, properties = PopupProperties(focusable = false)) {
-        Column(Modifier.width(250.dp).padding(horizontal = 14.dp, vertical = 8.dp)) {
+        Column(Modifier.width(250.dp).padding(horizontal = Space.s16, vertical = Space.s8)) {
             PopupTitle(stringResource(R.string.title_change_style))
             if (!fillsOnly) StyleCaption(stringResource(R.string.caption_colour))
             if (!fillsOnly) FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(Space.s6),
+                verticalArrangement = Arrangement.spacedBy(Space.s6),
             ) {
                 host.hostToolbarColors.forEach { c ->
                     ColorDot(c.toComposeColor(), selected = color == c) {
@@ -421,7 +423,7 @@ private fun SelectionStylePopup(host: SelectionMenuHost, onDismiss: () -> Unit) 
             host.selectionTapePattern()?.let { opened ->
                 var pattern by remember { mutableStateOf(opened) }
                 StyleCaption(stringResource(R.string.caption_pattern))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s6), verticalArrangement = Arrangement.spacedBy(Space.s6)) {
                     for (p in com.xnotes.core.model.TapePattern.entries) {
                         ModeChip(stringResource(p.labelRes), selected = pattern == p) {
                             pattern = p
@@ -436,7 +438,7 @@ private fun SelectionStylePopup(host: SelectionMenuHost, onDismiss: () -> Unit) 
                 val outline = color
                 StyleCaption(stringResource(R.string.caption_fill_colour))
                 // The toolbar's own swatches; tapping the chosen one again opens the picker on it, as the toolbar does.
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s6), verticalArrangement = Arrangement.spacedBy(Space.s6)) {
                     if (!fillsOnly) {
                         MatchDot(outline, selected = fill == null || fill == outline) {
                             fill = null
@@ -479,16 +481,16 @@ private fun SelectionStylePopup(host: SelectionMenuHost, onDismiss: () -> Unit) 
             host.selectionCount()?.let { sc ->
                 val count = sc.n
                 val range = sc.range
-                Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.padding(top = Space.s8), verticalAlignment = Alignment.CenterVertically) {
                     StyleCaption(stringResource(countLabel(sc.kind)))
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(Space.s12))
                     StepDot("\u2212", stringResource(R.string.count_fewer), enabled = count > range.first) { host.setSelectionCount(count - 1) }
-                    Text("$count", color = palette.text.toComposeColor(), fontSize = 14.sp, modifier = Modifier.padding(horizontal = 10.dp))
+                    Text("$count", color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge, modifier = Modifier.padding(horizontal = Space.s12))
                     StepDot("+", stringResource(R.string.count_more), enabled = count < range.last) { host.setSelectionCount(count + 1) }
                 }
             }
             if (fillsOnly) return@Column
-            Spacer(Modifier.size(8.dp))
+            Spacer(Modifier.size(Space.s8))
             // The drag previews live and commits on release, so it is one undo step, not fifty.
             SliderRow(
                 stringResource(R.string.caption_thickness),
@@ -502,7 +504,7 @@ private fun SelectionStylePopup(host: SelectionMenuHost, onDismiss: () -> Unit) 
             Text(
                 stringResource(R.string.change_style_hint),
                 color = palette.textDim.toComposeColor(),
-                fontSize = 11.sp,
+                fontSize = TextSize.caption,
             )
         }
     }
@@ -545,7 +547,7 @@ private fun StepDot(glyph: String, label: String, enabled: Boolean, onClick: () 
                 .clickable(enabled = enabled, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Text(glyph, color = (if (enabled) palette.text else palette.textDim).toComposeColor(), fontSize = 16.sp)
+            Text(glyph, color = (if (enabled) palette.text else palette.textDim).toComposeColor(), fontSize = TextSize.title)
         }
     }
 }
@@ -579,7 +581,7 @@ fun ScreenshotMenu(editor: Editor, onShare: (java.io.File) -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
-            Modifier.clickable { editor.copyScreenshotAsImage() }.padding(horizontal = 14.dp, vertical = 11.dp),
+            Modifier.clickable { editor.copyScreenshotAsImage() }.padding(horizontal = Space.s16, vertical = Space.s12),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -591,8 +593,8 @@ fun ScreenshotMenu(editor: Editor, onShare: (java.io.File) -> Unit) {
             Text(
                 stringResource(R.string.copy_as_image),
                 color = palette.text.toComposeColor(),
-                fontSize = 14.sp,
-                modifier = Modifier.padding(start = 8.dp),
+                fontSize = TextSize.bodyLarge,
+                modifier = Modifier.padding(start = Space.s8),
             )
         }
         Box(Modifier.width(1.dp).height(24.dp).background(palette.border.toComposeColor()))
@@ -625,7 +627,7 @@ fun ScreenshotMenu(editor: InfiniteEditor, onShare: (java.io.File) -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
-            Modifier.clickable { editor.copyScreenshotAsImage() }.padding(horizontal = 14.dp, vertical = 11.dp),
+            Modifier.clickable { editor.copyScreenshotAsImage() }.padding(horizontal = Space.s16, vertical = Space.s12),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -637,8 +639,8 @@ fun ScreenshotMenu(editor: InfiniteEditor, onShare: (java.io.File) -> Unit) {
             Text(
                 stringResource(R.string.copy_as_image),
                 color = palette.text.toComposeColor(),
-                fontSize = 14.sp,
-                modifier = Modifier.padding(start = 8.dp),
+                fontSize = TextSize.bodyLarge,
+                modifier = Modifier.padding(start = Space.s8),
             )
         }
         Box(Modifier.width(1.dp).height(24.dp).background(palette.border.toComposeColor()))
@@ -889,7 +891,7 @@ fun MarkupMenu(editor: Editor) {
                     }
                 }
                 DropdownMenu(expanded = colorsOpen, onDismissRequest = { colorsOpen = false }, properties = PopupProperties(focusable = false)) {
-                    Row(Modifier.padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(Modifier.padding(horizontal = Space.s8), horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
                         editor.toolbarColors.take(editor.toolbarColorCount).forEach { c ->
                             MarkupDot(c.toComposeColor(), active = c.r == m.color.r && c.g == m.color.g && c.b == m.color.b) {
                                 colorsOpen = false
@@ -952,7 +954,7 @@ fun MarkupNotePeek(editor: Editor) {
             .background(palette.menuBg.toComposeColor())
             .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.medium)
             .verticalScroll(scroll)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = Space.s12, vertical = Space.s12),
     ) {
         Text(note, style = MaterialTheme.typography.bodyMedium, color = palette.text.toComposeColor())
     }
@@ -996,7 +998,7 @@ private fun MarkupDot(color: Color, active: Boolean, onClick: () -> Unit) {
         Modifier
             .size(36.dp)
             .then(if (active) Modifier.border(2.dp, color, CircleShape) else Modifier)
-            .padding(5.dp)
+            .padding(Space.s4)
             .clip(CircleShape)
             .background(color)
             .clickable(onClick = onClick),
