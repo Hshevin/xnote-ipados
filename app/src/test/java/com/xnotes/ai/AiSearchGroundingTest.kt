@@ -17,7 +17,7 @@ class AiSearchGroundingTest {
         val messages = AiProtocol.request("vision", listOf(AiMessage("user", "解题", searchContext = malicious))).getJSONArray("messages")
         val system = messages.getJSONObject(0).getString("content")
         assertFalse(system.contains(malicious))
-        assertTrue(system.contains("不相关"))
+        assertTrue(system.contains("无关"))
     }
     @Test fun ordinaryMessageFormatDoesNotChange() {
         val messages = AiProtocol.request("vision", listOf(AiMessage("user", "解题", listOf("YWJj")))).getJSONArray("messages")

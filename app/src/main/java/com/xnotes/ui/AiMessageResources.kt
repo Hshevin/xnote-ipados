@@ -60,7 +60,6 @@ internal fun AiMsg.resId(): Int = when (this) {
     AiMsg.ENDPOINT_INVALID -> R.string.ai_msg_endpoint_invalid
     AiMsg.MODEL_REQUIRED -> R.string.ai_msg_model_required
     AiMsg.CHAT_TOO_LONG -> R.string.ai_msg_chat_too_long
-    AiMsg.SEARCH_TARGET_UNRESOLVED -> R.string.ai_msg_search_target_unresolved
     AiMsg.SEARCH_QUERY_LENGTH -> R.string.ai_msg_search_query_length
     AiMsg.SEARCH_RETURNED_ERROR -> R.string.ai_msg_search_returned_error
     AiMsg.PDF_SERVICE_UNAVAILABLE -> R.string.ai_msg_pdf_service_unavailable
@@ -73,8 +72,16 @@ internal fun AiMsg.resId(): Int = when (this) {
     AiMsg.SEARCH_KEY_NOT_CONFIGURED -> R.string.ai_msg_search_key_not_configured
     AiMsg.QUESTION_SAVE_FAILED -> R.string.ai_msg_question_save_failed
     AiMsg.PROGRESS_PREPARING -> R.string.ai_msg_progress_preparing
-    AiMsg.PROGRESS_RESOLVING_SEARCH -> R.string.ai_msg_progress_resolving_search
-    AiMsg.SEARCH_TARGET_TOO_LONG -> R.string.ai_msg_search_target_too_long
+    AiMsg.FETCH_URL_INVALID -> R.string.ai_msg_fetch_url_invalid
+    AiMsg.FETCH_HTTP_FAILED -> R.string.ai_msg_fetch_http_failed
+    AiMsg.FETCH_RESPONSE_TOO_LARGE -> R.string.ai_msg_fetch_response_too_large
+    AiMsg.FETCH_RETURNED_ERROR -> R.string.ai_msg_fetch_returned_error
+    AiMsg.PROGRESS_FETCHING_PAGE -> R.string.ai_msg_progress_fetching_page
+    AiMsg.TOOLS_UNSUPPORTED -> R.string.ai_msg_tools_unsupported
+    AiMsg.WEB_TOOL_FAILED -> R.string.ai_msg_web_tool_failed
+    AiMsg.WEB_TOOL_ARGS_INVALID -> R.string.ai_msg_web_tool_args_invalid
+    AiMsg.WEB_TOOL_UNKNOWN -> R.string.ai_msg_web_tool_unknown
+    AiMsg.WEB_TOOL_TOO_MANY -> R.string.ai_msg_web_tool_too_many
     AiMsg.PROGRESS_SEARCHING_WEB -> R.string.ai_msg_progress_searching_web
     AiMsg.PROGRESS_GENERATING -> R.string.ai_msg_progress_generating
     AiMsg.NO_TEXT_RETURNED -> R.string.ai_msg_no_text_returned

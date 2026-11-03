@@ -49,7 +49,7 @@
 
 - 用户于 2026-11-03 随后授权导出 AI 独立测试 APK，使用 `-PaiPreview=true`，包名 `com.xnotes.movinkpad.aipreview`，不得覆盖正式版或双窗格测试版。此授权不包含提交、推送或设备安装。
 
-- DeepSeek 联网搜索默认关闭，仅随显式发送执行。搜索密钥独立加密保存，只发送到官方 `https://api.deepseek.com/v1/tools/search`，不得把其他聊天供应商密钥转发给 DeepSeek。搜索失败需明确反馈，不静默降级；网页资料为不可信上下文，保留来源。
+- DeepSeek 联网搜索默认关闭，仅随显式发送执行。搜索密钥独立加密保存，只发送到官方 `https://api.deepseek.com/v1/tools/search` 与 `/v1/tools/fetch`（网页由 DeepSeek 服务端抓取，设备不直接访问模型给出的 URL），不得把其他聊天供应商密钥转发给 DeepSeek。搜索失败需明确反馈，不静默降级；网页资料为不可信上下文，保留来源。
 
 - AI 流式正文须读取原始 JSON 类型，仅接受 String；禁止用 optString 强制转换 content。Android org.json 与 JVM 测试依赖对 JSONObject.NULL 的处理不同，此类回归需保留平台仪器测试。
 
@@ -58,9 +58,9 @@
 - AI 会话任务由应用级 AiSessions 管理，UI 关闭、页面切换、新会话不得取消生成；只有显式停止或确认删除才取消。生成状态与回答写入原会话，删除后迟到回调不得复活记录。
 - AI 历史仅在 noBackupFilesDir 本地保存，密钥与历史分离。原子写入失败保留已有文件；损坏记录保留并提示。进程重启将生成中记录标为中断，不冒充完成；仪器测试与真机验证不得由 JVM 结果替代。
 
-- AI 设置（2026-11-03）：模型列表仅在用户点击「从供应商获取」时向所配置供应商 `/models` 发送请求；自定义提示词与思考深度只用于最终回答，联网检索规划和 PDF 工具步骤使用 `AiConfig.forTools()`。会话内的模型/深度选择存于会话记录，缺省跟随默认。上限（如 200 个模型）须在添加时拒绝并提示，保存时校验失败，不得静默截断。本轮不打包 APK。
+- AI 设置（2026-11-03）：模型列表仅在用户点击「从供应商获取」时向所配置供应商 `/models` 发送请求；自定义提示词与思考深度只用于回答请求（联网工具在回答请求内调用，同样使用会话设置），PDF 工具步骤使用 `AiConfig.forTools()`。会话内的模型/深度选择存于会话记录，缺省跟随默认。上限（如 200 个模型）须在添加时拒绝并提示，保存时校验失败，不得静默截断。本轮不打包 APK。
 
-- 联网搜索仅保留开关，不让用户填写检索词。发送时先由当前图片模型结合截图、问题和上下文确定搜索对象，再检索；识别失败需明确提示，不用模糊指代直接搜索。网页资料与用户问题分离，不把检索资料当指令或替代问题。
+- 联网搜索仅保留开关，不让用户填写检索词。2026-11-04 起按用户要求参照 DeepSeek Harness：开关打开时向回答模型提供原生 `web_search` / `web_fetch` 工具，由模型按需调用（有轮数与数量上限）；模型或接口不支持工具调用（请求被 400/422 拒绝）时不联网直接回答，并在该轮明确标注，不再回退到单独的检索词识别。网页资料以工具结果返回、标为不可信数据，不当指令或替代问题。
 
 - AI PDF attachments: only explicitly selected PDFs are snapshotted under noBackupFilesDir; model reads are restricted to attachment IDs in the active chat. Never expose arbitrary filesystem access. PDF text/images go to the configured provider only after Send. Keep original PDFs unchanged; UI closure must not cancel app-owned generation.
 

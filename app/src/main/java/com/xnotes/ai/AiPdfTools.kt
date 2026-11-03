@@ -97,7 +97,8 @@ object AiPdfTools {
         return grounded(user, evidence.toString(), images)
     }
     private fun grounded(user: AiMessage, evidence: String, images: List<String>) = user.copy(
-        text = "$evidence\n用户当前问题：\n${user.text}",
+        // As DSH tells its agent: never claim to have inspected what was not read.
+        text = "$evidence\n只能依据上面实际读取的页面作答，没有读取的页面不要声称看过。\n用户当前问题：\n${user.text}",
         pdf = AiPdf("本轮读取的 PDF 页图（页码见读取记录）", pageImages = images),
     )
 }

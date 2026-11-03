@@ -12,7 +12,7 @@ class AiPdfAttachmentTest {
         assertEquals("data:image/jpeg;base64,ZGVm", images[1].getJSONObject("image_url").getString("url"))
         assertTrue(content.toString().contains("Title"))
         assertEquals(user.text, content.getJSONObject(content.length() - 1).getString("text"))
-        assertEquals(pdf, AiSearchQuery.messages(emptyList(), user).last().pdf)
+        assertTrue(AiProtocol.request(AiConfig(model = "vision"), listOf(user), tools = AiWebTools.definitions()).toString().contains(pdf.id))
     }
     @Test fun noPdfIsAddedUnlessSelected() {
         val body = AiProtocol.request("vision", listOf(AiMessage("user", "hello"))).toString()

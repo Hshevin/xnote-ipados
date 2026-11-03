@@ -32,7 +32,7 @@ data class AiConfig(
 ) {
     /** The saved pick list in the user's order, always holding the default model. */
     val modelChoices: List<String> get() = (if (model.trim() in models.map(String::trim)) models else listOf(model) + models).map(String::trim).filter(String::isNotEmpty).distinct()
-    /** Search planning and PDF tool steps must return bare JSON/text: no thinking, no user prompt. */
+    /** PDF tool steps must return bare JSON: no thinking, no user prompt. */
     fun forTools(): AiConfig = copy(effort = "", instructions = "")
 }
 
@@ -97,8 +97,21 @@ class AiConfigStore(context: Context) {
 
 interface AiTransport {
     fun cancel()
-    fun search(key: String, query: String): String
+    /** DeepSeek Search API sources for [query]; [question] goes along as `ori_question`. */
+    fun search(key: String, query: String, question: String = ""): List<AiWebSource>
+    /** A page's Markdown through the DeepSeek Fetch API. */
+    fun fetch(key: String, url: String): String
     suspend fun stream(config: AiConfig, messages: List<AiMessage>, delta: suspend (String) -> Unit)
+    /**
+     * One streamed completion that may end in tool calls. Without [tools] it is a plain [stream];
+     * with them, a provider that refuses tool calling throws [AiToolsUnsupported].
+     */
+    suspend fun complete(config: AiConfig, messages: List<AiMessage>, tail: List<JSONObject>, tools: org.json.JSONArray?, toolChoice: String, delta: suspend (String) -> Unit): AiReply {
+        check(tools == null && tail.isEmpty()) { AiText.t(AiMsg.REQUEST_FAILED) }
+        val text = StringBuilder()
+        stream(config, messages) { text.append(it); delta(it) }
+        return AiReply(text.toString())
+    }
 }
 
 /** One request, no redirects/retries/logging; cancellation closes the active socket. */
@@ -106,36 +119,41 @@ class AiConnection(private val openConnection: (String) -> HttpURLConnection = {
     @Volatile private var connection: HttpURLConnection? = null
     @Volatile private var cancelled = false
     override fun cancel() { cancelled = true; connection?.disconnect() }
-    override fun search(key: String, query: String): String {
+    override fun search(key: String, query: String, question: String): List<AiWebSource> =
+        DeepSeekSearch.sources(post(DeepSeekSearch.ENDPOINT, key, DeepSeekSearch.request(query, question), 30000, AiMsg.SEARCH_HTTP_FAILED, AiMsg.SEARCH_RESPONSE_TOO_LARGE))
+    override fun fetch(key: String, url: String): String =
+        DeepSeekSearch.content(post(DeepSeekSearch.FETCH_ENDPOINT, key, DeepSeekSearch.fetchRequest(url), 60000, AiMsg.FETCH_HTTP_FAILED, AiMsg.FETCH_RESPONSE_TOO_LARGE))
+    /** A JSON POST to an official DeepSeek tools endpoint with the separate search key. */
+    private fun post(endpoint: String, key: String, body: JSONObject, readTimeout: Int, httpFailed: AiMsg, tooLarge: AiMsg): String {
         require(key.isNotBlank() && !key.contains('\n') && !key.contains('\r')) { AiText.t(AiMsg.SEARCH_KEY_REQUIRED) }
-        val bytes = DeepSeekSearch.request(query).toString().toByteArray(Charsets.UTF_8)
+        val bytes = body.toString().toByteArray(Charsets.UTF_8)
         check(!cancelled) { AiText.t(AiMsg.CONNECTION_STOPPED) }
-        val conn = openConnection(DeepSeekSearch.ENDPOINT)
+        val conn = openConnection(endpoint)
         connection = conn
         try {
             check(!cancelled) { AiText.t(AiMsg.CONNECTION_STOPPED) }
             conn.instanceFollowRedirects = false
             conn.connectTimeout = 15000
-            conn.readTimeout = 30000
+            conn.readTimeout = readTimeout
             conn.requestMethod = "POST"
             conn.doOutput = true
             conn.setRequestProperty("Authorization", "Bearer $key")
             conn.setRequestProperty("Content-Type", "application/json")
             conn.setFixedLengthStreamingMode(bytes.size)
             conn.outputStream.use { it.write(bytes) }
-            check(conn.responseCode == 200) { AiText.t(AiMsg.SEARCH_HTTP_FAILED, conn.responseCode) }
+            check(conn.responseCode == 200) { AiText.t(httpFailed, conn.responseCode) }
             val result = StringBuilder()
             conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
                 val buffer = CharArray(4096)
                 while (!cancelled) {
                     val count = reader.read(buffer)
                     if (count < 0) break
-                    check(result.length + count <= 1024 * 1024) { AiText.t(AiMsg.SEARCH_RESPONSE_TOO_LARGE) }
+                    check(result.length + count <= 1024 * 1024) { AiText.t(tooLarge) }
                     result.append(buffer, 0, count)
                 }
             }
             check(!cancelled) { AiText.t(AiMsg.CONNECTION_STOPPED) }
-            return DeepSeekSearch.context(result.toString())
+            return result.toString()
         } finally { conn.disconnect(); connection = null }
     }
     /** The provider's OpenAI-style model list (GET /models); sent only when the user asks for it in settings. */
@@ -167,6 +185,9 @@ class AiConnection(private val openConnection: (String) -> HttpURLConnection = {
         } finally { conn.disconnect(); connection = null }
     }
     override suspend fun stream(config: AiConfig, messages: List<AiMessage>, delta: suspend (String) -> Unit) {
+        complete(config, messages, emptyList(), null, "auto", delta)
+    }
+    override suspend fun complete(config: AiConfig, messages: List<AiMessage>, tail: List<JSONObject>, tools: org.json.JSONArray?, toolChoice: String, delta: suspend (String) -> Unit): AiReply {
         val conn = openConnection(AiProtocol.endpoint(config.url))
         connection = conn
         try {
@@ -179,11 +200,16 @@ class AiConnection(private val openConnection: (String) -> HttpURLConnection = {
             conn.setRequestProperty("Authorization", "Bearer ${config.key}")
             conn.setRequestProperty("Content-Type", "application/json")
             conn.setRequestProperty("Accept", "text/event-stream")
-            val bytes = AiProtocol.request(config, messages).toString().toByteArray(Charsets.UTF_8)
+            val bytes = AiProtocol.request(config, messages, tail, tools, toolChoice).toString().toByteArray(Charsets.UTF_8)
             require(bytes.size <= 12 * 1024 * 1024) { AiText.t(AiMsg.REQUEST_TOO_LARGE) }
             conn.setFixedLengthStreamingMode(bytes.size)
             conn.outputStream.use { it.write(bytes) }
-            check(conn.responseCode in 200..299) { AiText.t(AiMsg.REQUEST_HTTP_FAILED, conn.responseCode) }
+            val status = conn.responseCode
+            // A request rejected only because it offered tools: the caller answers without them and says so.
+            if (tools != null && (status == 400 || status == 422)) throw AiToolsUnsupported(status)
+            check(status in 200..299) { AiText.t(AiMsg.REQUEST_HTTP_FAILED, status) }
+            val calls = AiToolCallAssembler()
+            val content = StringBuilder()
             var received = 0
             var finished = false
             conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
@@ -201,13 +227,16 @@ class AiConnection(private val openConnection: (String) -> HttpURLConnection = {
                             if (data.isNotEmpty()) {
                                 val json = JSONObject(data)
                                 check(!json.has("error")) { AiText.t(AiMsg.PROVIDER_ERROR) }
-                                delta(AiProtocol.delta(data))
+                                calls.accept(json)
+                                val text = AiProtocol.delta(data)
+                                if (text.isNotEmpty()) { content.append(text); delta(text) }
                             }
                         }
                     } else line.append(ch.toChar())
                 }
             }
             check(!cancelled && finished) { if (cancelled) AiText.t(AiMsg.CONNECTION_STOPPED) else AiText.t(AiMsg.CONNECTION_ENDED_EARLY) }
+            return calls.reply(content.toString())
         } finally { conn.disconnect(); connection = null }
     }
 }

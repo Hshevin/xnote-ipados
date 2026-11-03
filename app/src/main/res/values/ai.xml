@@ -87,7 +87,7 @@
     <string name="ai_settings_url">Provider URL (including /v1)</string>
     <string name="ai_settings_key">API key</string>
     <string name="ai_settings_search">Web search (optional)</string>
-    <string name="ai_settings_search_note">Official DeepSeek API, billed separately. Adds one model call per question.</string>
+    <string name="ai_settings_search_note">Official DeepSeek Search and Fetch APIs, billed separately. The model searches only when it needs to, and needs tool-call support; without it the answer comes without a search.</string>
     <string name="ai_settings_search_key">DeepSeek search API key</string>
     <string name="ai_settings_privacy">Keys stay encrypted on this device and are never exported.</string>
     <string name="ai_settings_clear">Clear settings</string>
@@ -143,7 +143,7 @@
     <string name="ai_settings_new_chat_note">Each chat can still change its model, thinking and web search from the input bar.</string>
     <string name="ai_default_model">Default model</string>
     <string name="ai_default_search">Web search on</string>
-    <string name="ai_default_search_note">Needs the search key below. Each question then adds one model call.</string>
+    <string name="ai_default_search_note">Needs the search key below and a model that supports tool calls.</string>
     <string name="ai_default_attach_pdf">Attach the current PDF</string>
     <string name="ai_default_attach_pdf_note">Asking from a PDF attaches it so the model can read pages as needed.</string>
     <string name="ai_instructions_restore">Restore default</string>

@@ -15,7 +15,8 @@ class AiPdfToolsTest {
     private class Client(val replies: List<String>) : AiTransport {
         var count = 0
         override fun cancel() {}
-        override fun search(key: String, query: String) = error("not expected")
+        override fun search(key: String, query: String, question: String): List<AiWebSource> = error("not expected")
+        override fun fetch(key: String, url: String) = ""
         override suspend fun stream(config: AiConfig, messages: List<AiMessage>, delta: suspend (String) -> Unit) { delta(replies[count++]) }
     }
     @Test fun readsOnlyRequestedPagesAndSuppliesSearchGrounding() = runBlocking {
@@ -23,7 +24,7 @@ class AiPdfToolsTest {
         val user = AiMessage("user", "这篇论文的相关研究", pdf = pdf)
         val result = AiPdfTools.prepare(config, Client(listOf("""{"tool":"read","id":"${pdf.id}","start":1,"end":1}""", """{"tool":"done"}""")), emptyList(), user, access)
         assertEquals(listOf(1), access.pages)
-        assertTrue(AiSearchQuery.messages(emptyList(), result).last().text.contains("Exact Paper Title"))
+        assertTrue(result.text.contains("Exact Paper Title"))
         assertTrue(result.text.endsWith(user.text))
         assertTrue(AiProtocol.request("model", listOf(user)).toString().contains(pdf.id))
         assertFalse(AiProtocol.request("model", listOf(user)).toString().contains("image_url"))

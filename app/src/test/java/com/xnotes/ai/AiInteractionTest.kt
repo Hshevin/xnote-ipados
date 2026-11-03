@@ -74,7 +74,8 @@ class AiInteractionTest {
             val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
             val transport = object : AiTransport {
                 override fun cancel() { release.cancel() }
-                override fun search(key: String, query: String) = "sources"
+                override fun search(key: String, query: String, question: String): List<AiWebSource> = emptyList()
+                override fun fetch(key: String, url: String) = ""
                 override suspend fun stream(config: AiConfig, messages: List<AiMessage>, delta: suspend (String) -> Unit) {
                     delta("partial"); entered.complete(Unit); release.await(); delta("done")
                 }
@@ -101,7 +102,8 @@ class AiInteractionTest {
             val sent = CompletableDeferred<List<AiMessage>>()
             val transport = object : AiTransport {
                 override suspend fun stream(config: AiConfig, messages: List<AiMessage>, delta: suspend (String) -> Unit) { sent.complete(messages); delta("ok") }
-                override fun search(key: String, query: String) = ""
+                override fun search(key: String, query: String, question: String): List<AiWebSource> = emptyList()
+                override fun fetch(key: String, url: String) = ""
                 override fun cancel() {}
             }
             val sessions = AiSessions(store, scope, { settings }, { transport })

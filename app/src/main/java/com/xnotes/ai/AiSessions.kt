@@ -221,38 +221,45 @@ class AiSessions(
                 val prepared = if ((original.context() + user).any { !it.pdf?.id.isNullOrEmpty() }) {
                     withContext(Dispatchers.IO) { AiPdfTools.prepare(tools, client, original.context(), user, checkNotNull(pdfAccess) { AiText.t(AiMsg.PDF_SERVICE_UNAVAILABLE) }) { label -> progress(id, label) } }
                 } else user
-                var outgoing = prepared
-                if (useSearch) {
-                    progress(id, AiText.t(AiMsg.PROGRESS_RESOLVING_SEARCH))
-                    val resolvedQuery = run {
-                        val planned = StringBuilder()
-                        withContext(Dispatchers.IO) {
-                            client.stream(tools, AiSearchQuery.messages(original.context(), prepared)) { chunk ->
-                                require(planned.length + chunk.length <= 4096) { AiText.t(AiMsg.SEARCH_TARGET_TOO_LONG) }
-                                planned.append(chunk)
-                            }
-                        }
-                        AiSearchQuery.parse(planned.toString())
-                    }
-                    outgoing = prepared.copy(searchContext = "本次搜索词：$resolvedQuery\n正在检索…")
-                    update(id) { c -> c.copy(turns = c.turns.dropLast(1) + c.turns.last().copy(user = user.copy(searchContext = outgoing.searchContext))) }?.let { persist(it) }
-                    progress(id, AiText.t(AiMsg.PROGRESS_SEARCHING_WEB, resolvedQuery))
-                    val sources = withContext(Dispatchers.IO) { client.search(settings.searchKey, resolvedQuery) }
-                    outgoing = prepared.copy(searchContext = "本次搜索词：$resolvedQuery\n$sources")
-                    update(id) { c -> c.copy(turns = c.turns.dropLast(1) + c.turns.last().copy(user = user.copy(searchContext = outgoing.searchContext))) }?.let { persist(it) }
-                }
+                // Web search is a tool the answering model calls when it needs it, as in DeepSeek Harness;
+                // a model or API without tool calling answers without it and the turn says so.
                 progress(id, AiText.t(AiMsg.PROGRESS_GENERATING))
+                val history = original.context()
+                val tail = mutableListOf<org.json.JSONObject>()
+                val evidence = mutableListOf<String>()
+                val failures = mutableListOf<String>()
+                var offerTools = useSearch
+                var unsupported = ""
+                var rounds = 0
                 var lastSave = System.nanoTime()
-                withContext(Dispatchers.IO) {
-                    client.stream(settings, original.context() + outgoing) { chunk ->
-                        withContext(scope.coroutineContext.minusKey(Job)) {
-                            val chat = update(id) { c -> c.copy(turns = c.turns.dropLast(1) + c.turns.last().copy(answer = c.turns.last().answer + chunk)) }
-                            if (chat != null && System.nanoTime() - lastSave > 1_000_000_000L) { persist(chat); lastSave = System.nanoTime() }
-                        }
+                val append: suspend (String) -> Unit = { chunk ->
+                    withContext(scope.coroutineContext.minusKey(Job)) {
+                        val chat = update(id) { c -> c.copy(turns = c.turns.dropLast(1) + c.turns.last().copy(answer = c.turns.last().answer + chunk)) }
+                        if (chat != null && System.nanoTime() - lastSave > 1_000_000_000L) { persist(chat); lastSave = System.nanoTime() }
                     }
                 }
+                while (true) {
+                    val choice = when { !offerTools -> null; rounds >= AiWebTools.MAX_ROUNDS -> "none"; else -> "auto" }
+                    val reply = try {
+                        withContext(Dispatchers.IO) { client.complete(settings, history + prepared, tail, choice?.let { AiWebTools.definitions() }, choice ?: "auto", append) }
+                    } catch (e: AiToolsUnsupported) {
+                        // Only the first request can be refused for offering tools; later ones already carry tool rounds.
+                        if (choice == null || tail.isNotEmpty()) throw IllegalStateException(e.message)
+                        offerTools = false; unsupported = AiText.t(AiMsg.TOOLS_UNSUPPORTED); progress(id, unsupported)
+                        continue
+                    }
+                    if (reply.calls.isEmpty() || choice != "auto") break
+                    rounds++
+                    val round = AiWebTools.run(reply.calls, client, settings.searchKey, user.text) { label -> progress(id, label) }
+                    tail += AiWebTools.assistantMessage(reply); tail += round.messages
+                    evidence += round.evidence; failures += round.failures
+                }
+                // What was found stays with the question, for follow-ups and the details view.
+                if (evidence.isNotEmpty()) update(id) { c ->
+                    c.copy(turns = c.turns.dropLast(1) + c.turns.last().let { it.copy(user = it.user.copy(searchContext = evidence.joinToString("\n\n").take(AiWebTools.EVIDENCE_MAX))) })
+                }?.let { persist(it) }
                 check(chats[id]?.turns?.lastOrNull()?.answer?.isNotBlank() == true) { AiText.t(AiMsg.NO_TEXT_RETURNED) }
-                finish(id, "已完成", "")
+                finish(id, "已完成", listOfNotNull(unsupported.ifEmpty { null }, failures.firstOrNull()?.let { AiText.t(AiMsg.WEB_TOOL_FAILED, it) }).joinToString(" · "))
             } catch (e: CancellationException) {
                 if (started) finish(id, "已停止", AiText.t(AiMsg.STOPPED_BY_USER))
                 throw e
