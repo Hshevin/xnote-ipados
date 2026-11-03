@@ -47,7 +47,7 @@ Release 83 本地交付本轮 UI、Markdown 和中英文资源改动，并修复
 - 测试包名 `com.xnotes.movinkpad.splitpreview`，与正式包名 `com.xnotes.movinkpad` 分开安装。用户已确认该版本满足当前需求，并要求打包原应用覆盖升级版；当前维护入口为 `master`。
 - 本轮验证：2462 项 JVM 测试、39 项 Android 模拟器测试通过。测试数量是本次记录，不代表后续版本已验证。
 
-[下载 Release 84 ARM64 APK](build/xnotes/XNotes-0.9.7-movinkpad-release84-arm64.apk)。
+[下载 Release 84 ARM64 APK](build/xnotes/XNotes-0.9.7-movinkpad-release84-arm64.apk)，或从 [GitHub Release 84](https://github.com/Hshevin/xnotes-android/releases/tag/v0.9.7-movinkpad.84) 下载。
 
 当前覆盖升级版为 **0.9.7-movinkpad / versionCode 84**，使用原应用身份和历史签名；2558 项 Release 单元测试通过，R8、资源压缩、lintVital 与 APK 身份/签名核验通过。本轮未执行设备安装或 Android 仪器测试，真实 AI 供应商及目标设备验收仍待完成。交付与验证见 [Release 记录](docs/movinkpad/release-2026-11-02.md)。测试版的数据不会自动迁入原应用。版本 79 修复返回主菜单后打开普通文件仍保留分屏的问题，普通文件进入单文档，显式恢复分屏不受影响。
 
