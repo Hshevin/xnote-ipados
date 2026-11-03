@@ -49,6 +49,9 @@ class GlWetPad(context: Context, onTop: Boolean = false) : SurfaceView(context),
     private var thread: HandlerThread? = null
     private var handler: Handler? = null
 
+    /** Main-thread lifecycle token; queued UI callbacks may only address their own surface. */
+    @Volatile private var surfaceGeneration = 0L
+
     /** The pad's own layer under the SurfaceView's, on Android 12 and later. */
     @Volatile
     private var layer: SurfaceControl? = null
@@ -166,6 +169,17 @@ class GlWetPad(context: Context, onTop: Boolean = false) : SurfaceView(context),
     // --- main thread ---
 
     override fun surfaceCreated(holder: SurfaceHolder) {
+        startSurface(holder, ++surfaceGeneration)
+    }
+
+    private fun startSurface(holder: SurfaceHolder, generation: Long) {
+        if (generation != surfaceGeneration) return
+        // A timed-out teardown still owns all EGL/layer fields. Keep ordinary canvas rendering
+        // until it has finished instead of starting a second writer on the same objects.
+        if (thread?.isAlive == true) {
+            mainHandler.postDelayed({ startSurface(holder, generation) }, 16L)
+            return
+        }
         val t = HandlerThread("xnotes-wet-pad").also { it.start() }
         thread = t
         handler = Handler(t.looper)
@@ -178,20 +192,30 @@ class GlWetPad(context: Context, onTop: Boolean = false) : SurfaceView(context),
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-        post { resize(width, height) }
+        val generation = surfaceGeneration
+        post { resize(width, height, generation) }
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        surfaceGeneration++
+        ready = false
+        val independentSurface = layer != null
+        val retiringHandler = handler
+        handler = null
         // Every pixel goes with the surface, so nothing left on it may be joined afterwards.
         ink.forget()
         onSurfaceLost?.invoke()
-        val t = thread ?: return closeLayer()
-        post { destroyEgl() }
-        thread = null
-        handler = null
+        val t = thread ?: return
+        retiringHandler?.post {
+            destroyEgl()
+            closeLayer()
+        }
         t.quitSafely()
-        t.join(500)
-        closeLayer()
+        // Before API 31 EGL uses the holder-owned surface and must stop before returning it.
+        // Our independent layer can retire asynchronously, but never be reused meanwhile.
+        if (independentSurface) t.join(500) else t.join()
+        ready = false
+        dirty.set(false)
     }
 
     /**
@@ -248,7 +272,7 @@ class GlWetPad(context: Context, onTop: Boolean = false) : SurfaceView(context),
         samples: Int,
         clip: com.xnotes.core.infinite.PixelRect? = null,
     ): Boolean {
-        if (!frontBuffering || !ready) return false
+        if (!frontBuffering || !ready || handler == null) return false
         // The buffer is the size it was made at, and a single buffered surface has no swap to pick
         // a resized window up on. Until [resize] has rebuilt it, ink drawn through the view as it
         // stands would land wherever the compositor stretched the layer, so this stroke takes the
@@ -289,7 +313,7 @@ class GlWetPad(context: Context, onTop: Boolean = false) : SurfaceView(context),
         zoom: Double,
         clip: com.xnotes.core.infinite.PixelRect? = null,
     ): Boolean {
-        if (!frontBuffering || !ready || covered) return false
+        if (!frontBuffering || !ready || handler == null || covered) return false
         if (width != surfaceW || height != surfaceH) return false
         if (!ink.extend(scrollX, scrollY, zoom, width, height, clip, lightBlackInk)) return false
         // Cancels a handover still waiting to wipe the pad this stroke has just taken over.
@@ -332,6 +356,7 @@ class GlWetPad(context: Context, onTop: Boolean = false) : SurfaceView(context),
      * down, because nothing may reach the canvas until they are.
      */
     fun coverWith(capture: Bitmap, box: Rect, done: () -> Unit) {
+        val generation = surfaceGeneration
         val pad = handler
         if (pad == null || !ready) {
             done()
@@ -339,7 +364,7 @@ class GlWetPad(context: Context, onTop: Boolean = false) : SurfaceView(context),
         }
         pad.post {
             drawCover(capture, box)
-            mainHandler.post(done)
+            mainHandler.post { if (generation == surfaceGeneration) done() }
         }
     }
 
@@ -437,13 +462,16 @@ class GlWetPad(context: Context, onTop: Boolean = false) : SurfaceView(context),
      * a stroke that starts after any sort of pause gets.
      */
     fun standDown(then: () -> Unit) {
+        val generation = surfaceGeneration
         ink.forgetFrozen()
         if (!showing) return then()
         post {
             val gen = ++releaseGen
             Choreographer.getInstance().postFrameCallback {
                 if (gen == releaseGen) setLayerVisible(false)
-                handler?.postDelayed({ mainHandler.post(then) }, refreshMs * 2)
+                handler?.postDelayed({
+                    mainHandler.post { if (generation == surfaceGeneration) then() }
+                }, refreshMs * 2)
             }
         }
     }
@@ -459,7 +487,8 @@ class GlWetPad(context: Context, onTop: Boolean = false) : SurfaceView(context),
     }
 
     private fun post(work: () -> Unit) {
-        handler?.post(work)
+        val generation = surfaceGeneration
+        handler?.post { if (generation == surfaceGeneration) work() }
     }
 
     /**
@@ -577,14 +606,14 @@ class GlWetPad(context: Context, onTop: Boolean = false) : SurfaceView(context),
      * moment the canvas takes it back. Nothing here is cheap and nothing here is frequent either,
      * since a resize is a layout the whole window has already paid for.
      */
-    private fun resize(w: Int, h: Int) {
+    private fun resize(w: Int, h: Int, generation: Long) {
         if (w == surfaceW && h == surfaceH) return
         // A pad that never came up will not come up for being asked twice.
         if (!ready) return
         var surface = target ?: return
         // Every pixel goes with the surface, so nothing on it may be joined or handed over.
         ink.forget()
-        mainHandler.post { onSurfaceLost?.invoke() }
+        mainHandler.post { if (generation == surfaceGeneration) onSurfaceLost?.invoke() }
         destroyEgl()
         if (layer != null) {
             // A new EGLSurface alone still connects to the old native window's shared-buffer
