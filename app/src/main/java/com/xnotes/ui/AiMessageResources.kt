@@ -27,6 +27,12 @@ internal fun AiMsg.resId(): Int = when (this) {
     AiMsg.PDF_ID_INVALID -> R.string.ai_msg_pdf_id_invalid
     AiMsg.PDF_MISSING -> R.string.ai_msg_pdf_missing
     AiMsg.PDF_LOCAL_ONLY -> R.string.ai_msg_pdf_local_only
+    AiMsg.CONFIG_MAX_TOKENS_INVALID -> R.string.ai_msg_config_max_tokens_invalid
+    AiMsg.CONFIG_INSTRUCTIONS_TOO_LONG -> R.string.ai_msg_config_instructions_too_long
+    AiMsg.CONFIG_THINKING_INVALID -> R.string.ai_msg_config_thinking_invalid
+    AiMsg.MODELS_HTTP_FAILED -> R.string.ai_msg_models_http_failed
+    AiMsg.MODELS_RESPONSE_TOO_LARGE -> R.string.ai_msg_models_response_too_large
+    AiMsg.MODELS_INVALID_REPLY -> R.string.ai_msg_models_invalid_reply
     AiMsg.PDF_DEFAULT_NAME -> R.string.ai_msg_pdf_default_name
     AiMsg.PDF_UNREADABLE -> R.string.ai_msg_pdf_unreadable
     AiMsg.PDF_CANNOT_OPEN -> R.string.ai_msg_pdf_cannot_open

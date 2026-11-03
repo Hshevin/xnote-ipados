@@ -14,7 +14,24 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 import org.json.JSONObject
 
-data class AiConfig(val url: String = "", val model: String = "", val key: String = "", val searchKey: String = "")
+/**
+ * The provider and how to ask it. [model] is the default for new chats and [models] the user's pick
+ * list; [effort] is the default thinking level ("" leaves it to the provider) and [thinkingFormat]
+ * which request field carries it. [instructions] is the user's own system prompt for answers.
+ */
+data class AiConfig(
+    val url: String = "", val model: String = "", val key: String = "", val searchKey: String = "",
+    val models: List<String> = emptyList(),
+    val effort: String = "",
+    val thinkingFormat: String = AiThinking.AUTO,
+    val maxTokens: Int = AiProtocol.DEFAULT_MAX_TOKENS,
+    val instructions: String = "",
+) {
+    /** The saved pick list in the user's order, always holding the default model. */
+    val modelChoices: List<String> get() = (if (model.trim() in models.map(String::trim)) models else listOf(model) + models).map(String::trim).filter(String::isNotEmpty).distinct()
+    /** Search planning and PDF tool steps must return bare JSON/text: no thinking, no user prompt. */
+    fun forTools(): AiConfig = copy(effort = "", instructions = "")
+}
 
 /** Keystore-encrypted, atomic, excluded from Android backup and note exports. */
 class AiConfigStore(context: Context) {
@@ -34,16 +51,26 @@ class AiConfigStore(context: Context) {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, bytes.copyOfRange(0, 12)))
         val json = JSONObject(String(cipher.doFinal(bytes.copyOfRange(12, bytes.size)), Charsets.UTF_8))
-        return AiConfig(json.getString("url"), json.getString("model"), json.getString("key"), json.optString("searchKey", ""))
+        val models = json.optJSONArray("models")?.let { list -> (0 until list.length()).mapNotNull { list.opt(it) as? String } } ?: emptyList()
+        return AiConfig(json.getString("url"), json.getString("model"), json.getString("key"), json.optString("searchKey", ""),
+            models = models, effort = json.optString("effort", "").takeIf { it in AiThinking.LEVELS } ?: "",
+            thinkingFormat = json.optString("thinkingFormat", AiThinking.AUTO).takeIf { it in AiThinking.FORMATS } ?: AiThinking.AUTO,
+            maxTokens = json.optInt("maxTokens", AiProtocol.DEFAULT_MAX_TOKENS).coerceIn(AiProtocol.MIN_MAX_TOKENS, AiProtocol.MAX_MAX_TOKENS),
+            instructions = json.optString("instructions", ""))
     }
     fun save(config: AiConfig) {
         AiProtocol.endpoint(config.url)
         require(config.model.isNotBlank() && config.key.isNotBlank()) { AiText.t(AiMsg.CONFIG_MODEL_KEY_REQUIRED) }
         require(!config.key.contains('\n') && !config.key.contains('\r')) { AiText.t(AiMsg.CONFIG_KEY_INVALID) }
         require(!config.searchKey.contains('\n') && !config.searchKey.contains('\r')) { AiText.t(AiMsg.CONFIG_SEARCH_KEY_INVALID) }
+        require(config.maxTokens in AiProtocol.MIN_MAX_TOKENS..AiProtocol.MAX_MAX_TOKENS) { AiText.t(AiMsg.CONFIG_MAX_TOKENS_INVALID, AiProtocol.MIN_MAX_TOKENS, AiProtocol.MAX_MAX_TOKENS) }
+        require(config.instructions.length <= AiProtocol.MAX_INSTRUCTIONS) { AiText.t(AiMsg.CONFIG_INSTRUCTIONS_TOO_LONG, AiProtocol.MAX_INSTRUCTIONS) }
+        require(config.effort in AiThinking.LEVELS && config.thinkingFormat in AiThinking.FORMATS) { AiText.t(AiMsg.CONFIG_THINKING_INVALID) }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, key())
         val json = JSONObject().put("url", config.url.trim()).put("model", config.model.trim()).put("key", config.key.trim()).put("searchKey", config.searchKey.trim())
+            .put("models", org.json.JSONArray(config.modelChoices.take(AiProtocol.MAX_MODELS))).put("effort", config.effort).put("thinkingFormat", config.thinkingFormat)
+            .put("maxTokens", config.maxTokens).put("instructions", config.instructions.trim())
         val bytes = cipher.iv + cipher.doFinal(json.toString().toByteArray(Charsets.UTF_8))
         val out = file.startWrite()
         try { out.write(bytes); file.finishWrite(out) } catch (e: Exception) { file.failWrite(out); throw e }
@@ -94,6 +121,34 @@ class AiConnection(private val openConnection: (String) -> HttpURLConnection = {
             return DeepSeekSearch.context(result.toString())
         } finally { conn.disconnect(); connection = null }
     }
+    /** The provider's OpenAI-style model list (GET /models); sent only when the user asks for it in settings. */
+    fun listModels(url: String, key: String): List<String> {
+        require(key.isNotBlank() && !key.contains('\n') && !key.contains('\r')) { AiText.t(AiMsg.CONFIG_MODEL_KEY_REQUIRED) }
+        val conn = openConnection(AiProtocol.modelsEndpoint(url))
+        connection = conn
+        try {
+            check(!cancelled) { AiText.t(AiMsg.CONNECTION_STOPPED) }
+            conn.instanceFollowRedirects = false
+            conn.connectTimeout = 15000
+            conn.readTimeout = 30000
+            conn.requestMethod = "GET"
+            conn.setRequestProperty("Authorization", "Bearer $key")
+            conn.setRequestProperty("Accept", "application/json")
+            check(conn.responseCode == 200) { AiText.t(AiMsg.MODELS_HTTP_FAILED, conn.responseCode) }
+            val result = StringBuilder()
+            conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
+                val buffer = CharArray(4096)
+                while (!cancelled) {
+                    val count = reader.read(buffer)
+                    if (count < 0) break
+                    check(result.length + count <= 4 * 1024 * 1024) { AiText.t(AiMsg.MODELS_RESPONSE_TOO_LARGE) }
+                    result.append(buffer, 0, count)
+                }
+            }
+            check(!cancelled) { AiText.t(AiMsg.CONNECTION_STOPPED) }
+            return AiProtocol.models(result.toString())
+        } finally { conn.disconnect(); connection = null }
+    }
     override suspend fun stream(config: AiConfig, messages: List<AiMessage>, delta: suspend (String) -> Unit) {
         val conn = openConnection(AiProtocol.endpoint(config.url))
         connection = conn
@@ -107,7 +162,7 @@ class AiConnection(private val openConnection: (String) -> HttpURLConnection = {
             conn.setRequestProperty("Authorization", "Bearer ${config.key}")
             conn.setRequestProperty("Content-Type", "application/json")
             conn.setRequestProperty("Accept", "text/event-stream")
-            val bytes = AiProtocol.request(config.model, messages).toString().toByteArray(Charsets.UTF_8)
+            val bytes = AiProtocol.request(config, messages).toString().toByteArray(Charsets.UTF_8)
             require(bytes.size <= 12 * 1024 * 1024) { AiText.t(AiMsg.REQUEST_TOO_LARGE) }
             conn.setFixedLengthStreamingMode(bytes.size)
             conn.outputStream.use { it.write(bytes) }

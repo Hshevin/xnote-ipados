@@ -68,4 +68,10 @@
     <string name="ai_msg_stopped_by_user">Generation stopped</string>
     <string name="ai_msg_request_failed">Request failed</string>
     <string name="ai_msg_network_error">Network or response error. Check your settings.</string>
+    <string name="ai_msg_config_max_tokens_invalid">Max output must be between %1$d and %2$d tokens</string>
+    <string name="ai_msg_config_instructions_too_long">Custom instructions can\'t exceed %1$d characters</string>
+    <string name="ai_msg_config_thinking_invalid">Invalid thinking settings</string>
+    <string name="ai_msg_models_http_failed">Couldn\'t load models (HTTP %1$d). Check the URL and API key.</string>
+    <string name="ai_msg_models_response_too_large">The model list is too large</string>
+    <string name="ai_msg_models_invalid_reply">The provider returned no recognisable model list</string>
 </resources>

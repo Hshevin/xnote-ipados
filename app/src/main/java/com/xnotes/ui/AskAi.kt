@@ -109,7 +109,8 @@ internal fun AiSettingsRow() {
     val summary = remember(show) {
         runCatching { AiConfigStore(context).load() }.getOrNull()?.let { c ->
             if (c.key.isBlank()) context.getString(R.string.ai_settings_not_set)
-            else listOf(c.model.ifBlank { context.getString(R.string.ai_settings_no_model) },
+            else listOfNotNull(c.model.ifBlank { context.getString(R.string.ai_settings_no_model) },
+                c.effort.takeIf { it.isNotEmpty() }?.let { context.getString(R.string.ai_thinking_summary, context.getString(effortRes(it))) },
                 context.getString(if (c.searchKey.isBlank()) R.string.ai_settings_web_off else R.string.ai_settings_web_on)).joinToString(" · ")
         } ?: context.getString(R.string.ai_settings_unreadable_short)
     }
@@ -130,52 +131,248 @@ internal fun AiSettingsRow() {
     if (show) AiSettings { show = false }
 }
 
+/** The user-facing name of a thinking level; the stored keys are protocol words. */
+private fun effortRes(level: String): Int = when (level) {
+    AiThinking.OFF -> R.string.ai_effort_off
+    "low" -> R.string.ai_effort_low
+    "medium" -> R.string.ai_effort_medium
+    "high" -> R.string.ai_effort_high
+    else -> R.string.ai_effort_default
+}
+
+private fun formatRes(format: String): Int = when (format) {
+    AiThinking.OPENAI -> R.string.ai_format_openai
+    AiThinking.OPENROUTER -> R.string.ai_format_openrouter
+    AiThinking.DEEPSEEK -> R.string.ai_format_deepseek
+    AiThinking.QWEN -> R.string.ai_format_qwen
+    else -> R.string.ai_format_auto
+}
+
+/** A titled group of settings rows on one outlined card, rows split by hairlines. */
 @Composable
-private fun SettingsSection(title: String, note: String, content: @Composable ColumnScope.() -> Unit) {
+private fun SettingsGroup(title: String, note: String? = null, content: @Composable ColumnScope.() -> Unit) {
     val palette = LocalPalette.current
+    val shape = MaterialTheme.shapes.medium
     Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-        Text(title, color = palette.text.toComposeColor(), fontSize = TextSize.title, fontWeight = FontWeight.Bold)
-        content()
-        Text(note, color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
+        Text(title, Modifier.padding(start = Space.s4), color = palette.textDim.toComposeColor(), fontSize = TextSize.label, fontWeight = FontWeight.Medium)
+        Column(Modifier.fillMaxWidth().clip(shape).border(1.dp, palette.border.toComposeColor(), shape).padding(Space.s12),
+            verticalArrangement = Arrangement.spacedBy(Space.s12), content = content)
+        if (note != null) Text(note, Modifier.padding(horizontal = Space.s4), color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
+    }
+}
+
+/** A row label with an optional quieter line under it. */
+@Composable
+private fun SettingsLabel(title: String, detail: String? = null, modifier: Modifier = Modifier) {
+    val palette = LocalPalette.current
+    Column(modifier) {
+        Text(title, color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge)
+        if (detail != null) Text(detail, color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
+    }
+}
+
+/** One-of-several choice as a pill row; the chosen segment is inverted. Each segment is a 48 dp target. */
+@Composable
+private fun AiSegmented(options: List<Pair<String, String>>, selected: String, modifier: Modifier = Modifier, onSelect: (String) -> Unit) {
+    val palette = LocalPalette.current
+    Row(modifier.height(MinTouchTarget).clip(CircleShape).border(1.dp, palette.border.toComposeColor(), CircleShape).padding(Space.s4),
+        horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
+        options.forEach { (value, label) ->
+            val on = value == selected
+            Box(Modifier.weight(1f).fillMaxHeight().clip(CircleShape)
+                .then(if (on) Modifier.background(palette.selectionBackground.toComposeColor()) else Modifier)
+                .clickable(role = Role.RadioButton, onClickLabel = label) { onSelect(value) },
+                contentAlignment = Alignment.Center) {
+                Text(label, color = (if (on) palette.selectionForeground else palette.text).toComposeColor(), fontSize = TextSize.body, maxLines = 1)
+            }
+        }
     }
 }
 
 @Composable
+private fun effortOptions(): List<Pair<String, String>> = AiThinking.LEVELS.map { it to stringResource(effortRes(it)) }
+
+/** One saved model: tap to make it the default for new chats, ✕ to drop it from the list. */
+@Composable
+private fun AiModelRow(name: String, isDefault: Boolean, onDefault: () -> Unit, onRemove: () -> Unit) {
+    val palette = LocalPalette.current
+    Row(Modifier.fillMaxWidth().heightIn(min = MinTouchTarget).clip(MaterialTheme.shapes.small).clickable(enabled = !isDefault, onClick = onDefault)
+        .padding(start = Space.s8), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+        Text(name, Modifier.weight(1f), color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (isDefault) Text(stringResource(R.string.ai_model_default),
+            Modifier.clip(CircleShape).background(palette.selectionBackground.toComposeColor()).padding(horizontal = Space.s8, vertical = Space.s2),
+            color = palette.selectionForeground.toComposeColor(), fontSize = TextSize.caption)
+        else Text(stringResource(R.string.ai_model_make_default), color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
+        AiIconButton(XnotesIcons.close, stringResource(R.string.ai_model_remove, name), onClick = onRemove)
+    }
+}
+
+/** The provider's model list, searchable; ticking adds a model to the saved list. */
+@Composable
+private fun AiModelPicker(available: List<String>, chosen: List<String>, onToggle: (String) -> Unit, close: () -> Unit) {
+    val palette = LocalPalette.current
+    var query by remember { mutableStateOf("") }
+    val shown = available.filter { it.contains(query.trim(), ignoreCase = true) }
+    AlertDialog(onDismissRequest = close, title = { Text(stringResource(R.string.ai_models_fetched_title), fontSize = TextSize.heading) }, text = {
+        Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+            OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), singleLine = true,
+                leadingIcon = { Icon(XnotesIcons.search, null, Modifier.size(18.dp)) }, placeholder = { Text(stringResource(R.string.ai_models_filter)) })
+            Text(pluralStringResource(R.plurals.ai_models_count, shown.size, shown.size), color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
+            androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                items(shown.size, key = { shown[it] }) { index ->
+                    val id = shown[index]
+                    val on = id in chosen
+                    Row(Modifier.fillMaxWidth().heightIn(min = MinTouchTarget).toggleable(on, role = Role.Checkbox) { onToggle(id) }.padding(horizontal = Space.s4),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
+                        Box(Modifier.size(20.dp).clip(MaterialTheme.shapes.extraSmall)
+                            .then(if (on) Modifier.background(palette.selectionBackground.toComposeColor()) else Modifier.border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.extraSmall)),
+                            contentAlignment = Alignment.Center) {
+                            if (on) Icon(XnotesIcons.check, null, Modifier.size(14.dp), tint = palette.selectionForeground.toComposeColor())
+                        }
+                        Text(id, Modifier.weight(1f), color = palette.text.toComposeColor(), fontSize = TextSize.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
+    }, confirmButton = { TextButton(onClick = close) { Text(stringResource(R.string.ai_ok)) } })
+}
+
+/**
+ * The whole AI setup on one sheet, grouped as DSH groups it: provider, models, thinking,
+ * personalisation, web search. Nothing is sent anywhere except an explicit model-list fetch.
+ */
+@Composable
 private fun AiSettings(close: () -> Unit) {
     val context = LocalContext.current
     val palette = LocalPalette.current
+    val scope = rememberCoroutineScope()
     val store = remember { AiConfigStore(context) }
     var error by remember { mutableStateOf("") }
     var confirmClear by remember { mutableStateOf(false) }
     var config by remember { mutableStateOf(runCatching { store.load() }.getOrElse { error = context.getString(R.string.ai_settings_unreadable); AiConfig() }) }
-    AlertDialog(onDismissRequest = close, title = { Text(stringResource(R.string.ai_settings), fontSize = TextSize.heading) }, text = {
-        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Space.s20)) {
-            if (error.isNotEmpty()) AiBanner(error)
-            SettingsSection(stringResource(R.string.ai_settings_chat), stringResource(R.string.ai_settings_chat_note)) {
-                OutlinedTextField(config.url, { config = config.copy(url = it) }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.ai_settings_url)) }, singleLine = true)
-                OutlinedTextField(config.model, { config = config.copy(model = it) }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.ai_settings_model)) }, singleLine = true)
-                OutlinedTextField(config.key, { config = config.copy(key = it) }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.ai_settings_key)) }, singleLine = true, visualTransformation = PasswordVisualTransformation())
-            }
-            SettingsSection(stringResource(R.string.ai_settings_search), stringResource(R.string.ai_settings_search_note)) {
-                OutlinedTextField(config.searchKey, { config = config.copy(searchKey = it) }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.ai_settings_search_key)) }, singleLine = true, visualTransformation = PasswordVisualTransformation())
-            }
-            Text(stringResource(R.string.ai_settings_privacy), color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
-            // Clearing wipes the saved keys at once, so it asks again in place instead of acting on one tap.
-            if (confirmClear) Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.ai_settings_clear_confirm), Modifier.weight(1f), color = palette.text.toComposeColor(), fontSize = TextSize.body)
-                TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.cancel)) }
-                TextButton(onClick = { store.clear(); config = AiConfig(); confirmClear = false; error = context.getString(R.string.ai_settings_cleared) }) {
-                    Text(stringResource(R.string.ai_settings_clear_do), fontWeight = FontWeight.Bold)
-                }
-            } else TextButton(onClick = { confirmClear = true }, contentPadding = PaddingValues(horizontal = Space.s4)) {
-                Icon(XnotesIcons.trash, null, Modifier.size(16.dp)); Spacer(Modifier.width(Space.s8)); Text(stringResource(R.string.ai_settings_clear))
-            }
+    var maxTokens by remember { mutableStateOf(config.maxTokens.toString()) }
+    var newModel by remember { mutableStateOf("") }
+    var formatMenu by remember { mutableStateOf(false) }
+    // Fetching the provider's list is the one network call here, and only on tap.
+    var fetching by remember { mutableStateOf<AiConnection?>(null) }
+    var fetched by remember { mutableStateOf<List<String>?>(null) }
+    var fetchError by remember { mutableStateOf("") }
+    DisposableEffect(Unit) { onDispose { fetching?.cancel() } }
+    fun choices() = config.modelChoices
+    fun setChoices(list: List<String>, default: String = config.model) {
+        val clean = list.map(String::trim).filter(String::isNotEmpty).distinct()
+        val model = default.takeIf { it in clean } ?: clean.firstOrNull().orEmpty()
+        config = config.copy(model = model, models = clean)
+    }
+    fun addModel() { newModel.trim().takeIf { it.isNotEmpty() }?.let { setChoices(choices() + it) }; newModel = "" }
+    fun save() {
+        val tokens = maxTokens.trim().toIntOrNull()
+        if (tokens == null || tokens !in AiProtocol.MIN_MAX_TOKENS..AiProtocol.MAX_MAX_TOKENS) {
+            error = AiText.t(AiMsg.CONFIG_MAX_TOKENS_INVALID, AiProtocol.MIN_MAX_TOKENS, AiProtocol.MAX_MAX_TOKENS); return
         }
-    }, confirmButton = { TextButton(onClick = {
-        runCatching { store.save(config) }.onSuccess { close() }.onFailure {
+        val next = config.copy(maxTokens = tokens)
+        runCatching { store.save(next) }.onSuccess { AiSessions.get(context).configRevision++; close() }.onFailure {
             error = if (it is IllegalArgumentException) it.message ?: context.getString(R.string.ai_settings_invalid) else context.getString(R.string.ai_settings_save_failed)
         }
-    }) { Text(stringResource(R.string.save)) } }, dismissButton = { TextButton(onClick = close) { Text(stringResource(R.string.cancel)) } })
+    }
+    fetched?.let { list -> AiModelPicker(list, choices(), onToggle = { id -> setChoices(if (id in choices()) choices() - id else choices() + id) }) { fetched = null } }
+    androidx.compose.ui.window.Dialog(onDismissRequest = close, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+        val shape = MaterialTheme.shapes.large
+        Column(Modifier.widthIn(max = 640.dp).fillMaxWidth(0.92f).fillMaxHeight(0.9f).clip(shape)
+            .background(palette.menuBg.toComposeColor()).border(1.dp, palette.border.toComposeColor(), shape).imePadding()) {
+            Row(Modifier.fillMaxWidth().height(MinTouchTarget + Space.s8).padding(horizontal = Space.s4), verticalAlignment = Alignment.CenterVertically) {
+                AiIconButton(XnotesIcons.close, stringResource(R.string.cancel), onClick = close)
+                Text(stringResource(R.string.ai_settings), Modifier.weight(1f).padding(start = Space.s4), color = palette.text.toComposeColor(),
+                    fontSize = TextSize.heading, fontWeight = FontWeight.Bold)
+                TextButton(onClick = ::save) { Text(stringResource(R.string.save), fontWeight = FontWeight.Bold) }
+            }
+            HorizontalDivider(color = palette.border.toComposeColor())
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s20)) {
+                if (error.isNotEmpty()) AiBanner(error)
+                SettingsGroup(stringResource(R.string.ai_settings_provider), stringResource(R.string.ai_settings_chat_note)) {
+                    OutlinedTextField(config.url, { config = config.copy(url = it) }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.ai_settings_url)) }, singleLine = true)
+                    OutlinedTextField(config.key, { config = config.copy(key = it) }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.ai_settings_key)) }, singleLine = true, visualTransformation = PasswordVisualTransformation())
+                }
+                SettingsGroup(stringResource(R.string.ai_settings_models), stringResource(R.string.ai_settings_models_note)) {
+                    if (choices().isEmpty()) Text(stringResource(R.string.ai_models_empty), color = palette.textDim.toComposeColor(), fontSize = TextSize.body)
+                    Column {
+                        choices().forEachIndexed { index, name ->
+                            if (index > 0) HorizontalDivider(color = palette.border.toComposeColor())
+                            key(name) { AiModelRow(name, name == config.model, onDefault = { setChoices(choices(), name) }, onRemove = { setChoices(choices() - name) }) }
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+                        OutlinedTextField(newModel, { newModel = it }, Modifier.weight(1f), label = { Text(stringResource(R.string.ai_models_add)) }, singleLine = true,
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+                            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { addModel() }))
+                        AiIconButton(XnotesIcons.plus, stringResource(R.string.ai_models_add), enabled = newModel.isNotBlank(), onClick = ::addModel)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(enabled = fetching == null, onClick = {
+                            fetchError = ""
+                            val connection = AiConnection(); fetching = connection
+                            val (url, key) = config.url to config.key.trim()
+                            scope.launch {
+                                try { fetched = withContext(Dispatchers.IO) { connection.listModels(url, key) } }
+                                catch (e: CancellationException) { throw e }
+                                catch (e: Exception) { fetchError = if (e is IllegalArgumentException || e is IllegalStateException) e.message ?: AiText.t(AiMsg.NETWORK_ERROR) else AiText.t(AiMsg.NETWORK_ERROR) }
+                                finally { if (fetching === connection) fetching = null }
+                            }
+                        }, contentPadding = PaddingValues(horizontal = Space.s4)) {
+                            if (fetching != null) AiSpinner() else Icon(XnotesIcons.download, null, Modifier.size(16.dp))
+                            Spacer(Modifier.width(Space.s8)); Text(stringResource(R.string.ai_models_fetch))
+                        }
+                    }
+                    if (fetchError.isNotEmpty()) Text(fetchError, color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
+                }
+                SettingsGroup(stringResource(R.string.ai_settings_thinking), stringResource(R.string.ai_settings_thinking_note)) {
+                    SettingsLabel(stringResource(R.string.ai_thinking_default))
+                    AiSegmented(effortOptions(), config.effort, Modifier.fillMaxWidth()) { config = config.copy(effort = it) }
+                    HorizontalDivider(color = palette.border.toComposeColor())
+                    Box {
+                        Row(Modifier.fillMaxWidth().heightIn(min = MinTouchTarget).clip(MaterialTheme.shapes.small).clickable { formatMenu = true }.padding(horizontal = Space.s4),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            SettingsLabel(stringResource(R.string.ai_thinking_format), stringResource(R.string.ai_thinking_format_note), Modifier.weight(1f))
+                            Text(stringResource(formatRes(config.thinkingFormat)), color = palette.text.toComposeColor(), fontSize = TextSize.body)
+                            Icon(XnotesIcons.chevronDown, null, Modifier.padding(start = Space.s4).size(16.dp), tint = palette.textDim.toComposeColor())
+                        }
+                        DropdownMenu(expanded = formatMenu, onDismissRequest = { formatMenu = false }) {
+                            AiThinking.FORMATS.forEach { f ->
+                                DropdownMenuItem(text = { Text(stringResource(formatRes(f))) }, onClick = { config = config.copy(thinkingFormat = f); formatMenu = false },
+                                    trailingIcon = { if (f == config.thinkingFormat) Icon(XnotesIcons.check, null, Modifier.size(16.dp)) })
+                            }
+                        }
+                    }
+                    HorizontalDivider(color = palette.border.toComposeColor())
+                    OutlinedTextField(maxTokens, { maxTokens = it.filter(Char::isDigit).take(6) }, Modifier.fillMaxWidth(), singleLine = true,
+                        label = { Text(stringResource(R.string.ai_max_tokens)) },
+                        supportingText = { Text(stringResource(R.string.ai_max_tokens_note, AiProtocol.MIN_MAX_TOKENS, AiProtocol.MAX_MAX_TOKENS)) },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
+                }
+                SettingsGroup(stringResource(R.string.ai_settings_personal), stringResource(R.string.ai_instructions_note)) {
+                    OutlinedTextField(config.instructions, { config = config.copy(instructions = it.take(AiProtocol.MAX_INSTRUCTIONS)) }, Modifier.fillMaxWidth(),
+                        label = { Text(stringResource(R.string.ai_instructions)) }, placeholder = { Text(stringResource(R.string.ai_instructions_hint)) },
+                        minLines = 4, maxLines = 10,
+                        supportingText = { Text("${config.instructions.length} / ${AiProtocol.MAX_INSTRUCTIONS}") })
+                }
+                SettingsGroup(stringResource(R.string.ai_settings_search), stringResource(R.string.ai_settings_search_note)) {
+                    OutlinedTextField(config.searchKey, { config = config.copy(searchKey = it) }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.ai_settings_search_key)) }, singleLine = true, visualTransformation = PasswordVisualTransformation())
+                }
+                Text(stringResource(R.string.ai_settings_privacy), color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
+                // Clearing wipes the saved keys at once, so it asks again in place instead of acting on one tap.
+                if (confirmClear) Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.ai_settings_clear_confirm), Modifier.weight(1f), color = palette.text.toComposeColor(), fontSize = TextSize.body)
+                    TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.cancel)) }
+                    TextButton(onClick = {
+                        store.clear(); config = AiConfig(); maxTokens = config.maxTokens.toString(); confirmClear = false
+                        AiSessions.get(context).configRevision++; error = context.getString(R.string.ai_settings_cleared)
+                    }) { Text(stringResource(R.string.ai_settings_clear_do), fontWeight = FontWeight.Bold) }
+                } else TextButton(onClick = { confirmClear = true }, contentPadding = PaddingValues(horizontal = Space.s4)) {
+                    Icon(XnotesIcons.trash, null, Modifier.size(16.dp)); Spacer(Modifier.width(Space.s8)); Text(stringResource(R.string.ai_settings_clear))
+                }
+            }
+        }
+    }
 }
 
 // --- entry and host ------------------------------------------------------------------------
@@ -237,10 +434,10 @@ private fun AskAiWindow(
     fun jumpToLatest() { follow = true; sessions.followLatest[chat.id] = true; uiScope.launch { scroll.animateScrollTo(scroll.maxValue) } }
     var settings by remember { mutableStateOf(false) }
     var collapsed by remember { mutableStateOf(false) }
-    // Unplaced until first layout: the card then opens at the right edge below the document toolbar,
-    // not over the toolbar's first tools.
-    var x by remember { mutableStateOf(Float.NaN) }
-    var y by remember { mutableStateOf(Float.NaN) }
+    // Unplaced until first moved: the card then opens at the right edge below the document toolbar,
+    // not over the toolbar's first tools. Once moved, every chat (a new one too) opens where it was left.
+    val x = sessions.windowOffset?.first ?: Float.NaN
+    val y = sessions.windowOffset?.second ?: Float.NaN
     val busy = sessions.isRunning(chat.id)
     val prompt = sessions.drafts[chat.id] ?: ""
     val attachment = sessions.attachments[chat.id]
@@ -280,8 +477,8 @@ private fun AskAiWindow(
                     .pointerInput(maxX, maxY) {
                         if (floating) detectDragGestures { change, drag ->
                             change.consume()
-                            x = ((if (x.isNaN()) startX else x) + drag.x).coerceIn(0f, maxX)
-                            y = ((if (y.isNaN()) startY else y) + drag.y).coerceIn(0f, maxY)
+                            val (lastX, lastY) = sessions.windowOffset ?: (startX to startY)
+                            sessions.windowOffset = (lastX.coerceIn(0f, maxX) + drag.x).coerceIn(0f, maxX) to (lastY.coerceIn(0f, maxY) + drag.y).coerceIn(0f, maxY)
                         }
                     }
                     .then(if (floating && collapsed) Modifier.clickable { collapsed = false } else Modifier)
@@ -336,7 +533,7 @@ private fun AskAiWindow(
                     }
                 }
                 Box(Modifier.fillMaxWidth().padding(start = Space.s12, end = Space.s12, bottom = Space.s12), contentAlignment = Alignment.Center) {
-                    AiComposer(sessions, chat, Modifier.widthIn(max = 760.dp), onSent = ::jumpToLatest)
+                    AiComposer(sessions, chat, Modifier.widthIn(max = 760.dp), onSent = ::jumpToLatest, onSettings = { settings = true })
                 }
             }
         }
@@ -438,7 +635,7 @@ private fun AiAttachmentChip(label: String, detail: String, leading: @Composable
  * and the round send/stop button. Everything a question needs sits in this one place.
  */
 @Composable
-private fun AiComposer(sessions: AiSessions, chat: AiChat, modifier: Modifier, onSent: () -> Unit) {
+private fun AiComposer(sessions: AiSessions, chat: AiChat, modifier: Modifier, onSent: () -> Unit, onSettings: () -> Unit) {
     val palette = LocalPalette.current
     val context = LocalContext.current
     val importState = sessions.importStates[chat.id]
@@ -518,7 +715,8 @@ private fun AiComposer(sessions: AiSessions, chat: AiChat, modifier: Modifier, o
                     }
                 }
                 AiSearchToggle(webSearch) { sessions.editDraft(chat.id, search = it) }
-                Spacer(Modifier.weight(1f))
+                // The chip takes what room is left and shortens its label; send stays at the far end.
+                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) { AiModelChip(sessions, chat, Modifier, onSettings) }
                 AiSendButton(busy = busy, enabled = busy || canSend) {
                     if (busy) sessions.stop(chat.id)
                     else {
@@ -527,6 +725,46 @@ private fun AiComposer(sessions: AiSessions, chat: AiChat, modifier: Modifier, o
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * This chat's model and thinking level as one quiet pill ("model · High ⌄"), as DSH shows it; the
+ * menu picks from the saved models and the thinking levels. Changes apply to the next question.
+ */
+@Composable
+private fun AiModelChip(sessions: AiSessions, chat: AiChat, modifier: Modifier, onSettings: () -> Unit) {
+    val palette = LocalPalette.current
+    val context = LocalContext.current
+    val config = remember(sessions.configRevision) { runCatching { AiConfigStore(context).load() }.getOrNull() ?: AiConfig() }
+    val current = chat.settings(config)
+    var menu by remember { mutableStateOf(false) }
+    val title = stringResource(R.string.ai_model_chip)
+    val label = listOfNotNull(current.model.ifBlank { stringResource(R.string.ai_settings_no_model) },
+        current.effort.takeIf { it.isNotEmpty() }?.let { stringResource(effortRes(it)) }).joinToString(" · ")
+    Box(modifier) {
+        Tooltip(title) {
+            Box(Modifier.height(MinTouchTarget).clickable(role = Role.Button, onClickLabel = title) { menu = true }.padding(horizontal = Space.s4), contentAlignment = Alignment.Center) {
+                Row(Modifier.height(32.dp).clip(CircleShape).border(1.dp, palette.border.toComposeColor(), CircleShape).padding(start = Space.s12, end = Space.s8),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
+                    Text(label, Modifier.weight(1f, fill = false), color = palette.textDim.toComposeColor(), fontSize = TextSize.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Icon(XnotesIcons.chevronDown, null, Modifier.size(14.dp), tint = palette.textDim.toComposeColor())
+                }
+            }
+        }
+        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, modifier = Modifier.widthIn(min = 260.dp, max = 360.dp)) {
+            Text(stringResource(R.string.ai_settings_models), Modifier.padding(horizontal = Space.s16, vertical = Space.s4), color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
+            config.modelChoices.forEach { name ->
+                DropdownMenuItem(text = { Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis) }, onClick = { sessions.choose(chat.id, model = name); menu = false },
+                    trailingIcon = { if (name == current.model) Icon(XnotesIcons.check, null, Modifier.size(16.dp)) })
+            }
+            DropdownMenuItem(text = { Text(stringResource(if (config.modelChoices.isEmpty()) R.string.ai_models_set_up else R.string.ai_models_manage)) },
+                leadingIcon = { Icon(XnotesIcons.sliders, null, Modifier.size(18.dp)) }, onClick = { menu = false; onSettings() })
+            HorizontalDivider(Modifier.padding(vertical = Space.s4), color = palette.border.toComposeColor())
+            Text(stringResource(R.string.ai_settings_thinking), Modifier.padding(horizontal = Space.s16, vertical = Space.s4), color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
+            AiSegmented(effortOptions(), current.effort, Modifier.padding(horizontal = Space.s12).fillMaxWidth()) { sessions.choose(chat.id, effort = it) }
+            Text(stringResource(R.string.ai_thinking_menu_note), Modifier.padding(horizontal = Space.s16, vertical = Space.s8), color = palette.textDim.toComposeColor(), fontSize = TextSize.caption)
         }
     }
 }

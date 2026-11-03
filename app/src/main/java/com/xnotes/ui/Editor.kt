@@ -4427,8 +4427,10 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         private set
 
     fun showRail(rail: Boolean) {
-        if (settings.backstageRail == rail) return
-        backstageRail = rail
+        // Settings are shared by both panes but this state is per editor: compare with what this home
+        // shows, or a fold made in the other pane's home turns this button into a no-op.
+        if (backstageRail == rail && settings.backstageRail == rail) return
+        for (editor in listOfNotNull(this, sibling)) editor.backstageRail = rail
         settings = settings.copy(backstageRail = rail)
         // Written after the fold settles: serializing every setting on the tap stalled the fold's first frame.
         saveSettingsSoon()

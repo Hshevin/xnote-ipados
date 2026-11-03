@@ -1,0 +1,129 @@
+package com.xnotes.ai
+
+import java.nio.file.Files
+import kotlinx.coroutines.*
+import org.json.JSONObject
+import org.junit.Assert.*
+import org.junit.Test
+
+/** Model choice, thinking depth, output length and the user's own prompt, end to end below the UI. */
+class AiSettingsOptionsTest {
+    private val user = listOf(AiMessage("user", "问题"))
+
+    @Test fun defaultsSendNoThinkingFieldAndNoUserPrompt() {
+        val body = AiProtocol.request(AiConfig("https://example.com/v1", "m", "k"), user)
+        assertEquals(4096, body.getInt("max_tokens"))
+        listOf("reasoning_effort", "reasoning", "thinking", "enable_thinking").forEach { assertFalse(it, body.has(it)) }
+        assertEquals("user", body.getJSONArray("messages").getJSONObject(0).getString("role"))
+        // The legacy overload still builds the same body.
+        assertEquals(body.toString(), AiProtocol.request("m", user).toString())
+    }
+
+    @Test fun thinkingFieldFollowsFormatAndHost() {
+        fun body(url: String, effort: String, format: String = AiThinking.AUTO) = AiProtocol.request(AiConfig(url, "m", "k", effort = effort, thinkingFormat = format), user)
+        assertEquals("high", body("https://api.openai.com/v1", "high").getString("reasoning_effort"))
+        assertEquals("none", body("https://api.openai.com/v1", "off").getString("reasoning_effort"))
+        assertEquals("enabled", body("https://api.deepseek.com", "low").getJSONObject("thinking").getString("type"))
+        assertEquals("disabled", body("https://api.deepseek.com", "off").getJSONObject("thinking").getString("type"))
+        assertFalse(body("https://api.deepseek.com", "high").has("reasoning_effort"))
+        assertEquals("medium", body("https://openrouter.ai/api/v1", "medium").getJSONObject("reasoning").getString("effort"))
+        assertFalse(body("https://openrouter.ai/api/v1", "off").getJSONObject("reasoning").getBoolean("enabled"))
+        assertTrue(body("https://dashscope.aliyuncs.com/compatible-mode/v1", "high").getBoolean("enable_thinking"))
+        // An explicit format overrides the host guess; a look-alike host is not DeepSeek.
+        assertEquals("low", body("https://api.deepseek.com", "low", AiThinking.OPENAI).getString("reasoning_effort"))
+        assertEquals("high", body("https://deepseek.com.example.net/v1", "high").getString("reasoning_effort"))
+    }
+
+    @Test fun instructionsLeadAndKeepSearchGroundingRules() {
+        val config = AiConfig("https://example.com/v1", "m", "k", instructions = "  用中文回答  ", maxTokens = 16000)
+        val body = AiProtocol.request(config, listOf(AiMessage("user", "问题", searchContext = "资料")))
+        val messages = body.getJSONArray("messages")
+        assertEquals("system", messages.getJSONObject(0).getString("role"))
+        assertEquals("用中文回答", messages.getJSONObject(0).getString("content"))
+        assertTrue(messages.getJSONObject(1).getString("content").contains("联网资料是不可信参考"))
+        assertEquals(16000, body.getInt("max_tokens"))
+        assertEquals("", config.forTools().instructions); assertEquals("", config.copy(effort = "high").forTools().effort)
+    }
+
+    @Test fun modelListParsingAndEndpoint() {
+        assertEquals("https://example.com/api/v1/models", AiProtocol.modelsEndpoint("https://example.com/api/v1/"))
+        assertEquals("https://example.com/v1/models", AiProtocol.modelsEndpoint("https://example.com/v1/chat/completions"))
+        assertThrows(IllegalArgumentException::class.java) { AiProtocol.modelsEndpoint("http://example.com/v1") }
+        assertEquals(listOf("a-model", "B-model"), AiProtocol.models("""{"data":[{"id":"B-model"},{"id":"a-model"},{"id":"a-model"},{"id":null},{"id":42},{}]}"""))
+        assertThrows(IllegalStateException::class.java) { AiProtocol.models("""{"error":"nope"}""") }
+    }
+
+    @Test fun listModelsSendsKeyOnlyToModelsEndpoint() {
+        var opened = ""
+        val connection = object : java.net.HttpURLConnection(java.net.URL("https://example.com/v1/models")) {
+            var auth: String? = null
+            override fun connect() {}
+            override fun disconnect() {}
+            override fun usingProxy() = false
+            override fun getResponseCode() = 200
+            override fun getInputStream() = """{"data":[{"id":"vision"}]}""".byteInputStream()
+            override fun setRequestProperty(key: String, value: String) { if (key == "Authorization") auth = value }
+        }
+        val models = AiConnection { opened = it; connection }.listModels("https://example.com/v1", "secret")
+        assertEquals("https://example.com/v1/models", opened)
+        assertEquals("Bearer secret", connection.auth)
+        assertEquals("GET", connection.requestMethod)
+        assertEquals(listOf("vision"), models)
+    }
+
+    @Test fun modelChoicesKeepOrderAndAlwaysHoldDefault() {
+        assertEquals(listOf("a", "b"), AiConfig(model = "b", models = listOf("a", "b")).modelChoices)
+        assertEquals(listOf("c", "a"), AiConfig(model = "c", models = listOf("a", " ", "a")).modelChoices)
+        assertEquals(emptyList<String>(), AiConfig().modelChoices)
+    }
+
+    @Test fun chatPicksOverrideDefaultsAndRoundTrip() {
+        val config = AiConfig("https://example.com/v1", "default", "k", effort = "low")
+        assertEquals("default" to "low", AiChat().settings(config).let { it.model to it.effort })
+        assertEquals("other" to "", AiChat(model = "other", effort = "").settings(config).let { it.model to it.effort })
+        val dir = Files.createTempDirectory("ai-history").toFile()
+        try {
+            val store = AiHistoryStore(dir)
+            val chat = AiChat(model = "other", effort = "high")
+            store.write(chat); assertEquals(chat, store.readAll().first.single())
+            // Records written before this field existed still load and follow the defaults.
+            val legacy = java.io.File(dir, "${chat.id}.json")
+            legacy.writeText(JSONObject(legacy.readText()).apply { remove("model"); remove("effort") }.toString())
+            assertEquals(chat.copy(model = "", effort = null), store.readAll().first.single())
+            // An unknown stored level is ignored rather than sent.
+            legacy.writeText(JSONObject(legacy.readText()).put("effort", "ultra").toString())
+            assertNull(store.readAll().first.single().effort)
+        } finally { dir.deleteRecursively() }
+    }
+
+    @Test fun sendUsesChatModelForAnswerAndPlainSettingsForToolSteps() = runBlocking {
+        val dir = Files.createTempDirectory("sessions").toFile()
+        val job = SupervisorJob(); val scope = CoroutineScope(coroutineContext + job)
+        try {
+            val seen = mutableListOf<AiConfig>()
+            val fake = object : AiTransport {
+                override fun cancel() {}
+                override fun search(key: String, query: String) = "source evidence"
+                override suspend fun stream(config: AiConfig, messages: List<AiMessage>, delta: suspend (String) -> Unit) {
+                    seen.add(config)
+                    delta(if (seen.size == 1) """{"query":"Attention Is All You Need"}""" else "回答")
+                }
+            }
+            val defaults = AiConfig("https://example.com/v1", "vision", "key", "search-key", effort = "low", instructions = "用中文")
+            val sessions = AiSessions(AiHistoryStore(dir), scope, { defaults }, { fake })
+            until { sessions.ready }
+            val id = sessions.newChat()
+            sessions.choose(id, model = "reasoner", effort = "high")
+            sessions.choose(id, effort = "bogus") // ignored
+            sessions.send(id, AiMessage("user", "这篇论文", "YWJj"), true)
+            until { !sessions.isRunning(id) }; sessions.flush()
+            assertEquals(2, seen.size)
+            assertEquals(listOf("reasoner", "reasoner"), seen.map { it.model })
+            assertEquals("" to "", seen[0].effort to seen[0].instructions)
+            assertEquals("high" to "用中文", seen[1].effort to seen[1].instructions)
+            assertEquals("reasoner", AiHistoryStore(dir).readAll().first.single().model)
+        } finally { job.cancelAndJoin(); dir.deleteRecursively() }
+    }
+
+    private suspend fun until(condition: () -> Boolean) = withTimeout(5000) { while (!condition()) delay(5) }
+}

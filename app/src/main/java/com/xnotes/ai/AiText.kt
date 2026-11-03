@@ -6,6 +6,12 @@ package com.xnotes.ai
  * Model-facing prompts, tool text and persisted state keys are intentionally not here.
  */
 enum class AiMsg(val zh: String) {
+    CONFIG_MAX_TOKENS_INVALID("最大输出长度须在 %1\$d–%2\$d 之间"),
+    CONFIG_INSTRUCTIONS_TOO_LONG("自定义提示词不能超过 %1\$d 个字符"),
+    CONFIG_THINKING_INVALID("思考设置无效"),
+    MODELS_HTTP_FAILED("获取模型列表失败（HTTP %1\$d），请检查地址与 API Key"),
+    MODELS_RESPONSE_TOO_LARGE("模型列表过大"),
+    MODELS_INVALID_REPLY("服务未返回可识别的模型列表"),
     CONFIG_MODEL_KEY_REQUIRED("请填写模型名称和 API Key"),
     CONFIG_KEY_INVALID("API Key 格式无效"),
     CONFIG_SEARCH_KEY_INVALID("搜索 API Key 格式无效"),

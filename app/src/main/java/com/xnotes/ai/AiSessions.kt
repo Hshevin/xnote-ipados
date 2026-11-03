@@ -30,6 +30,10 @@ class AiSessions(
     val searchEnabled = mutableStateMapOf<String, Boolean>()
     val importStates = mutableStateMapOf<String, AiImportState>()
     val scrollPositions = mutableMapOf<String, Int>()
+    /** Where the floating card was last left, in px of its host; a new chat opens there too. Null until moved. */
+    var windowOffset by mutableStateOf<Pair<Float, Float>?>(null)
+    /** Bumped when AI settings are saved, so open chats re-read their model choices. */
+    var configRevision by mutableStateOf(0)
     val followLatest = mutableMapOf<String, Boolean>()
     private val imports = mutableMapOf<String, Job>()
     private val draftSaves = mutableMapOf<String, Job>()
@@ -145,6 +149,12 @@ class AiSessions(
     fun rename(id: String, title: String) {
         chats[id]?.let { val next = it.copy(title = title.trim().take(100).ifBlank { "新会话" }); chats[id] = next; persist(next) }
     }
+    /** Pick this chat's model and thinking level for its next questions; a running answer keeps its own. */
+    fun choose(id: String, model: String? = null, effort: String? = null) {
+        val chat = chats[id] ?: return
+        val next = chat.copy(model = model?.trim() ?: chat.model, effort = effort?.takeIf { it in AiThinking.LEVELS } ?: chat.effort)
+        if (next != chat) { chats[id] = next; persist(next) }
+    }
     fun isRunning(id: String) = requests.containsKey(id)
     private fun update(id: String, change: (AiChat) -> AiChat): AiChat? = chats[id]?.let { change(it).also { next -> chats[id] = next } }
     fun send(id: String, user: AiMessage, useSearch: Boolean) {
@@ -155,10 +165,11 @@ class AiSessions(
             var started = false
             var pdfLease: AutoCloseable? = null
             try {
-                val settings = config()
+                val settings = original.settings(config())
+                val tools = settings.forTools()
                 require(settings.key.isNotBlank()) { AiText.t(AiMsg.PROVIDER_NOT_CONFIGURED) }
                 AiProtocol.endpoint(settings.url)
-                AiProtocol.request(settings.model, original.context() + user)
+                AiProtocol.request(settings, original.context() + user)
                 if (useSearch) { require(settings.searchKey.isNotBlank()) { AiText.t(AiMsg.SEARCH_KEY_NOT_CONFIGURED) } }
                 val next = original.copy(draft = chats[id]?.draft ?: original.draft, title = if (original.turns.isEmpty() && original.title == "新会话") user.text.take(40) else original.title,
                     updated = System.currentTimeMillis(), turns = original.turns + AiTurn(user))
@@ -173,7 +184,7 @@ class AiSessions(
                 pdfLease=withContext(Dispatchers.IO) { holdPdfs(pdfIds) }
                 progress(id, AiText.t(AiMsg.PROGRESS_PREPARING))
                 val prepared = if ((original.context() + user).any { !it.pdf?.id.isNullOrEmpty() }) {
-                    withContext(Dispatchers.IO) { AiPdfTools.prepare(settings, client, original.context(), user, checkNotNull(pdfAccess) { AiText.t(AiMsg.PDF_SERVICE_UNAVAILABLE) }) { label -> progress(id, label) } }
+                    withContext(Dispatchers.IO) { AiPdfTools.prepare(tools, client, original.context(), user, checkNotNull(pdfAccess) { AiText.t(AiMsg.PDF_SERVICE_UNAVAILABLE) }) { label -> progress(id, label) } }
                 } else user
                 var outgoing = prepared
                 if (useSearch) {
@@ -181,7 +192,7 @@ class AiSessions(
                     val resolvedQuery = run {
                         val planned = StringBuilder()
                         withContext(Dispatchers.IO) {
-                            client.stream(settings, AiSearchQuery.messages(original.context(), prepared)) { chunk ->
+                            client.stream(tools, AiSearchQuery.messages(original.context(), prepared)) { chunk ->
                                 require(planned.length + chunk.length <= 4096) { AiText.t(AiMsg.SEARCH_TARGET_TOO_LONG) }
                                 planned.append(chunk)
                             }
