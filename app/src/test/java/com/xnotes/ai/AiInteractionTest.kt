@@ -245,6 +245,36 @@ class AiInteractionTest {
             assertTrue(store.readAll().first.isEmpty())
         }
     }
+    @Test fun withTrashOffDeleteIsPermanentLikeNotes() = runBlocking {
+        fixture { store, scope ->
+            val sessions = AiSessions(store, scope, { settings })
+            until { sessions.ready }
+            val kept = sessions.newChat(); val gone = sessions.newChat(); sessions.flush()
+            sessions.trashDays = 0
+            assertTrue(sessions.trashOff)
+            sessions.delete(gone); sessions.flush()
+            assertFalse(sessions.chats.containsKey(gone)); assertTrue(sessions.trash.isEmpty())
+            assertEquals(listOf(kept), store.readAll().first.map { it.id })
+            sessions.trashDays = 30
+            sessions.delete(kept); sessions.flush()
+            assertEquals(setOf(kept), sessions.trash.keys) // back on: deletes go to Trash again
+        }
+    }
+    @Test fun permanentDeleteFailureLeavesTheChatInHistory() = runBlocking {
+        val directory = Files.createTempDirectory("ai-interaction").toFile()
+        val job = SupervisorJob()
+        try {
+            val scope = CoroutineScope(coroutineContext + job)
+            val sessions = AiSessions(AiHistoryStore(directory), scope, { settings })
+            until { sessions.ready }
+            val id = sessions.newChat(); sessions.editDraft(id, "keep me"); sessions.flush()
+            sessions.trashDays = 0
+            directory.setWritable(false)
+            sessions.delete(id); sessions.flush()
+            until { sessions.chats.containsKey(id) }
+            assertEquals("keep me", sessions.drafts[id]); assertTrue(sessions.storageError.isNotEmpty())
+        } finally { directory.setWritable(true); job.cancelAndJoin(); directory.deleteRecursively() }
+    }
     @Test fun trashWriteFailureLeavesTheChatInHistory() = runBlocking {
         val directory = Files.createTempDirectory("ai-interaction").toFile()
         val job = SupervisorJob()

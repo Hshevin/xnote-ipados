@@ -29,6 +29,9 @@ class AiSessions(
     var storageError by mutableStateOf(""); private set
     /** Chats moved to Trash, kept on disk until restored or deleted permanently; never in [chats]. */
     val trash = mutableStateMapOf<String, AiChat>()
+    /** The notes Trash retention in days, set by the app: 0 means Trash is off and [delete] is permanent. */
+    var trashDays by mutableStateOf(30)
+    val trashOff: Boolean get() = trashDays == 0
     val searchEnabled = mutableStateMapOf<String, Boolean>()
     val importStates = mutableStateMapOf<String, AiImportState>()
     val scrollPositions = mutableMapOf<String, Int>()
@@ -322,19 +325,21 @@ class AiSessions(
     }
     fun stop(id: String) { requests[id]?.let { (client, job) -> client.cancel(); job.cancel() } }
     /**
-     * Moves a chat to Trash: generation and imports stop, and it leaves every history list. Its record
-     * (draft and PDF references included) stays on disk until restored or deleted permanently. A
-     * floating card on it moves to the document's newest other chat, or a fresh one.
+     * Deletes a chat as notes are deleted: generation and imports stop and it leaves every history list.
+     * It moves to Trash, its record (draft and PDF references included) kept on disk until restored or
+     * deleted permanently — or, with Trash off, it is deleted permanently at once. A floating card on
+     * it moves to the document's newest other chat, or a fresh one.
      */
     fun delete(id: String) {
         val chat = chats[id] ?: return
+        val permanent = trashOff
         stop(id)
         imports.remove(id)?.cancel(); importStates.remove(id); draftSaves.remove(id)?.cancel()
         searchEnabled.remove(id); scrollPositions.remove(id); followLatest.remove(id)
         attachments.remove(id); drafts.remove(id); pdfAttachments.remove(id); currentPdfs.remove(id)
         chats.remove(id) // Late callbacks cannot recreate a trashed record.
         val trashed = chat.recover().copy(trashedAt = System.currentTimeMillis())
-        trash[id] = trashed
+        if (!permanent) trash[id] = trashed
         if (activeId == id) {
             val owner = floatingOwner
             val next = owner?.let { chatsOf(it).firstOrNull() }
@@ -345,8 +350,16 @@ class AiSessions(
             }
         }
         // Queued now, after every earlier write of this chat; if it fails the chat goes back where it was, with the storage error shown.
-        val saved = persist(trashed)
-        scope.launch { if (!saved.await() && trash[id] === trashed) { trash.remove(id); chats[id] = chat; restoreDraft(chat) } }
+        if (permanent) {
+            val op = Disk(delete = id).also { disk.trySend(it) }
+            scope.launch {
+                if (op.done.await()) withContext(Dispatchers.IO) { runCatching { store.forgetDeleted(id) } }
+                else { chats[id] = chat; restoreDraft(chat) }
+            }
+        } else {
+            val saved = persist(trashed)
+            scope.launch { if (!saved.await() && trash[id] === trashed) { trash.remove(id); chats[id] = chat; restoreDraft(chat) } }
+        }
     }
     /** Back from Trash into history, draft and attachments as they were. */
     fun restore(id: String) {

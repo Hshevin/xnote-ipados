@@ -1429,6 +1429,10 @@ private fun EditorScreen(
         if (saving) { delay(160); showSaving = saving } else showSaving = false
     }
     if (showSaving && saving) SavingDialog()
+    // AI chats follow the notes Trash: same retention, and with Trash off a delete is permanent.
+    val trashDays = remember(editor.prefsVersion) { editor.preferences.trashDays }
+    val aiSessions = com.xnotes.ai.AiSessions.get(LocalContext.current)
+    LaunchedEffect(trashDays, aiSessions.ready) { aiSessions.trashDays = trashDays; aiSessions.purgeTrash(trashDays) }
     com.xnotes.ui.AiChatHost(if (mainMenu) emptySet() else editor.openPanes
         .filter { it.noteOpen && it.pane !in paneHomes }
         .map { it.visibleDocumentId.ifBlank { it.visibleDocumentUri ?: if (it.canvasOpen) it.infinite.document.title else it.state.document.title } }.toSet())

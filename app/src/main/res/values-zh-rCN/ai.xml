@@ -67,6 +67,7 @@
     <string name="ai_delete_chat">删除「%1$s」</string>
     <string name="ai_trash_section">AI 会话</string>
     <string name="ai_trash_row_sub">AI 会话 · 来自 %1$s</string>
+    <string name="ai_delete_forever_text">「%1$s」将被永久删除，无法撤销。正在生成的回答会停止。</string>
     <string name="ai_delete_title">移到回收站？</string>
     <string name="ai_delete_text">「%1$s」将移到回收站，可在回收站中恢复。正在生成的回答会停止。</string>
     <string name="ai_code">代码</string>

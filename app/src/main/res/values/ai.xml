@@ -69,6 +69,7 @@
     <string name="ai_delete_chat">Delete “%1$s”</string>
     <string name="ai_trash_section">AI chats</string>
     <string name="ai_trash_row_sub">AI chat · from %1$s</string>
+    <string name="ai_delete_forever_text">“%1$s” will be permanently deleted. This can’t be undone. Any answer in progress stops.</string>
     <string name="ai_delete_title">Move chat to Trash?</string>
     <string name="ai_delete_text">“%1$s” moves to Trash, where you can restore it. Any answer in progress stops.</string>
     <string name="ai_code">Code</string>

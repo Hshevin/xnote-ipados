@@ -972,12 +972,17 @@ private fun AiFloatingHistory(sessions: AiSessions, owner: String, modifier: Mod
     }
 }
 
-/** Confirms moving [chat] to Trash; shared by the AI page and the floating card's history. */
+/**
+ * Confirms deleting [chat], worded as notes are: Move to Trash, or with Trash off a permanent delete.
+ * Shared by the AI page and the floating card's history.
+ */
 @Composable
 private fun AiTrashDialog(chat: AiChat, onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(stringResource(R.string.ai_delete_title)) },
-        text = { Text(stringResource(R.string.ai_delete_text, chat.displayTitle())) },
-        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(R.string.ai_move_to_trash)) } },
+    val permanent = AiSessions.get(LocalContext.current).trashOff
+    AlertDialog(onDismissRequest = onDismiss,
+        title = { Text(stringResource(if (permanent) R.string.delete_permanently_confirm else R.string.ai_delete_title)) },
+        text = { Text(stringResource(if (permanent) R.string.ai_delete_forever_text else R.string.ai_delete_text, chat.displayTitle())) },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(if (permanent) R.string.delete else R.string.ai_move_to_trash)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
 }
 
