@@ -567,7 +567,8 @@ private fun AskAiWindow(
         val startY = with(density) { (MinTouchTarget + Space.s20).toPx() }.coerceAtMost(maxY)
         val cardX = if (x.isNaN()) startX else x
         val cardY = if (y.isNaN()) startY else y
-        val shape = MaterialTheme.shapes.large
+        // The corner every panel floating over a document wears (selection bar, slash menu, canvas menus).
+        val shape = MaterialTheme.shapes.medium
         Column(
             Modifier.offset { IntOffset(cardX.coerceIn(0f, maxX).toInt(), cardY.coerceIn(0f, maxY).toInt()) }
                 .width(width).height(height)
@@ -777,7 +778,8 @@ private fun AiComposer(sessions: AiSessions, chat: AiChat, modifier: Modifier, o
             sessions.importPdf(target, uri.toString())
     }
     val canSend = prompt.isNotBlank() && !importing && importState?.error.isNullOrEmpty()
-    val shape = MaterialTheme.shapes.large
+    // No rounder than the floating card it sits in.
+    val shape = MaterialTheme.shapes.medium
     Column(modifier.fillMaxWidth()) {
         if (clipboardError) Text(stringResource(R.string.ai_paste_no_pdf), Modifier.padding(bottom = Space.s8), color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
         Column(Modifier.fillMaxWidth().clip(shape).background(palette.menuBg.toComposeColor()).border(1.dp, palette.materialColors.outline.toComposeColor(), shape)) {
