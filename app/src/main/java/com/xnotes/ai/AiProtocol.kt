@@ -51,6 +51,16 @@ object AiProtocol {
     const val DEFAULT_MAX_TOKENS = 4096
     const val MIN_MAX_TOKENS = 256
     const val MAX_MAX_TOKENS = 131072
+    /**
+     * Characters of answer, reasoning and tool arguments one reply may carry: a token is at most a
+     * few characters, so this follows the user's output length instead of a fixed cap.
+     */
+    fun replyBudget(maxTokens: Int): Int = maxTokens.coerceIn(MIN_MAX_TOKENS, MAX_MAX_TOKENS) * 8
+    /**
+     * Raw stream characters one reply may take. Every chunk repeats its JSON envelope (id, model,
+     * choices…), often for a single token, so this must sit far above [replyBudget].
+     */
+    fun streamBudget(maxTokens: Int): Long = maxOf(4L * 1024 * 1024, maxTokens.coerceIn(MIN_MAX_TOKENS, MAX_MAX_TOKENS) * 512L)
     const val MAX_INSTRUCTIONS = 4000
     const val MAX_MODELS = 200
     /** Screenshots one question may carry; more are refused with a notice, never dropped. */

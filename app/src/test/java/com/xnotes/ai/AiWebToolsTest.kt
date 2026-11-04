@@ -114,4 +114,28 @@ class AiWebToolsTest {
         }
         assertFalse(plain is AiToolsUnsupported)
     }
+
+    /** One OpenAI-style chunk per token, with the envelope real providers repeat on every chunk. */
+    private fun tokens(count: Int, field: String = "content", piece: String = "字") = buildString {
+        repeat(count) { append("""data: {"id":"chatcmpl-0123456789abcdef0123456789abcdef","object":"chat.completion.chunk","created":1762230000,"model":"deepseek-reasoner","system_fingerprint":"fp_0123456789_prod0820_fp8_kvcache","choices":[{"index":0,"delta":{"$field":"$piece"},"logprobs":null,"finish_reason":null}]}""").append("\n\n") }
+        append("data: [DONE]\n\n")
+    }
+
+    @Test fun longAnswerFitsTheConfiguredOutputLength() {
+        // 20k tokens of envelope is ~5 MB of stream: the old 1 MB stream cap stopped it after ~4k tokens.
+        val long = config.copy(maxTokens = AiProtocol.MAX_MAX_TOKENS)
+        val reply = runBlocking { AiConnection { Sse(200, tokens(20000)) }.complete(long, listOf(AiMessage("user", "q")), emptyList(), null, "auto") {} }
+        assertEquals(20000, reply.content.length)
+        val thinking = runBlocking { AiConnection { Sse(200, tokens(6000, "reasoning_content", "想".repeat(50))) }.complete(long, listOf(AiMessage("user", "q")), emptyList(), null, "auto") {} }
+        // 300k characters of thinking: past the old fixed 256k reasoning cap.
+        assertEquals(300_000, thinking.reasoning.length)
+    }
+
+    @Test fun answerBeyondTheOutputBudgetStops() {
+        val short = config.copy(maxTokens = AiProtocol.MIN_MAX_TOKENS)
+        val error = assertThrows(IllegalStateException::class.java) {
+            runBlocking { AiConnection { Sse(200, tokens(AiProtocol.replyBudget(AiProtocol.MIN_MAX_TOKENS) + 1)) }.complete(short, listOf(AiMessage("user", "q")), emptyList(), null, "auto") {} }
+        }
+        assertEquals(AiText.t(AiMsg.ANSWER_TOO_LONG), error.message)
+    }
 }

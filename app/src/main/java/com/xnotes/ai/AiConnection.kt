@@ -208,9 +208,10 @@ class AiConnection(private val openConnection: (String) -> HttpURLConnection = {
             // A request rejected only because it offered tools: the caller answers without them and says so.
             if (tools != null && (status == 400 || status == 422)) throw AiToolsUnsupported(status)
             check(status in 200..299) { AiText.t(AiMsg.REQUEST_HTTP_FAILED, status) }
-            val calls = AiToolCallAssembler()
+            val calls = AiToolCallAssembler(AiProtocol.replyBudget(config.maxTokens))
+            val streamLimit = AiProtocol.streamBudget(config.maxTokens)
             val content = StringBuilder()
-            var received = 0
+            var received = 0L
             var finished = false
             conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
                 val line = StringBuilder()
@@ -218,7 +219,7 @@ class AiConnection(private val openConnection: (String) -> HttpURLConnection = {
                     val ch = reader.read()
                     if (ch < 0) break
                     received++
-                    check(received <= 1024 * 1024 && line.length < 65536) { AiText.t(AiMsg.ANSWER_TOO_LONG) }
+                    check(received <= streamLimit && line.length < 65536) { AiText.t(AiMsg.ANSWER_TOO_LONG) }
                     if (ch == 10) {
                         val value = line.toString().trimEnd('\r'); line.setLength(0)
                         if (value.startsWith("data:")) {
@@ -229,7 +230,7 @@ class AiConnection(private val openConnection: (String) -> HttpURLConnection = {
                                 check(!json.has("error")) { AiText.t(AiMsg.PROVIDER_ERROR) }
                                 calls.accept(json)
                                 val text = AiProtocol.delta(data)
-                                if (text.isNotEmpty()) { content.append(text); delta(text) }
+                                if (text.isNotEmpty()) { calls.grow(text.length); content.append(text); delta(text) }
                             }
                         }
                     } else line.append(ch.toChar())

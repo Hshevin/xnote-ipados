@@ -19,7 +19,7 @@ class AiToolsUnsupported(val status: Int) : IllegalStateException(AiText.t(AiMsg
  * name once, the arguments in pieces. `reasoning_content` (DeepSeek, Qwen) is kept so a thinking
  * model's tool round can be handed back as the provider requires.
  */
-class AiToolCallAssembler {
+class AiToolCallAssembler(private val limit: Int = AiProtocol.replyBudget(AiProtocol.DEFAULT_MAX_TOKENS)) {
     private class Part(var id: String = "", var name: String = "", val arguments: StringBuilder = StringBuilder())
     private val parts = sortedMapOf<Int, Part>()
     private val reasoning = StringBuilder()
@@ -41,7 +41,8 @@ class AiToolCallAssembler {
         }
     }
 
-    private fun grow(by: Int) { size += by; check(size <= 256 * 1024) { AiText.t(AiMsg.ANSWER_TOO_LONG) } }
+    /** Counts [by] characters of this reply (answer text included) against [limit]. */
+    fun grow(by: Int) { size += by; check(size <= limit) { AiText.t(AiMsg.ANSWER_TOO_LONG) } }
 
     fun reply(content: String) = AiReply(content, reasoning.toString(),
         parts.entries.filter { it.value.name.isNotEmpty() }.map { (index, part) -> AiToolCall(part.id.ifEmpty { "call_$index" }, part.name, part.arguments.toString()) })
