@@ -84,10 +84,9 @@ android {
 
     buildTypes {
         debug {
-            versionNameSuffix = if (aiPreview) "-ai-preview3" else if (splitPreview) "-split-preview11" else "-movinkpad-preview1"
+            versionNameSuffix = if (aiPreview) "-ai-preview3" else if (splitPreview) "-split-preview11" else "-preview1"
         }
         release {
-            versionNameSuffix = "-movinkpad"
             isDebuggable = false
             signingConfig = when {
                 previewUpgradeSigning -> signingConfigs.getByName("debug")

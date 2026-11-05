@@ -137,18 +137,21 @@ class SettingsTest {
         val prefs = Preferences(
             twoFingerTap = "undo",
             threeFingerTap = "redo",
-            stylusDoubleTap = "toggle_eraser",
-            stylusButtonTap = "toggle_pan",
-            stylusButton1Tap = "toggle_previous",
-            stylusButton2Tap = "undo",
         )
         val back = Settings.fromJson(Settings(prefs = prefs).toJson()).prefs
         assertEquals("undo", back.twoFingerTap)
         assertEquals("redo", back.threeFingerTap)
-        assertEquals("toggle_eraser", back.stylusDoubleTap)
-        assertEquals("toggle_pan", back.stylusButtonTap)
-        assertEquals("toggle_previous", back.stylusButton1Tap)
-        assertEquals("undo", back.stylusButton2Tap)
+    }
+
+    @Test fun retiredStylusTapSettingsAreIgnoredOnLoad() {
+        // Settings saved before recorded pen mappings replaced them still load, and are not written back.
+        val json = Settings(prefs = Preferences(twoFingerTap = "undo")).toJson()
+        json.getJSONObject("prefs").put("stylus_double_tap", "toggle_eraser").put("stylus_button_tap", "toggle_pan")
+            .put("stylus_button_1_tap", "toggle_previous").put("stylus_button_2_tap", "undo")
+        val back = Settings.fromJson(json)
+        assertEquals("undo", back.prefs.twoFingerTap)
+        val written = back.toJson().getJSONObject("prefs")
+        for (key in listOf("stylus_double_tap", "stylus_button_tap", "stylus_button_1_tap", "stylus_button_2_tap")) assertFalse(key, written.has(key))
     }
 
     @Test fun frontBufferingIsOnUntilItIsTurnedOff() {

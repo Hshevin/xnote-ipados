@@ -2,7 +2,7 @@
 <resources>
     <string name="pen_shortcuts_title">手写笔按键映射</string>
     <string name="pen_shortcuts_help">先录入按键，再分配工具或操作。映射仅在文档编辑器内生效；书写中切换工具会等到抬笔后执行。</string>
-    <string name="pen_shortcuts_empty">尚未录入按键。旧 Pro Pen 3 映射不再使用，请重新录入按键。</string>
+    <string name="pen_shortcuts_empty">尚未录入按键。录入手写笔按键后即可为其分配工具或操作。</string>
     <string name="pen_record_add">录入按键</string>
     <string name="pen_record_help">请在 15 秒内将笔悬停在下方区域，按下一个按键并松开。没有反应时，请按住按键轻触区域，再松开。也可录入以键盘事件上报的笔按键。</string>
     <string name="pen_record_area">按键录入区域</string>
