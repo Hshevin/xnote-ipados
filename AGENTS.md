@@ -62,6 +62,8 @@
 
 - AI 设置（2026-11-03）：模型列表仅在用户点击「从供应商获取」时向所配置供应商 `/models` 发送请求；自定义提示词与思考深度只用于回答请求（联网工具在回答请求内调用，同样使用会话设置），PDF 工具步骤使用 `AiConfig.forTools()`。会话内的模型/深度选择存于会话记录，缺省跟随默认。上限（如 200 个模型）须在添加时拒绝并提示，保存时校验失败，不得静默截断。本轮不打包 APK。
 
+- 多模型供应商（2026-11-05，参照 DeepSeek Harness）：每个供应商有永久、不显示的内部 ID，聊天记录与默认值以「供应商 ID + 模型」引用；不要改成按名称或 URL 引用。旧单供应商配置迁移为固定 ID `default`，保存时顶层字段仍写默认供应商以便降级读取。供应商被删除的会话不得回退到其他供应商发送，须显示「选择模型」并拒绝发送。仅支持 OpenAI Chat Completions。详见 `docs/movinkpad/ai-providers-2026-11-05.md`。
+
 - 联网搜索仅保留开关，不让用户填写检索词。2026-11-04 起按用户要求参照 DeepSeek Harness：开关打开时向回答模型提供原生 `web_search` / `web_fetch` 工具，由模型按需调用（有轮数与数量上限）；模型或接口不支持工具调用（请求被 400/422 拒绝）时不联网直接回答，并在该轮明确标注，不再回退到单独的检索词识别。网页资料以工具结果返回、标为不可信数据，不当指令或替代问题。
 
 - AI PDF attachments: only explicitly selected PDFs are snapshotted under noBackupFilesDir; model reads are restricted to attachment IDs in the active chat. Never expose arbitrary filesystem access. PDF text/images go to the configured provider only after Send. Keep original PDFs unchanged; UI closure must not cancel app-owned generation.

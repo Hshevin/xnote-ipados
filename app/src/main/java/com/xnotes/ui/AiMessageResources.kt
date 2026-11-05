@@ -31,6 +31,11 @@ internal fun AiMsg.resId(): Int = when (this) {
     AiMsg.CONFIG_INSTRUCTIONS_TOO_LONG -> R.string.ai_msg_config_instructions_too_long
     AiMsg.CONFIG_TOO_MANY_MODELS -> R.string.ai_msg_config_too_many_models
     AiMsg.CONFIG_THINKING_INVALID -> R.string.ai_msg_config_thinking_invalid
+    AiMsg.CONFIG_TOO_MANY_PROVIDERS -> R.string.ai_msg_config_too_many_providers
+    AiMsg.CONFIG_PROVIDER_PROBLEM -> R.string.ai_msg_config_provider_problem
+    AiMsg.CONFIG_PROVIDERS_INVALID -> R.string.ai_msg_config_providers_invalid
+    AiMsg.CONFIG_DEFAULT_MODEL_REQUIRED -> R.string.ai_msg_config_default_model_required
+    AiMsg.PROVIDER_REMOVED -> R.string.ai_msg_provider_removed
     AiMsg.MODELS_HTTP_FAILED -> R.string.ai_msg_models_http_failed
     AiMsg.MODELS_RESPONSE_TOO_LARGE -> R.string.ai_msg_models_response_too_large
     AiMsg.MODELS_INVALID_REPLY -> R.string.ai_msg_models_invalid_reply

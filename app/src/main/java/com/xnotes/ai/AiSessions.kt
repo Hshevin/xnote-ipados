@@ -268,10 +268,13 @@ class AiSessions(
     fun rename(id: String, title: String) {
         chats[id]?.let { val next = it.copy(title = title.trim().take(100).ifBlank { "新会话" }); chats[id] = next; persist(next) }
     }
-    /** Pick this chat's model and thinking level for its next questions; a running answer keeps its own. */
-    fun choose(id: String, model: String? = null, effort: String? = null) {
+    /**
+     * Pick this chat's model (through [provider], when providers are set up) and thinking level for its
+     * next questions; a running answer keeps its own.
+     */
+    fun choose(id: String, model: String? = null, effort: String? = null, provider: String? = null) {
         val chat = chats[id] ?: return
-        val next = chat.copy(model = model?.trim() ?: chat.model, effort = effort?.takeIf { it in AiThinking.LEVELS } ?: chat.effort)
+        val next = chat.copy(model = model?.trim() ?: chat.model, provider = provider ?: chat.provider, effort = effort?.takeIf { it in AiThinking.LEVELS } ?: chat.effort)
         if (next != chat) { chats[id] = next; persist(next) }
     }
     fun isRunning(id: String) = requests.containsKey(id)
@@ -284,7 +287,9 @@ class AiSessions(
             var started = false
             var pdfLease: AutoCloseable? = null
             try {
-                val settings = original.settings(config())
+                val defaults = config()
+                require(original.routable(defaults)) { AiText.t(AiMsg.PROVIDER_REMOVED) }
+                val settings = original.settings(defaults)
                 val tools = settings.forTools()
                 require(settings.key.isNotBlank()) { AiText.t(AiMsg.PROVIDER_NOT_CONFIGURED) }
                 AiProtocol.endpoint(settings.url)

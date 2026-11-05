@@ -15,10 +15,29 @@ import javax.crypto.spec.GCMParameterSpec
 import org.json.JSONObject
 
 /**
- * The provider and how to ask it. [model] is the default for new chats and [models] the user's pick
- * list; [effort] is the default thinking level ("" leaves it to the provider) and [thinkingFormat]
- * which request field carries it. [instructions] is the user's own system prompt for answers.
- * [searchByDefault] and [attachPdfByDefault] are how a new chat starts out.
+ * One model provider, configured as DeepSeek Harness configures a route: its own endpoint, key, model
+ * list and thinking-field format. [id] is permanent — chats and the default name a provider by it — so
+ * it is generated once and never shown; [name] is the editable label. Only OpenAI Chat Completions is spoken.
+ */
+data class AiProvider(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val name: String = "", val url: String = "", val key: String = "",
+    val models: List<String> = emptyList(),
+    val thinkingFormat: String = AiThinking.AUTO,
+) {
+    /** The saved models in the user's order, trimmed and without repeats. */
+    val modelChoices: List<String> get() = models.map(String::trim).filter(String::isNotEmpty).distinct()
+    /** The label, else the endpoint host, so an unnamed provider still reads as something. */
+    val label: String get() = name.trim().ifEmpty { runCatching { java.net.URI(url.trim()).host }.getOrNull().orEmpty().ifEmpty { url.trim() } }
+}
+
+/**
+ * The AI setup, resolved to one route. [providers] are the configured providers and [provider] the
+ * default one's ID; [url], [key], [models] and [thinkingFormat] belong to the route in use and are
+ * filled by [route]. A config without providers (tests, the request builder) is a single bare route.
+ * [model] is the default for new chats, [effort] the default thinking level ("" leaves it to the
+ * provider), [instructions] the user's own system prompt for answers. [searchByDefault] and
+ * [attachPdfByDefault] are how a new chat starts out.
  */
 data class AiConfig(
     val url: String = "", val model: String = "", val key: String = "", val searchKey: String = "",
@@ -29,11 +48,34 @@ data class AiConfig(
     val instructions: String = "",
     val searchByDefault: Boolean = false,
     val attachPdfByDefault: Boolean = false,
+    val providers: List<AiProvider> = emptyList(),
+    val provider: String = "",
 ) {
     /** The saved pick list in the user's order, always holding the default model. */
     val modelChoices: List<String> get() = (if (model.trim() in models.map(String::trim)) models else listOf(model) + models).map(String::trim).filter(String::isNotEmpty).distinct()
     /** PDF tool steps must return bare JSON: no thinking, no user prompt. */
     fun forTools(): AiConfig = copy(effort = "", instructions = "")
+    fun providerOf(id: String): AiProvider? = providers.firstOrNull { it.id == id }
+    /**
+     * This setup sending [model] through provider [id]. A provider that no longer exists leaves the
+     * route without endpoint or key, so nothing is sent until another model is picked.
+     */
+    fun route(id: String, model: String): AiConfig {
+        if (providers.isEmpty()) return copy(model = model)
+        val p = providerOf(id) ?: return copy(provider = id, url = "", key = "", models = emptyList(), thinkingFormat = AiThinking.AUTO, model = model)
+        return copy(provider = p.id, url = p.url, key = p.key, models = p.modelChoices, thinkingFormat = p.thinkingFormat, model = model)
+    }
+    /**
+     * After providers were edited or deleted: the default stays where it was if it still exists, else
+     * moves to the first provider and its first model, so settings never save a dangling default.
+     */
+    fun withValidDefault(): AiConfig {
+        val p = providerOf(provider) ?: providers.firstOrNull() ?: return copy(provider = "", model = "", url = "", key = "", models = emptyList())
+        return route(p.id, model.trim().takeIf { it in p.modelChoices } ?: p.modelChoices.firstOrNull().orEmpty())
+    }
+    /** The provider a model picked before providers existed belongs to: the default's if it lists it. */
+    fun ownerOf(model: String): String? =
+        (listOfNotNull(providerOf(provider)) + providers).firstOrNull { model.trim() in it.modelChoices }?.id
 }
 
 /** Keystore-encrypted, atomic, excluded from Android backup and note exports. */
@@ -55,25 +97,13 @@ class AiConfigStore(context: Context) {
         require(bytes.size > 12)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, bytes.copyOfRange(0, 12)))
-        val json = JSONObject(String(cipher.doFinal(bytes.copyOfRange(12, bytes.size)), Charsets.UTF_8))
-        val models = json.optJSONArray("models")?.let { list -> (0 until list.length()).mapNotNull { list.opt(it) as? String } } ?: emptyList()
-        return AiConfig(json.getString("url"), json.getString("model"), json.getString("key"), json.optString("searchKey", ""),
-            models = models, effort = json.optString("effort", "").takeIf { it in AiThinking.LEVELS } ?: "",
-            thinkingFormat = json.optString("thinkingFormat", AiThinking.AUTO).takeIf { it in AiThinking.FORMATS } ?: AiThinking.AUTO,
-            maxTokens = json.optInt("maxTokens", AiProtocol.DEFAULT_MAX_TOKENS).coerceIn(AiProtocol.MIN_MAX_TOKENS, AiProtocol.MAX_MAX_TOKENS),
-            // A config saved before prompts existed gets the default; an emptied prompt stays empty.
-            instructions = if (json.has("instructions")) json.optString("instructions", "") else defaultInstructions,
-            searchByDefault = json.optBoolean("searchByDefault", false), attachPdfByDefault = json.optBoolean("attachPdfByDefault", false))
+        return decode(JSONObject(String(cipher.doFinal(bytes.copyOfRange(12, bytes.size)), Charsets.UTF_8)), defaultInstructions)
     }
     fun save(config: AiConfig) {
         validate(config)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, key())
-        val json = JSONObject().put("url", config.url.trim()).put("model", config.model.trim()).put("key", config.key.trim()).put("searchKey", config.searchKey.trim())
-            .put("models", org.json.JSONArray(config.modelChoices)).put("effort", config.effort).put("thinkingFormat", config.thinkingFormat)
-            .put("maxTokens", config.maxTokens).put("instructions", config.instructions.trim())
-            .put("searchByDefault", config.searchByDefault).put("attachPdfByDefault", config.attachPdfByDefault)
-        val bytes = cipher.iv + cipher.doFinal(json.toString().toByteArray(Charsets.UTF_8))
+        val bytes = cipher.iv + cipher.doFinal(encode(config).toString().toByteArray(Charsets.UTF_8))
         val out = file.startWrite()
         try { out.write(bytes); file.finishWrite(out) } catch (e: Exception) { file.failWrite(out); throw e }
     }
@@ -81,16 +111,92 @@ class AiConfigStore(context: Context) {
 
 
     companion object {
+        /** The ID a single-provider setup from before providers existed migrates to; fixed so chats keep it. */
+        const val LEGACY_PROVIDER = "default"
+        const val MAX_PROVIDERS = 20
+
+        /** The providers [config] holds, or its bare route as one provider when it has none. */
+        private fun providersOf(config: AiConfig): List<AiProvider> = config.providers.ifEmpty {
+            if (config.url.isBlank() && config.key.isBlank() && config.modelChoices.isEmpty()) emptyList()
+            else listOf(AiProvider(LEGACY_PROVIDER, "", config.url, config.key, config.modelChoices, config.thinkingFormat))
+        }
+
+        /**
+         * The stored form. The default provider's endpoint, key and models are also written at the top
+         * level, where builds from before providers read them, so going back keeps the default working.
+         */
+        fun encode(config: AiConfig): JSONObject {
+            val providers = providersOf(config)
+            val current = providers.firstOrNull { it.id == config.provider } ?: providers.firstOrNull()
+            val list = org.json.JSONArray()
+            providers.forEach { p ->
+                list.put(JSONObject().put("id", p.id).put("name", p.name.trim()).put("url", p.url.trim()).put("key", p.key.trim())
+                    .put("models", org.json.JSONArray(p.modelChoices)).put("thinkingFormat", p.thinkingFormat))
+            }
+            val model = config.model.trim()
+            val defaultModels = current?.modelChoices.orEmpty()
+            return JSONObject().put("url", current?.url?.trim().orEmpty()).put("model", model).put("key", current?.key?.trim().orEmpty())
+                .put("searchKey", config.searchKey.trim())
+                .put("models", org.json.JSONArray(if (model.isEmpty() || model in defaultModels) defaultModels else listOf(model) + defaultModels))
+                .put("effort", config.effort).put("thinkingFormat", current?.thinkingFormat ?: AiThinking.AUTO)
+                .put("maxTokens", config.maxTokens).put("instructions", config.instructions.trim())
+                .put("searchByDefault", config.searchByDefault).put("attachPdfByDefault", config.attachPdfByDefault)
+                .put("providers", list).put("provider", current?.id.orEmpty())
+        }
+
+        /** A stored setup, resolved to its default route; one from before providers becomes [LEGACY_PROVIDER]. */
+        fun decode(json: JSONObject, defaultInstructions: String): AiConfig {
+            fun strings(from: JSONObject) = from.optJSONArray("models")?.let { list -> (0 until list.length()).mapNotNull { list.opt(it) as? String } } ?: emptyList()
+            fun format(from: JSONObject) = from.optString("thinkingFormat", AiThinking.AUTO).takeIf { it in AiThinking.FORMATS } ?: AiThinking.AUTO
+            val model = json.optString("model", "")
+            val providers = json.optJSONArray("providers")?.let { list ->
+                (0 until list.length()).mapNotNull { list.optJSONObject(it) }.mapNotNull { p ->
+                    val id = (p.opt("id") as? String)?.takeIf(String::isNotBlank) ?: return@mapNotNull null
+                    AiProvider(id, p.optString("name", ""), p.optString("url", ""), p.optString("key", ""), strings(p), format(p))
+                }.distinctBy { it.id }
+            } ?: run {
+                val url = json.optString("url", ""); val key = json.optString("key", "")
+                val legacyModels = strings(json).let { if (model.isBlank() || model in it) it else listOf(model) + it }
+                if (url.isBlank() && key.isBlank() && legacyModels.isEmpty()) emptyList()
+                else listOf(AiProvider(LEGACY_PROVIDER, "", url, key, legacyModels, format(json)))
+            }
+            val provider = json.optString("provider", "").takeIf { id -> providers.any { it.id == id } } ?: providers.firstOrNull()?.id.orEmpty()
+            val config = AiConfig(searchKey = json.optString("searchKey", ""),
+                effort = json.optString("effort", "").takeIf { it in AiThinking.LEVELS } ?: "",
+                maxTokens = json.optInt("maxTokens", AiProtocol.DEFAULT_MAX_TOKENS).coerceIn(AiProtocol.MIN_MAX_TOKENS, AiProtocol.MAX_MAX_TOKENS),
+                // A config saved before prompts existed gets the default; an emptied prompt stays empty.
+                instructions = if (json.has("instructions")) json.optString("instructions", "") else defaultInstructions,
+                searchByDefault = json.optBoolean("searchByDefault", false), attachPdfByDefault = json.optBoolean("attachPdfByDefault", false),
+                providers = providers, provider = provider)
+            return if (providers.isEmpty()) config.copy(model = model) else config.route(provider, model)
+        }
+
+        /** What one provider needs before it can be kept: an HTTPS endpoint, a key and at least one model. */
+        fun validateProvider(p: AiProvider) {
+            AiProtocol.endpoint(p.url)
+            require(p.key.isNotBlank() && p.modelChoices.isNotEmpty()) { AiText.t(AiMsg.CONFIG_MODEL_KEY_REQUIRED) }
+            require(!p.key.contains('\n') && !p.key.contains('\r')) { AiText.t(AiMsg.CONFIG_KEY_INVALID) }
+            require(p.modelChoices.size <= AiProtocol.MAX_MODELS) { AiText.t(AiMsg.CONFIG_TOO_MANY_MODELS, AiProtocol.MAX_MODELS) }
+            require(p.thinkingFormat in AiThinking.FORMATS) { AiText.t(AiMsg.CONFIG_THINKING_INVALID) }
+        }
+
         /** Everything [save] refuses, checked before anything is written; the previous file stays. */
         fun validate(config: AiConfig) {
-            AiProtocol.endpoint(config.url)
-            require(config.model.isNotBlank() && config.key.isNotBlank()) { AiText.t(AiMsg.CONFIG_MODEL_KEY_REQUIRED) }
-            require(!config.key.contains('\n') && !config.key.contains('\r')) { AiText.t(AiMsg.CONFIG_KEY_INVALID) }
+            val providers = providersOf(config)
+            require(providers.isNotEmpty()) { AiText.t(AiMsg.CONFIG_MODEL_KEY_REQUIRED) }
+            require(providers.size <= MAX_PROVIDERS) { AiText.t(AiMsg.CONFIG_TOO_MANY_PROVIDERS, MAX_PROVIDERS) }
+            require(providers.all { it.id.isNotBlank() } && providers.distinctBy { it.id }.size == providers.size) { AiText.t(AiMsg.CONFIG_PROVIDERS_INVALID) }
+            providers.forEach { p ->
+                try { validateProvider(p) } catch (e: IllegalArgumentException) { throw IllegalArgumentException(AiText.t(AiMsg.CONFIG_PROVIDER_PROBLEM, p.label.ifEmpty { "?" }, e.message.orEmpty())) }
+            }
+            val default = if (config.providers.isEmpty()) providers.first() else config.providerOf(config.provider)
+            require(default != null && config.model.trim() in default.modelChoices + listOfNotNull(config.model.trim().takeIf { config.providers.isEmpty() && it.isNotEmpty() })) {
+                AiText.t(AiMsg.CONFIG_DEFAULT_MODEL_REQUIRED)
+            }
             require(!config.searchKey.contains('\n') && !config.searchKey.contains('\r')) { AiText.t(AiMsg.CONFIG_SEARCH_KEY_INVALID) }
-            require(config.modelChoices.size <= AiProtocol.MAX_MODELS) { AiText.t(AiMsg.CONFIG_TOO_MANY_MODELS, AiProtocol.MAX_MODELS) }
             require(config.maxTokens in AiProtocol.MIN_MAX_TOKENS..AiProtocol.MAX_MAX_TOKENS) { AiText.t(AiMsg.CONFIG_MAX_TOKENS_INVALID, AiProtocol.MIN_MAX_TOKENS, AiProtocol.MAX_MAX_TOKENS) }
             require(config.instructions.length <= AiProtocol.MAX_INSTRUCTIONS) { AiText.t(AiMsg.CONFIG_INSTRUCTIONS_TOO_LONG, AiProtocol.MAX_INSTRUCTIONS) }
-            require(config.effort in AiThinking.LEVELS && config.thinkingFormat in AiThinking.FORMATS) { AiText.t(AiMsg.CONFIG_THINKING_INVALID) }
+            require(config.effort in AiThinking.LEVELS) { AiText.t(AiMsg.CONFIG_THINKING_INVALID) }
         }
     }
 }

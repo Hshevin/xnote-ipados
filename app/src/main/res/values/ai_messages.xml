@@ -78,6 +78,11 @@
     <string name="ai_msg_config_max_tokens_invalid">Max output must be between %1$d and %2$d tokens</string>
     <string name="ai_msg_config_instructions_too_long">Custom instructions can\'t exceed %1$d characters</string>
     <string name="ai_msg_config_thinking_invalid">Invalid thinking settings</string>
+    <string name="ai_msg_config_too_many_providers">You can add up to %1$d model providers</string>
+    <string name="ai_msg_config_provider_problem">Provider “%1$s”: %2$s</string>
+    <string name="ai_msg_config_providers_invalid">Invalid provider settings</string>
+    <string name="ai_msg_config_default_model_required">Choose the default model for new chats</string>
+    <string name="ai_msg_provider_removed">The provider this chat used was deleted. Pick another model from the model menu</string>
     <string name="ai_msg_models_http_failed">Couldn\'t load models (HTTP %1$d). Check the URL and API key.</string>
     <string name="ai_msg_models_response_too_large">The model list is too large</string>
     <string name="ai_msg_models_invalid_reply">The provider returned no recognisable model list</string>

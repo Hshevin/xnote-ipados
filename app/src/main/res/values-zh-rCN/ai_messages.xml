@@ -78,6 +78,11 @@
     <string name="ai_msg_config_max_tokens_invalid">最大输出长度须在 %1$d–%2$d 之间</string>
     <string name="ai_msg_config_instructions_too_long">自定义提示词不能超过 %1$d 个字符</string>
     <string name="ai_msg_config_thinking_invalid">思考设置无效</string>
+    <string name="ai_msg_config_too_many_providers">最多添加 %1$d 个模型供应商</string>
+    <string name="ai_msg_config_provider_problem">供应商「%1$s」：%2$s</string>
+    <string name="ai_msg_config_providers_invalid">供应商设置无效</string>
+    <string name="ai_msg_config_default_model_required">请选择新会话的默认模型</string>
+    <string name="ai_msg_provider_removed">此会话所选的供应商已删除，请在模型菜单中重新选择</string>
     <string name="ai_msg_models_http_failed">获取模型列表失败（HTTP %1$d），请检查地址与 API Key</string>
     <string name="ai_msg_models_response_too_large">模型列表过大</string>
     <string name="ai_msg_models_invalid_reply">服务未返回可识别的模型列表</string>

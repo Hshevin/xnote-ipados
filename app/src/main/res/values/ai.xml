@@ -155,4 +155,33 @@
     <string name="ai_instructions_default_zh">Default (Chinese)</string>
     <string name="ai_instructions_default_en">Default (English)</string>
     <string name="ai_instructions_clear">Clear</string>
+    <string name="ai_settings_providers">Model providers</string>
+    <string name="ai_settings_providers_note">Each provider has its own URL, API key and models; chats pick a provider and model from the input bar. Providers must speak OpenAI Chat Completions with image input. Nothing is uploaded until you tap Send.</string>
+    <string name="ai_providers_empty">No providers yet. Add one to start using AI.</string>
+    <string name="ai_provider_add">Add model provider</string>
+    <string name="ai_provider_edit">Edit provider</string>
+    <string name="ai_provider_name">Display name</string>
+    <string name="ai_provider_name_hint">Shown in the model menu, e.g. DeepSeek</string>
+    <string name="ai_provider_preset">Preset</string>
+    <string name="ai_provider_preset_note">Fills in the name and URL; you still need your own key and models</string>
+    <string name="ai_provider_preset_custom">Custom</string>
+    <string name="ai_provider_models_note">At least one model, using the IDs this provider expects.</string>
+    <string name="ai_provider_delete">Delete provider</string>
+    <string name="ai_provider_delete_confirm">Delete this provider? Chats that use it will ask you to pick another model.</string>
+    <string name="ai_provider_delete_do">Delete</string>
+    <string name="ai_provider_done">Done</string>
+    <plurals name="ai_provider_models">
+        <item quantity="one">%d model</item>
+        <item quantity="other">%d models</item>
+    </plurals>
+    <string name="ai_model_select">Select model</string>
+    <string name="ai_models_no_match">No matching models</string>
+    <string name="ai_preset_deepseek">DeepSeek</string>
+    <string name="ai_preset_openai">OpenAI</string>
+    <string name="ai_preset_openrouter">OpenRouter</string>
+    <string name="ai_preset_qwen">Alibaba Cloud Model Studio (Qwen)</string>
+    <string name="ai_preset_moonshot">Moonshot AI (Kimi)</string>
+    <string name="ai_preset_zhipu">Zhipu AI (GLM)</string>
+    <string name="ai_preset_siliconflow">SiliconFlow</string>
+    <string name="ai_preset_gemini">Google Gemini</string>
 </resources>
