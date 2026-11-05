@@ -7,6 +7,7 @@
 - 先读 `MOVINKPAD.md`、`README.md`、`docs/movinkpad/project-brief.md`，并检查 `git status`。
 - 本仓库自成一体，外层工作区的诊断工具不是本仓库的模块。外层工作区与本仓库各自维护说明；原型功能以本仓库为准。
 - 目标设备：Wacom MovinkPad Pro 14、Android 15、Pro Pen 3。产品参照：OneNote Android 平板版（不改为 Windows 桌面版）。
+- 新增目标平台：iPadOS。开始 iPadOS 工作时还须阅读 `docs/movinkpad/ipados-port-plan-2026-11-05.md`；第一版以当前 Android 功能和 UI 语义为基线，不以重新设计或精简版替代等价移植。
 - 保留上游许可证与第三方声明。
 - 需要 Python 环境时用 `uv` 创建。临时文件放在已忽略的 `tmp/`，不放进源码或正式文档。
 
@@ -17,6 +18,17 @@
 - 交付限定 ARM64；不使用 `android.injected.build.abi` 等 IDE 注入参数，避免生成 testOnly APK。
 - Release 构建的 `buildDirectory` 放到 iCloud 同步目录之外，避免出现 `… 2.*` 重复文件（见 Release 记录）。
 - 分支测试使用独立工作树和构建目录。ARM64 交付与 x86_64 模拟器构建除输出目录外，还需用 `--project-cache-dir` 隔离 Gradle 项目状态，避免切换构建目录后 DEX 增量缓存残留旧路径。
+
+### iPadOS 移植
+
+- iPadOS 第一版参考 OwlLuna、Signotes、Saber 与 Linwood Butterfly；OwlLuna / Signotes 的 MIT 代码只有在保留声明并确认适用范围后才可复用，Saber（GPL-3.0）与 Butterfly（AGPL-3.0）只参考行为和架构，不复制源码进本 MIT 工程。
+- 使用 SwiftUI 构建应用外壳、UIKit 承载高频输入和画布、Metal 重写实时绘制，PDF 优先评估 PDFKit。PencilKit 可用于能力原型和体验对照，不得把 `PKDrawing` 变成 `.xnote` 的源格式。
+- 优先把模型、几何、撤销、工具语义和文档编解码抽成 Kotlin Multiplatform 共享层；平台文件、UI、输入、GPU、PDF 和密钥存储分别原生实现。抽取过程不得改变 Android 现有行为或格式。
+- `.xnote` 是 Android / iPadOS 的共同可编辑格式。每个格式阶段都验证 Android 写入→iPadOS 读取/保存→Android 重开；原 PDF 字节、文档身份、图层归属和失败恢复规则保持不变。
+- 第一版不移植自定义按键录入。Apple Pencil 接触、合并点、预测点、估计值修正、取消和悬停按系统事件处理；双击遵循系统 Pencil 偏好，挤压显示紧凑工具面板，笔杆旋转只影响有方向性的笔刷。硬件不支持的事件不显示设置或伪造结果。
+- 第一版不新增账号、iCloud 同步或协作；本地文件、私有 PDF 对象、AI 历史和密钥继续分开，API 密钥在 iPadOS 使用 Keychain。
+- Xcode Archive、签名配置、真机安装、TestFlight 与 App Store 发布均需用户每次明确要求；规划和普通源码验证不构成这些授权。
+- iPad 模拟器结果不代表 Apple Pencil、Metal、PDFKit 或目标设备兼容。输入延迟、120 Hz、悬停、挤压、内存和大型 PDF 均单独记录真机型号、iPadOS、Pencil 型号与结果。
 
 ## Git、打包与发布
 

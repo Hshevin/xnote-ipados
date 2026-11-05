@@ -1,10 +1,11 @@
 # 项目说明
 
-状态：已建立 Pen Input Lab；2026-10-30 按用户要求转为基于 XNotes 开发第一版，已实现三键映射与黑白调色板，目标真机验收待执行。完整笔记功能对齐尚未完成，见 [第一版记录](xnotes-first-version.md)。
+状态：已建立 Pen Input Lab；2026-10-30 按用户要求转为基于 XNotes 开发第一版，已实现三键映射与黑白调色板，目标真机验收待执行。2026-11-05 新增 iPadOS 等价移植目标，现处于已制定计划、尚未建立 iOS 工程阶段，见 [iPadOS 第一版移植计划](ipados-port-plan-2026-11-05.md)。完整笔记功能对齐尚未完成，见 [第一版记录](xnotes-first-version.md)。
 
 ## 已确认的目标
 
 - 专供 Wacom MovinkPad Pro 14 使用，兼容设备配套 Wacom Pro Pen 3。
+- 在不取代 Android 版本的前提下移植到 iPadOS。第一版保留当前分页笔记、PDF、无限画布、图层、双窗格、本地存储、AI 与黑白 UI 语义，并保持 `.xnote` 与 Android 双向可编辑；自定义按键录入暂不移植，改用固定 Apple Pencil 系统事件。
 - 功能与交互逻辑对齐 OneNote **Android 平板版**，由用户明确选定。
 - 不考虑云端同步；笔记内容在设备本地保存。
 - 当前先交付笔输入测试软件，采集不同快捷键下的输入，供后续笔记软件开发。
@@ -46,6 +47,8 @@ Android 提供标准笔输入能力，可作为输入验证的起点；是否需
 ## 当前技术方向
 
 2026-10-30：用户明确要求基于 XNotes，正式原型位于本仓库根目录，采用上游 Kotlin / Compose 与其原生绘制实现。保留 外部诊断工程的 `app/` 诊断工具。以下早期候选说明仅作为历史背景，不再要求新建 `notes/` 模块。
+
+2026-11-05：iPadOS 采用原生 SwiftUI / UIKit / Metal 路线，PDF 优先评估 PDFKit；PencilKit 只用于能力原型和对照，不替代现有文档模型。模型、几何、撤销、工具语义和格式优先抽成 Kotlin Multiplatform 共享层。参考 OwlLuna、Signotes、Saber 和 Butterfly，但 GPL / AGPL 项目不复制源码。详细阶段、固定 Apple Pencil 行为与兼容性门槛见 [iPadOS 第一版移植计划](ipados-port-plan-2026-11-05.md)。
 
 ### 早期候选
 
