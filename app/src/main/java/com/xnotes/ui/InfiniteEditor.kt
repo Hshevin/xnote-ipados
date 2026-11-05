@@ -156,8 +156,11 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     /** Per-tool style, with the toolbar's active ink colour folded in at draw time. */
     private val toolConfigs = HashMap<Tool, ToolConfig>()
 
-    /** The armed tool, mirrored into Compose so the toolbar can show which one it is. */
+    /** The effective tool used for drawing, including temporary HOLD overrides. */
     var tool by mutableStateOf(Tool.PEN)
+        private set
+    /** Formal selection shown in chrome; HOLD shortcuts only change the effective tool. */
+    var toolbarTool by mutableStateOf(Tool.PEN)
         private set
 
     /** The active ink colour, used by any tool without a colour override of its own. */
@@ -296,11 +299,11 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     }
 
     init {
-        view.input = { event -> proPenInput.touch(event) { interaction.onTouch(event) } }
+        view.input = { event -> beforePenInput(event); proPenInput.touch(event) { interaction.onTouch(event) } }
         view.crossPaneTouchGate.shouldBlock = { otherPenInContact() }
-        view.genericMotion = { proPenInput.motion(it); interaction.onGenericMotion(it) }
-        view.onInputLost = { resetPenButtons() }
-        view.hover = { proPenInput.motion(it, beforeHover(it)); interaction.onHover(it) }
+        view.genericMotion = { beforePenInput(it); proPenInput.motion(it); interaction.onGenericMotion(it) }
+        view.onInputLost = { proPenInput.surfaceDetached() }
+        view.hover = { beforePenInput(it); proPenInput.motion(it); interaction.onHover(it) }
         view.afterLayout = { applyInitialView() }
         view.onContextReady = { renderFailure = view.failure }
         pad.onSurfaceLost = { endFrontInk(); settleHeld() }
@@ -418,16 +421,22 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     // --- tools ---
 
     /** Shared preferences supplied by the owning paged editor. */
-    var proPenBindings: () -> Map<Int, com.xnotes.pen.PenBinding> = { emptyMap() }
+    var penShortcuts: () -> List<com.xnotes.pen.PenShortcut> = { emptyList() }
     private val proPenInput by lazy {
-        com.xnotes.pen.ProPenInput({ proPenBindings() }, { tool }, ::armTool, ::dispatchTapGesture)
+        com.xnotes.pen.ProPenInput(
+            { penShortcuts() }, { tool }, ::armTool, ::dispatchTapGesture,
+            { toolbarTool = it },
+        )
     }
     var otherPenInContact: () -> Boolean = { false }
     val stylusInContact: Boolean get() = proPenInput.stylusInContact
-    var beforeHover: (android.view.MotionEvent) -> Int? = { null }
-    val hoverButtons: Int get() = proPenInput.lastButtons
+    var beforePenInput: (android.view.MotionEvent) -> Unit = {}
     fun clearHover() = interaction.clearHover()
     fun resetPenButtons() = proPenInput.reset()
+
+    fun onRecordedPenKey(e: android.view.KeyEvent): Boolean = proPenInput.key(e)
+    val penSnapshot: com.xnotes.pen.PenInputSnapshot get() = proPenInput.snapshot
+    fun inheritPenInput(snapshot: com.xnotes.pen.PenInputSnapshot) = proPenInput.inherit(snapshot)
 
     /** The single tool armed before this one, for tap-gesture toggles. */
     private var previousTool: Tool? = null

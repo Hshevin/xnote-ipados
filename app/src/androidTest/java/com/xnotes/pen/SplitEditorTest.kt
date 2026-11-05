@@ -543,10 +543,10 @@ class SplitEditorTest {
     }
 
     @Test fun heldShortcutSurvivesCrossingAndReturningThenReleases() = onMain { a ->
-        val oldBindings = a.preferences.proPenBindings
+        val oldBindings = a.preferences.penShortcuts
         val b = a.secondaryPane()
         b.openSharedView(a)
-        a.setProPenBindings(mapOf(0x20 to PenBinding("eraser", PenBindingMode.HOLD)))
+        a.setPenShortcuts(listOf(PenShortcut("Button", listOf(PenTrigger(PenTrigger.Kind.MOTION, 0x20, "", android.view.InputDevice.SOURCE_STYLUS)), PenBinding("eraser", PenBindingMode.HOLD))))
         a.selectTool(com.xnotes.core.tools.Tool.PEN)
         fun hover(editor: Editor, action: Int, mask: Int) {
             val property = android.view.MotionEvent.PointerProperties().apply { id = 0; toolType = android.view.MotionEvent.TOOL_TYPE_STYLUS }
@@ -567,7 +567,50 @@ class SplitEditorTest {
             hover(a, android.view.MotionEvent.ACTION_HOVER_MOVE, 0)
             assertEquals(com.xnotes.core.tools.Tool.PEN, a.tool)
             assertFalse(a.history.canUndo)
-        } finally { a.setProPenBindings(oldBindings) }
+        } finally { a.setPenShortcuts(oldBindings) }
+    }
+
+    @Test fun titleFocusDoesNotReviveOverriddenMotionHold() = onMain { a ->
+        val old = a.preferences.penShortcuts
+        val b = a.secondaryPane()
+        b.openSharedView(a)
+        try {
+            a.setPenShortcuts(listOf(PenShortcut("Button", listOf(PenTrigger(PenTrigger.Kind.MOTION, 32, "", android.view.InputDevice.SOURCE_STYLUS)), PenBinding("eraser"))))
+            a.selectTool(com.xnotes.core.tools.Tool.PEN)
+            recordedHover(a, 32)
+            assertEquals(com.xnotes.core.tools.Tool.ERASER, a.tool)
+            a.selectTool(com.xnotes.core.tools.Tool.PEN)
+            a.focusPane(Pane.SECONDARY) // title/finger focus occurs before the first hover in B
+            recordedHover(b, 32)
+            assertEquals(com.xnotes.core.tools.Tool.PEN, b.tool)
+        } finally { a.setPenShortcuts(old) }
+    }
+
+    @Test fun closingSharedOwnerKeepsHeldKeyOnTheActualSurvivingEditor() = onMain { a ->
+        val old = a.preferences.penShortcuts
+        val b = a.secondaryPane()
+        b.openSharedView(a)
+        val down = android.view.KeyEvent(1, 2, android.view.KeyEvent.ACTION_DOWN, 600, 0, 0, 9999, 42, 0, android.view.InputDevice.SOURCE_KEYBOARD)
+        val up = android.view.KeyEvent(1, 3, android.view.KeyEvent.ACTION_UP, 600, 0, 0, 9999, 42, 0, android.view.InputDevice.SOURCE_KEYBOARD)
+        try {
+            a.setPenShortcuts(listOf(PenShortcut("Button", listOf(PenSignals.key(down)!!), PenBinding("eraser"))))
+            a.selectTool(com.xnotes.core.tools.Tool.PEN)
+            a.onRecordedPenKey(down)
+            a.closePane(a)
+            assertTrue(a.noteOpen) // shared owner retains the remaining view
+            assertFalse(b.noteOpen)
+            assertEquals(com.xnotes.core.tools.Tool.ERASER, a.tool)
+            a.onRecordedPenKey(up)
+            assertEquals(com.xnotes.core.tools.Tool.PEN, a.tool)
+        } finally { a.setPenShortcuts(old) }
+    }
+
+    private fun recordedHover(editor: Editor, mask: Int) {
+        val p = android.view.MotionEvent.PointerProperties().apply { id = 0; toolType = android.view.MotionEvent.TOOL_TYPE_STYLUS }
+        val c = android.view.MotionEvent.PointerCoords().apply { x = 10f; y = 80f }
+        val e = android.view.MotionEvent.obtain(1, 2, android.view.MotionEvent.ACTION_HOVER_MOVE, 1, arrayOf(p), arrayOf(c),
+            0, mask, 1f, 1f, 9999, 0, android.view.InputDevice.SOURCE_STYLUS, 0)
+        try { editor.view.onHoverEvent(e) } finally { e.recycle() }
     }
 
     @Test fun savedSplitReopensFilesOrderRatioAndBothViewports() = kotlinx.coroutines.runBlocking {

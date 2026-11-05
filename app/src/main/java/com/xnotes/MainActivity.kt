@@ -216,7 +216,19 @@ class MainActivity : ComponentActivity() {
     // Stylus side-button keys (Bluetooth/USI pens report the button only this way) are caught here,
     // before Compose focus routing, so the controller sees both press and release regardless of
     // which view holds focus. Other keys fall through to the normal dispatch.
+    var penKeyRecorder: ((KeyEvent) -> Boolean)? = null
+    var cancelPenRecording: (() -> Unit)? = null
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (penKeyRecorder?.invoke(event) == true) return true
+        val workspace = editor
+        // Release every pane: focus can have moved since the original press.
+        if (event.action == KeyEvent.ACTION_UP) {
+            var handled = false
+            workspace?.openPanes?.forEach { if (it.onRecordedPenKey(event)) handled = true }
+            if (handled) return true
+        } else if (workspace?.openPanes?.contains(workspace.active) == true &&
+            workspace.active.onRecordedPenKey(event)) return true
         // The pen writes in whichever pane has the focus, so its button keys go to that pane too.
         if (editor?.active?.onStylusButtonKey(event) == true) return true
         if (editor?.active?.onVolumeKey(event) == true) return true
@@ -287,6 +299,7 @@ class MainActivity : ComponentActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (!hasFocus) {
+            cancelPenRecording?.invoke()
             editor?.openPanes?.forEach { it.resetPenButtons() }
             StylusButtonLatch.releaseKey()
         } // a held pen key's key-up may not come back to this window
@@ -1621,7 +1634,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions, homes: Set<com.xnote
                 position = com.xnotes.settings.ToolbarPosition.TOP, floating = false,
             )) {
                 val layout = com.xnotes.core.tools.workspaceToolbarLayout(editor.toolbarLayout, editor.canvasToolbarLayout)
-                com.xnotes.ui.ToolbarFrame(armed = if (editor.active.canvasOpen) editor.active.infinite.tool else editor.active.tool, leading = {
+                com.xnotes.ui.ToolbarFrame(armed = if (editor.active.canvasOpen) editor.active.infinite.toolbarTool else editor.active.toolbarTool, leading = {
                     com.xnotes.ui.ToolbarIcon(XnotesIcons.prev, stringResource(R.string.toolbar_home), onClick = actions.onMainMenu)
                 }, trailing = {
                     com.xnotes.ui.ToolbarIcon(XnotesIcons.save, stringResource(R.string.split_save), onClick = actions.onSaveSplit)
@@ -1931,8 +1944,9 @@ private fun EditorPane(
                         val layout = com.xnotes.core.tools.documentToolbarLayout(
                             com.xnotes.core.tools.workspaceToolbarLayout(app.toolbarLayout, app.canvasToolbarLayout), editor.canvasOpen, editor.hasPdf, app.toolbarDocuments())
                         CompositionLocalProvider(com.xnotes.ui.LocalToolbarLook provides look.copy(position = com.xnotes.settings.ToolbarPosition.TOP, floating = false),
-                            com.xnotes.ui.LocalWorkspaceToolbarLayout provides layout) {
-                            com.xnotes.ui.ToolbarFrame(armed = if (editor.canvasOpen) editor.infinite.tool else editor.tool) {
+                            com.xnotes.ui.LocalWorkspaceToolbarLayout provides layout,
+                            com.xnotes.ui.LocalToolbarFocused provides focused) {
+                            com.xnotes.ui.ToolbarFrame(armed = if (editor.canvasOpen) editor.infinite.toolbarTool else editor.toolbarTool) {
                                 CompositionLocalProvider(com.xnotes.ui.LocalEmbeddedToolbar provides true) {
                                     EditorToolbar(editor, app, actions, shared = true)
                                 }
