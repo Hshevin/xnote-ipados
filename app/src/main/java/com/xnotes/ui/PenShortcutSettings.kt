@@ -47,7 +47,10 @@ fun PenShortcutSettings(shortcuts: List<PenShortcut>, onChange: (List<PenShortcu
                 recording = false
                 if (shortcuts.any { s -> s.triggers.any { it in triggers } }) message = R.string.pen_record_duplicate
                 else { pending = triggers; name = defaultName; binding = PenBinding() }
-            }, onFailed = { recording = false; message = R.string.pen_record_failed })
+            }, onFailed = { failure ->
+                recording = false
+                message = if (failure == PenRecording.Failure.MULTIPLE_BUTTONS) R.string.pen_record_multiple else R.string.pen_record_failed
+            })
             TextButton(modifier = Modifier.heightIn(min = MinTouchTarget), onClick = { recording = false }) {
                 Text(stringResource(R.string.cancel), fontSize = TextSize.body)
             }

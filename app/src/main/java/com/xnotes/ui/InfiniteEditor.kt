@@ -296,11 +296,11 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     }
 
     init {
-        view.input = { event -> proPenInput.touch(event) { interaction.onTouch(event) } }
+        view.input = { event -> beforePenInput(event); proPenInput.touch(event) { interaction.onTouch(event) } }
         view.crossPaneTouchGate.shouldBlock = { otherPenInContact() }
-        view.genericMotion = { proPenInput.motion(it); interaction.onGenericMotion(it) }
-        view.onInputLost = { resetPenButtons() }
-        view.hover = { proPenInput.motion(it, beforeHover(it)); interaction.onHover(it) }
+        view.genericMotion = { beforePenInput(it); proPenInput.motion(it); interaction.onGenericMotion(it) }
+        view.onInputLost = { proPenInput.surfaceDetached() }
+        view.hover = { beforePenInput(it); proPenInput.motion(it); interaction.onHover(it) }
         view.afterLayout = { applyInitialView() }
         view.onContextReady = { renderFailure = view.failure }
         pad.onSurfaceLost = { endFrontInk(); settleHeld() }
@@ -424,14 +424,13 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     }
     var otherPenInContact: () -> Boolean = { false }
     val stylusInContact: Boolean get() = proPenInput.stylusInContact
-    var beforeHover: (android.view.MotionEvent) -> Int? = { null }
-    val hoverButtons: Int get() = proPenInput.lastButtons
+    var beforePenInput: (android.view.MotionEvent) -> Unit = {}
     fun clearHover() = interaction.clearHover()
     fun resetPenButtons() = proPenInput.reset()
 
     fun onRecordedPenKey(e: android.view.KeyEvent): Boolean = proPenInput.key(e)
-    val heldPenKeys: Set<com.xnotes.pen.PenTrigger> get() = proPenInput.heldKeys
-    fun inheritPenKeys(keys: Set<com.xnotes.pen.PenTrigger>) = proPenInput.inheritKeys(keys)
+    val penSnapshot: com.xnotes.pen.PenInputSnapshot get() = proPenInput.snapshot
+    fun inheritPenInput(snapshot: com.xnotes.pen.PenInputSnapshot) = proPenInput.inherit(snapshot)
 
     /** The single tool armed before this one, for tap-gesture toggles. */
     private var previousTool: Tool? = null

@@ -18,15 +18,13 @@ class ProPenButtons(initialTool: String) {
     private var previousMask = 0
     private val holds = linkedMapOf<Int, String>()
 
-    fun update(rawMask: Int, bindings: Map<Int, PenBinding>, inheritedButtons: Int? = null): PenButtonResult {
-        // Re-arm inherited HOLD tools, but only genuinely new physical presses run commands.
-        val pressed = rawMask and (inheritedButtons ?: previousMask).inv()
-        val rearmed = pressed or (rawMask and (inheritedButtons ?: 0))
-        previousMask = rawMask // keep unknown bits; only the three known bits dispatch actions
+    fun update(rawMask: Int, bindings: Map<Int, PenBinding>): PenButtonResult {
+        val pressed = rawMask and previousMask.inv()
+        previousMask = rawMask // Unbound bits still participate in edge tracking.
         holds.keys.removeAll { rawMask and it == 0 }
         val commands = mutableListOf<String>()
         for (mask in bindings.keys) {
-            if (rearmed and mask == 0) continue
+            if (pressed and mask == 0) continue
             val binding = bindings[mask] ?: continue
             when (binding.action) {
                 in PenBinding.commands -> if (mask and pressed != 0) commands.add(binding.action)
@@ -40,6 +38,21 @@ class ProPenButtons(initialTool: String) {
         return PenButtonResult(holds.values.lastOrNull() ?: baseTool, commands)
     }
 
+    val observedButtons: Int get() = previousMask
+    val activeHoldButtons: List<Int> get() = holds.keys.toList()
+
+    fun inherit(rawMask: Int, activeHolds: List<Int>, bindings: Map<Int, PenBinding>): PenButtonResult {
+        previousMask = rawMask
+        holds.clear()
+        activeHolds.forEach { mask ->
+            val binding = bindings[mask]
+            if (rawMask and mask != 0 && binding?.mode == PenBindingMode.HOLD && binding.action in PenBinding.tools) {
+                holds[mask] = binding.action
+            }
+        }
+        return PenButtonResult(holds.values.lastOrNull() ?: baseTool)
+    }
+
     /** An explicit selection wins over all older temporary selections, even the same tool. */
     fun select(tool: String) {
         baseTool = tool
@@ -47,8 +60,8 @@ class ProPenButtons(initialTool: String) {
     }
 
     /** Losing focus cancels holds, retaining edges so a still-held command cannot fire twice. */
-    fun reset(releasedButtons: Int = 0): PenButtonResult {
-        previousMask = previousMask and releasedButtons.inv()
+    fun reset(releasedButtons: Int = 0, observedButtons: Int = previousMask): PenButtonResult {
+        previousMask = observedButtons and releasedButtons.inv()
         holds.clear()
         return PenButtonResult(baseTool)
     }

@@ -15,4 +15,5 @@
     <string name="pen_shortcuts_limit">Up to 32 buttons can be recorded. Remove a mapping before adding another.</string>
     <string name="pen_shortcuts_invalid">Could not save: the mappings contain duplicate or invalid buttons, or exceed the limit.</string>
     <string name="pen_shortcut_near_screen">Requires the pen near the screen. To use a remote key away from the screen, record it there instead.</string>
+    <string name="pen_record_multiple">More than one button was detected. Record one button at a time.</string>
 </resources>

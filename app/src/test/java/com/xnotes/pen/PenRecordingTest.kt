@@ -36,6 +36,24 @@ class PenRecordingTest {
         assertNull(recorder.finish())
     }
 
+    @Test fun twoDifferentKeysCannotSilentlyBecomeAliases() {
+        val recorder = PenRecording()
+        recorder.event(key, true)
+        recorder.event(key, false)
+        recorder.event(key.copy(code = 601), true)
+        recorder.event(key.copy(code = 601), false)
+        assertNull(recorder.finish())
+    }
+
+    @Test fun twoMotionButtonsCannotSilentlyBecomeAliases() {
+        val recorder = PenRecording()
+        recorder.event(motion, true)
+        recorder.event(motion.copy(code = 64), true)
+        recorder.event(motion, false)
+        recorder.event(motion.copy(code = 64), false)
+        assertNull(recorder.finish())
+    }
+
     @Test fun aliasesUsePrimaryRouteAndDoNotRepeatCommands() {
         val shortcut = PenShortcut("one", listOf(motion, key), PenBinding("undo", PenBindingMode.SELECT))
         val input = PenShortcutState()

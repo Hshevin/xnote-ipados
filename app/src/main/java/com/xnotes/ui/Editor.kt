@@ -760,7 +760,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             infiniteOrNull = it
             it.penShortcuts = { preferences.penShortcuts }
             it.otherPenInContact = { sibling?.stylusInContact == true }
-            it.beforeHover = ::focusForPenHover
+            it.beforePenInput = ::focusForPenInput
             it.applyPalette(palette)
             // Both editors write inserted images into the same purged-on-launch temp dir.
             it.imageDir = imageDir
@@ -1767,14 +1767,15 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
                     settlePdfTextMenu()
                 }
             }
+            focusForPenInput(ev)
             proPenInput.touch(ev) { controller.onTouch(ev) }
         }
         view.crossPaneTouchGate.shouldBlock = { sibling?.stylusInContact == true }
         view.onTwoFingerTap = { dispatchTapGesture(preferences.twoFingerTap) }
         view.onThreeFingerTap = { dispatchTapGesture(preferences.threeFingerTap) }
-        view.onInputLost = { resetPenButtons() }
-        view.hover = { proPenInput.motion(it, focusForPenHover(it)); controller.onHover(it) }
-        view.genericMotion = { proPenInput.motion(it); controller.onGenericMotion(it) }
+        view.onInputLost = { proPenInput.surfaceDetached() }
+        view.hover = { focusForPenInput(it); proPenInput.motion(it); controller.onHover(it) }
+        view.genericMotion = { focusForPenInput(it); proPenInput.motion(it); controller.onGenericMotion(it) }
         view.drawOverlay = { renderer, _ -> controller.drawOverlay(renderer) }
         bindFrontInk()
         view.debugOverlay.frontHud = { controller.frontInk?.hud }
@@ -9944,29 +9945,37 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         if (openPanes.any { it.stylusInContact }) return
         if (inSplit) saveSplitWorkspace()
         val remaining = openPanes.firstOrNull { it !== target }
+        val source = active
+        val snapshot = source.penSnapshot
+        // Closing a shared owner retains its editor and retires the peer instead.
+        val receiver = if (remaining != null && target.sharedOwner == null && target.sharedPeer() === remaining) target else remaining
+        source.resetPenButtons()
         target.resetPenButtons()
-        remaining?.copyToolSettingsFrom(target)
+        receiver?.copyToolSettingsFrom(source)
         target.goHome()
+        receiver?.let {
+            it.inheritPenInput(snapshot)
+            focusedPane = it.pane
+        }
     }
 
-    private val heldPenKeys: Set<com.xnotes.pen.PenTrigger>
-        get() = if (canvasOpen) infinite.heldPenKeys else proPenInput.heldKeys
+    private val penSnapshot: com.xnotes.pen.PenInputSnapshot
+        get() = if (canvasOpen) infinite.penSnapshot else proPenInput.snapshot
 
-    private fun inheritPenKeys(keys: Set<com.xnotes.pen.PenTrigger>) {
-        if (canvasOpen) infinite.inheritPenKeys(keys) else proPenInput.inheritKeys(keys)
+    private fun inheritPenInput(snapshot: com.xnotes.pen.PenInputSnapshot) {
+        if (canvasOpen) infinite.inheritPenInput(snapshot) else proPenInput.inherit(snapshot)
     }
 
-    private val hoverButtons: Int get() = if (canvasOpen) infinite.hoverButtons else proPenInput.lastButtons
-
-    /** Handoff at hover entry, before dispatching the sample to the new pane's controller. */
-    private fun focusForPenHover(event: android.view.MotionEvent): Int? {
-        if (!noteOpen || event.actionMasked !in listOf(android.view.MotionEvent.ACTION_HOVER_ENTER, android.view.MotionEvent.ACTION_HOVER_MOVE)) return null
-        if (event.getToolType(0) != android.view.MotionEvent.TOOL_TYPE_STYLUS && event.getToolType(0) != android.view.MotionEvent.TOOL_TYPE_ERASER) return null
+    /** All incoming pen routes take focus before the sample reaches the target state machine. */
+    private fun focusForPenInput(event: android.view.MotionEvent) {
+        if (!noteOpen || event.actionMasked !in listOf(android.view.MotionEvent.ACTION_DOWN,
+                android.view.MotionEvent.ACTION_POINTER_DOWN, android.view.MotionEvent.ACTION_HOVER_ENTER,
+                android.view.MotionEvent.ACTION_HOVER_MOVE, android.view.MotionEvent.ACTION_BUTTON_PRESS,
+                android.view.MotionEvent.ACTION_BUTTON_RELEASE)) return
+        if (!com.xnotes.pen.PenSignals.isPen(event)) return
         val workspace = sibling?.takeIf { it.secondary === this } ?: this
-        if (workspace.active === this || workspace.openPanes.any { it.stylusInContact }) return null
-        val held = workspace.active.hoverButtons
+        if (workspace.active === this || workspace.openPanes.any { it.stylusInContact }) return
         workspace.focusPane(pane)
-        return held
     }
 
     /** Give [pane] the keyboard and the file actions. */
@@ -9978,11 +9987,11 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             previous.flowText.endSession()
             previous.controller.clearSelection()
             if (previous.canvasOpen) previous.infinite.clearHover() else previous.controller.clearHover()
-            val heldKeys = previous.heldPenKeys
+            val snapshot = previous.penSnapshot
             previous.resetPenButtons()
             val next = if (pane == Pane.SECONDARY) secondary else this
             next?.copyToolSettingsFrom(previous)
-            next?.inheritPenKeys(heldKeys)
+            next?.inheritPenInput(snapshot)
             focusedPane = pane
         }
     }
