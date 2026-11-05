@@ -16,6 +16,7 @@
 - 允许在本机直接编译，遵守执行环境权限。
 - 交付限定 ARM64；不使用 `android.injected.build.abi` 等 IDE 注入参数，避免生成 testOnly APK。
 - Release 构建的 `buildDirectory` 放到 iCloud 同步目录之外，避免出现 `… 2.*` 重复文件（见 Release 记录）。
+- 分支测试使用独立工作树和构建目录。ARM64 交付与 x86_64 模拟器构建除输出目录外，还需用 `--project-cache-dir` 隔离 Gradle 项目状态，避免切换构建目录后 DEX 增量缓存残留旧路径。
 
 ## Git、打包与发布
 
@@ -28,10 +29,13 @@
 | 构建 | 包名 | Gradle 参数 |
 | --- | --- | --- |
 | 正式版 | `com.xnotes.movinkpad` | 无 |
-| 双窗格测试版 | `com.xnotes.movinkpad.splitpreview` | `-PsplitPreview=true` |
-| AI 测试版 | `com.xnotes.movinkpad.aipreview` | `-PaiPreview=true` |
+| 旧双窗格测试版（不再维护） | `com.xnotes.movinkpad.splitpreview` | `-PsplitPreview=true` |
+| 旧 AI 测试版（不再维护） | `com.xnotes.movinkpad.aipreview` | `-PaiPreview=true` |
+| 主分支测试版 | `com.xnotes.movinkpad.branchtest.master` | 初始化脚本，`-PbranchTestId=master` |
+| 图层测试版 | `com.xnotes.movinkpad.branchtest.layers` | 初始化脚本，`-PbranchTestId=layers` |
+| 按键录入测试版 | `com.xnotes.movinkpad.branchtest.penshortcuts` | 初始化脚本，`-PbranchTestId=penshortcuts` |
 
-各测试版与正式版独立安装，互不覆盖。
+各测试版与正式版独立安装，互不覆盖。分支测试包使用 `scripts/branch-preview.init.gradle`；后续更新沿用各自包名与签名，递增 `branchTestVersion`，交付时报告包名和源码提交。旧 AI / 双窗格专用测试包不再纳入本地打包。不同功能分支未经用户要求不相互合并。
 
 ### 签名与覆盖升级
 
