@@ -740,7 +740,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         private set
 
     private val proPenInput by lazy {
-        com.xnotes.pen.ProPenInput({ preferences.proPenBindings }, { tool }, ::selectTool, ::dispatchTapGesture)
+        com.xnotes.pen.ProPenInput({ preferences.penShortcuts }, { tool }, ::selectTool, ::dispatchTapGesture)
     }
 
     val stylusInContact: Boolean get() = if (canvasOpen) infinite.stylusInContact else proPenInput.stylusInContact
@@ -758,7 +758,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     val infinite: InfiniteEditor
         get() = infiniteOrNull ?: InfiniteEditor(appContext).also {
             infiniteOrNull = it
-            it.proPenBindings = { preferences.proPenBindings }
+            it.penShortcuts = { preferences.penShortcuts }
             it.otherPenInContact = { sibling?.stylusInContact == true }
             it.beforeHover = ::focusForPenHover
             it.applyPalette(palette)
@@ -2884,8 +2884,12 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     val preferences: Preferences get() = settings.prefs
 
-    fun setProPenBindings(bindings: Map<Int, com.xnotes.pen.PenBinding>): Boolean {
-        val next = settings.copy(prefs = preferences.copy(proPenBindings = bindings))
+    fun setPenShortcuts(bindings: List<com.xnotes.pen.PenShortcut>): Boolean {
+        if (!com.xnotes.pen.PenShortcut.valid(bindings)) {
+            say(appContext.getString(R.string.pen_shortcuts_invalid))
+            return false
+        }
+        val next = settings.copy(prefs = preferences.copy(penShortcuts = bindings))
         if (!settingsRepo.saveChecked(next)) {
             say(appContext.getString(R.string.pro_pen_save_failed))
             return false
@@ -2895,7 +2899,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         settings = next
         prefsVersion++
         sibling?.let { other ->
-            other.settings = other.settings.copy(prefs = other.preferences.copy(proPenBindings = bindings))
+            other.settings = other.settings.copy(prefs = other.preferences.copy(penShortcuts = bindings))
             other.prefsVersion++
         }
         return true
@@ -9329,6 +9333,9 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
      *  controller's held latch, and the vendor double-tap/click keycodes to their gesture handlers;
      *  a held key that can also be clicked goes to both. Returns true when consumed, so the host
      *  swallows the key. */
+    fun onRecordedPenKey(e: android.view.KeyEvent): Boolean =
+        if (canvasOpen) infinite.onRecordedPenKey(e) else proPenInput.key(e)
+
     fun onStylusButtonKey(e: android.view.KeyEvent): Boolean {
         if (e.keyCode == penDoubleTapKeycode) return onPenDoubleTapKey(e)
         if (e.keyCode in penButtonTapKeycodes) return onPenButtonTapKey(e)

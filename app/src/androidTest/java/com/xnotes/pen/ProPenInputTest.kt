@@ -14,7 +14,10 @@ class ProPenInputTest {
         0x40 to PenBinding("highlighter", PenBindingMode.SELECT),
         0x04 to PenBinding("undo", PenBindingMode.SELECT),
     )
-    private val input = ProPenInput({ bindings }, { tool }, { tool = it }, { commands.add(it) })
+    private fun shortcuts(bindings: Map<Int, PenBinding>) = bindings.map { (mask, binding) ->
+        PenShortcut("Button $mask", listOf(PenTrigger(PenTrigger.Kind.MOTION, mask, "", InputDevice.SOURCE_STYLUS)), binding)
+    }
+    private val input = ProPenInput({ shortcuts(bindings) }, { tool }, { tool = it }, { commands.add(it) })
 
     private fun event(action: Int, buttons: Int, type: Int = MotionEvent.TOOL_TYPE_STYLUS): MotionEvent {
         val property = MotionEvent.PointerProperties().apply { id = 0; toolType = type }
@@ -113,7 +116,7 @@ class ProPenInputTest {
 
     @Test fun sameCommandOnANewPhysicalButtonStillRunsAcrossPanes() {
         val seen = mutableListOf<String>()
-        val adapter = ProPenInput({ mapOf(0x20 to PenBinding("undo"), 0x40 to PenBinding("undo")) },
+        val adapter = ProPenInput({ shortcuts(mapOf(0x20 to PenBinding("undo"), 0x40 to PenBinding("undo"))) },
             { Tool.PEN }, {}, { seen.add(it) })
         val e = event(MotionEvent.ACTION_HOVER_ENTER, 0x60)
         try { adapter.motion(e, inheritedButtons = 0x20) } finally { e.recycle() }

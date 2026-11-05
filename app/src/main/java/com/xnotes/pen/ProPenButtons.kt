@@ -12,7 +12,7 @@ data class PenBinding(val action: String = "none", val mode: PenBindingMode = Pe
 
 data class PenButtonResult(val tool: String, val commands: List<String> = emptyList())
 
-/** Pure edge tracking. Physical numbering follows the MovinkPad evidence, not bit order. */
+/** Pure edge tracking. Bits may be raw buttons in replay tests or recorded shortcut slots. */
 class ProPenButtons(initialTool: String) {
     private var baseTool = initialTool
     private var previousMask = 0
@@ -25,7 +25,7 @@ class ProPenButtons(initialTool: String) {
         previousMask = rawMask // keep unknown bits; only the three known bits dispatch actions
         holds.keys.removeAll { rawMask and it == 0 }
         val commands = mutableListOf<String>()
-        for (mask in masks) {
+        for (mask in bindings.keys) {
             if (rearmed and mask == 0) continue
             val binding = bindings[mask] ?: continue
             when (binding.action) {
@@ -55,7 +55,4 @@ class ProPenButtons(initialTool: String) {
     /** Hover exit also precedes contact: hide the temporary tool without inventing a release. */
     fun suspend(): PenButtonResult = PenButtonResult(baseTool)
 
-    companion object {
-        val masks = listOf(0x20, 0x40, 0x04)
-    }
 }

@@ -418,9 +418,9 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     // --- tools ---
 
     /** Shared preferences supplied by the owning paged editor. */
-    var proPenBindings: () -> Map<Int, com.xnotes.pen.PenBinding> = { emptyMap() }
+    var penShortcuts: () -> List<com.xnotes.pen.PenShortcut> = { emptyList() }
     private val proPenInput by lazy {
-        com.xnotes.pen.ProPenInput({ proPenBindings() }, { tool }, ::armTool, ::dispatchTapGesture)
+        com.xnotes.pen.ProPenInput({ penShortcuts() }, { tool }, ::armTool, ::dispatchTapGesture)
     }
     var otherPenInContact: () -> Boolean = { false }
     val stylusInContact: Boolean get() = proPenInput.stylusInContact
@@ -428,6 +428,8 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     val hoverButtons: Int get() = proPenInput.lastButtons
     fun clearHover() = interaction.clearHover()
     fun resetPenButtons() = proPenInput.reset()
+
+    fun onRecordedPenKey(e: android.view.KeyEvent): Boolean = proPenInput.key(e)
 
     /** The single tool armed before this one, for tap-gesture toggles. */
     private var previousTool: Tool? = null

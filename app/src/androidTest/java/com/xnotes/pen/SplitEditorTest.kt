@@ -543,10 +543,10 @@ class SplitEditorTest {
     }
 
     @Test fun heldShortcutSurvivesCrossingAndReturningThenReleases() = onMain { a ->
-        val oldBindings = a.preferences.proPenBindings
+        val oldBindings = a.preferences.penShortcuts
         val b = a.secondaryPane()
         b.openSharedView(a)
-        a.setProPenBindings(mapOf(0x20 to PenBinding("eraser", PenBindingMode.HOLD)))
+        a.setPenShortcuts(listOf(PenShortcut("Button", listOf(PenTrigger(PenTrigger.Kind.MOTION, 0x20, "", android.view.InputDevice.SOURCE_STYLUS)), PenBinding("eraser", PenBindingMode.HOLD))))
         a.selectTool(com.xnotes.core.tools.Tool.PEN)
         fun hover(editor: Editor, action: Int, mask: Int) {
             val property = android.view.MotionEvent.PointerProperties().apply { id = 0; toolType = android.view.MotionEvent.TOOL_TYPE_STYLUS }
@@ -567,7 +567,7 @@ class SplitEditorTest {
             hover(a, android.view.MotionEvent.ACTION_HOVER_MOVE, 0)
             assertEquals(com.xnotes.core.tools.Tool.PEN, a.tool)
             assertFalse(a.history.canUndo)
-        } finally { a.setProPenBindings(oldBindings) }
+        } finally { a.setPenShortcuts(oldBindings) }
     }
 
     @Test fun savedSplitReopensFilesOrderRatioAndBothViewports() = kotlinx.coroutines.runBlocking {
