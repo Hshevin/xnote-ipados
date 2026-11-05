@@ -2,7 +2,6 @@ package com.xnotes.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
@@ -199,7 +198,7 @@ private fun LayersPanel(
                             .combinedClickable(enabled = dragging == null, onClick = { if (!selected) select(layer.id) },
                                 onDoubleClick = { rename = layer.id; name = layer.name })
                             .pointerInput(layer.id, ids) {
-                                detectDragGesturesAfterLongPress(onDragStart = startDrag, onDragEnd = endDrag,
+                                detectDragGestures(onDragStart = startDrag, onDragEnd = endDrag,
                                     onDragCancel = { dragging = null },
                                     onDrag = { event, amount -> event.consume(); pointerY += amount.y; updateTarget() })
                             }.wrapContentHeight(Alignment.CenterVertically),
