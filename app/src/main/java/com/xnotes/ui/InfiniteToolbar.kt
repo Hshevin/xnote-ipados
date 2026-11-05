@@ -193,6 +193,7 @@ fun InfiniteToolbar(
                     // Where the paged bar keeps its page, styles and view menus. Waypoints take the
                     // place of pagination: on an unbounded canvas, a saved view is what a page
                     // number was.
+                    ToolbarItem.LAYERS -> LayersButton(editor)
                     ToolbarItem.STYLES -> Box {
                         ToolbarIcon(XnotesIcons.sliders, stringResource(R.string.toolbar_styles), active = stylesOpen) { stylesOpen = true }
                         if (stylesOpen) CanvasStylesPopup(editor) { stylesOpen = false }
