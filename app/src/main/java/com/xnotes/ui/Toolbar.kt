@@ -213,6 +213,7 @@ private fun ToolbarItemView(
                     .clickable { onRename() },
             )
         }
+        ToolbarItem.LAYERS -> LayersButton(editor)
         ToolbarItem.SIDEBAR ->
             ToolbarIcon(XnotesIcons.sidebar, stringResource(R.string.side_panel), active = editor.sidebarVisible, shortcut = Keys.SIDEBAR) { editor.toggleSidebar() }
 

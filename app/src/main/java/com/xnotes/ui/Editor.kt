@@ -2670,6 +2670,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         } else {
             Rect((page.width - w) / 2.0, (page.height - h) / 2.0, w, h)
         }
+        if (!page.layers.writable) { file.delete(); say(appContext.getString(R.string.layers_not_writable)); return }
         val item = ImageItem(ImageData(file, size.width, size.height), rect, orientation = turn)
         page.items.add(item)
         state.appendToCache(page, item)
@@ -2691,7 +2692,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
                     val data = com.xnotes.core.model.AudioData(result.file, result.ext, result.durationMs, ByteArray(0))
                     val name = result.name.ifBlank { appContext.getString(R.string.insert_group_audio) }
                     val item = if (canvasOpen) infinite.placeAudio(data, name) else placeAudio(data, name)
-                    readPeaks(item)
+                    if (item != null) readPeaks(item) else result.file.delete()
                 }
                 com.xnotes.platform.AudioFiles.Result.TooBig -> message = appContext.getString(R.string.err_audio_too_big)
                 com.xnotes.platform.AudioFiles.Result.Unplayable -> message = appContext.getString(R.string.err_audio_unplayable)
@@ -2701,11 +2702,12 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     }
 
     /** Place [audio] as a pill on the page in view, centred where the view is, selected so it can be dragged at once. */
-    fun placeAudio(audio: com.xnotes.core.model.AudioData, name: String, rid: Int? = null): com.xnotes.core.model.AudioItem {
+    fun placeAudio(audio: com.xnotes.core.model.AudioData, name: String, rid: Int? = null): com.xnotes.core.model.AudioItem? {
         val doc = state.document
         val centre = state.viewportToContent(com.xnotes.core.geometry.Pt(state.viewportW / 2.0, state.viewportH / 2.0))
         val index = (state.pageIndexAtContent(centre) ?: state.currentPageIndex()).coerceIn(0, doc.pages.lastIndex)
         val page = doc.pages[index]
+        if (!page.layers.writable) { say(appContext.getString(R.string.layers_not_writable)); return null }
         val cover = state.footprint(page)
         val local = state.toPageSpace(index, centre)
         val box = com.xnotes.core.model.AudioItem.boxAt(local, doc.dpi)
@@ -3775,7 +3777,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     private fun itemsSnapshot(page: Page): List<CanvasItem> {
         repeat(8) {
             try {
-                return ArrayList(page.items)
+                return page.layers.ordered(ArrayList(page.items))
             } catch (_: java.util.ConcurrentModificationException) {
                 // a main-thread edit landed mid-copy; retry
             }
@@ -4137,7 +4139,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         val h = hPx.coerceAtLeast(1)
         val surface = com.xnotes.platform.AndroidRasterSurface.create(w, h)
         surface.fill(doc.background.paperColor ?: state.palette.paper)
-        val bounds = doc.contentBounds()
+        val bounds = doc.layers.ordered(doc.items).map { it.paintBounds() }.reduceOrNull { a, rect -> a.union(rect) }
         if (bounds != null && bounds.w > 0.0 && bounds.h > 0.0) {
             val r = surface.renderer()
             val margin = minOf(w, h) * 0.06
@@ -4149,7 +4151,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             )
             r.scale(scale, scale)
             r.translate(-bounds.left, -bounds.top)
-            for (item in doc.items.toList()) item.paint(r)
+            for (item in doc.layers.ordered(doc.items.toList())) item.paint(r)
         }
         return surface.bitmap
     }
@@ -6856,6 +6858,23 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     val recentColors: List<Rgba> get() = settings.recentColors
 
+    fun editLayers(page: Page, change: () -> Unit): Boolean {
+        if (!controller.layerGestureIdle || sharedPeer()?.controller?.layerGestureIdle == false || state.document.pages.none { it === page }) return false
+        controller.commitTextEdit()
+        flowText.flushBurst()
+        val command = com.xnotes.core.history.EditLayers.capture(page.layers, page.items, change)
+        history.push(command)
+        controller.frontInk?.layersChanged()
+        sharedPeer()?.controller?.let { it.clearSelection(); it.frontInk?.layersChanged() }
+        afterHistory(state.document.pages.toList(), null, null)
+        return true
+    }
+
+    fun moveSelectionToLayer(page: Page, id: String) = editLayers(page) {
+        require(page.layers.entries.any { it.id == id && it.visible && !it.locked })
+        controller.layerSelection(page).forEach { it.layerId = id }
+    }
+
     // --- history ---
 
     fun undo() {
@@ -6866,6 +6885,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         val viewed = viewedPage()
         val was = touchedRegions(command)
         history.undo()
+        if (command is com.xnotes.core.history.EditLayers) { controller.frontInk?.layersChanged(); sharedPeer()?.controller?.let { it.clearSelection(); it.frontInk?.layersChanged() } }
         bakeMarkups(command)
         afterHistory(pagesBefore, viewed, regions = spanning(was, touchedRegions(command)), reshaped = command?.reshaped().orEmpty())
     }
@@ -6878,6 +6898,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         val viewed = viewedPage()
         val was = touchedRegions(command)
         history.redo()
+        if (command is com.xnotes.core.history.EditLayers) { controller.frontInk?.layersChanged(); sharedPeer()?.controller?.let { it.clearSelection(); it.frontInk?.layersChanged() } }
         bakeMarkups(command)
         afterHistory(pagesBefore, viewed, regions = spanning(was, touchedRegions(command)), reshaped = command?.reshaped().orEmpty())
     }

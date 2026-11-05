@@ -42,6 +42,29 @@ class SplitEditorTest {
         assertSame(editor.pad, container.getChildAt(1))
     }
 
+    @Test fun layerDeletionUndoRestoresObjectsAndClearsSelection() = onMain { editor ->
+        val page = editor.state.document.pages.first()
+        editor.editLayers(page) { page.layers.create("Draft") }
+        val layerId = page.layers.activeId
+        val stroke = com.xnotes.core.model.Stroke(com.xnotes.core.tools.Tool.PEN,
+            com.xnotes.core.tools.ToolDefaults.configFor(com.xnotes.core.tools.Tool.PEN))
+        stroke.addSample(com.xnotes.core.stroke.Sample(10.0, 20.0, 1.0))
+        page.items.add(stroke)
+        editor.controller.selectPlaced(0, listOf(stroke))
+        assertTrue(editor.controller.hasSelection)
+        assertTrue(editor.editLayers(page) {
+            page.items.removeAll { it.layerId == layerId }
+            page.layers.delete(layerId)
+        })
+        assertFalse(editor.controller.hasSelection)
+        assertTrue(page.items.isEmpty())
+        editor.undo()
+        assertSame(stroke, page.items.single())
+        assertEquals(layerId, page.layers.activeId)
+        editor.redo()
+        assertTrue(page.items.isEmpty())
+    }
+
     private fun onMain(test: (Editor) -> Unit) {
         val runner = PenTestRunner.instance
         var error: Throwable? = null

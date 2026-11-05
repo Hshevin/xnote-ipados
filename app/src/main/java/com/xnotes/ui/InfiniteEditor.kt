@@ -131,7 +131,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
         inkColor = { inkColor },
         detectShapes = { detectShapes },
         selection = { selection },
-        itemsIn = { rect -> document.itemsIn(rect) },
+        itemsIn = { rect -> document.itemsIn(rect).filter(document.layers::editable) },
         onSelectionChanged = { publishOverlay() },
         onCommitSelection = { commitSelection(it) },
         onLiftSelection = { items, at -> scene.setLift(items, at) },
@@ -278,7 +278,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
         override fun onOrderChanged() {
             // Once per structural edit rather than once per item, so an eraser drag that cuts a
             // dozen strokes publishes one ordering instead of a dozen.
-            scene.setOrder(document.items)
+            publishLayerOrder()
             view.publish()
         }
 
@@ -296,6 +296,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     }
 
     init {
+        interaction.canEditLayer = { document.layers.writable }
         view.input = { event -> proPenInput.touch(event) { interaction.onTouch(event) } }
         view.crossPaneTouchGate.shouldBlock = { otherPenInContact() }
         view.genericMotion = { proPenInput.motion(it); interaction.onGenericMotion(it) }
@@ -325,6 +326,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
 
     /** Tessellate [item] and hand the triangles to the renderer, or drop it if it draws nothing. */
     private fun pushItem(item: CanvasItem) {
+        if (!document.layers.visible(item)) { scene.remove(item); return }
         // Held back while the front buffer is still the only thing showing this stroke. The
         // document and the history already have it; only its triangles wait.
         for (h in heldItems) if (h === item) return
@@ -384,7 +386,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
             // Claimed and filed on the main thread, so this cannot land after a removal that was
             // decided while it ran and put the item back on the canvas.
             view.post {
-                if (!vectorMeshGen.remove(item, token) || parts.isEmpty()) return@post
+                if (!vectorMeshGen.remove(item, token) || parts.isEmpty() || !document.layers.visible(item)) return@post
                 scene.lastTessellateMs = ms
                 scene.upsert(item, parts, bounds)
                 view.publish()
@@ -409,7 +411,15 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
         scene.reset()
         vectorMeshGen.clear()
         scene.batch { for (item in document.items) pushItem(item) }
-        scene.setOrder(document.items)
+        publishLayerOrder()
+    }
+
+    private fun publishLayerOrder() {
+        val ordered = document.layers.ordered(document.items)
+        val active = document.layers.entries.indexOfFirst { it.id == document.layers.activeId }
+        val belowOrActive = document.layers.entries.take(active + 1).map { it.id }.toSet()
+        val end = ordered.indexOfLast { it.layerId in belowOrActive }
+        scene.setOrder(ordered, end.takeIf { document.layers.entries.size > 1 })
     }
 
     /** Repaint the canvas with whatever the model currently says. */
@@ -567,6 +577,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
         com.xnotes.core.model.Groups.refresh(clones, document.items)
         for (clone in clones) clone.translate(DUPLICATE_NUDGE, DUPLICATE_NUDGE)
         com.xnotes.core.audio.RecordingIds.adopt(clones, document.items, moves = false)
+        clones.forEach { it.layerId = document.layers.activeId }
         document.addAll(clones)
         history.push(AddCanvasItems(document, clones))
         selection.select(clones)
@@ -605,6 +616,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
      * copied on this canvas, or centred in the view when it came from elsewhere.
      */
     fun pasteClipboard(atContent: Pt? = null) {
+        if (!document.layers.writable) { onMessage?.invoke(appContext.getString(R.string.layers_not_writable), null); return }
         val clip = ItemClipboard.clip ?: return
         val home = clip.isFrom(document)
         val clones = ItemClipboard.copiesFor(clip, document.dpi, home, textMeasurer)
@@ -619,6 +631,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
         for (clone in clones) clone.translate(dx, dy)
         com.xnotes.core.model.Groups.refresh(clones, document.items)
         com.xnotes.core.audio.RecordingIds.adopt(clones, document.items, moves = clip.cut)
+        clones.forEach { it.layerId = document.layers.activeId }
         document.addAll(clones)
         history.push(AddCanvasItems(document, clones))
         if (clip.cut && ItemClipboard.clip === clip) ItemClipboard.clip = null
@@ -719,6 +732,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
 
     /** Borderless labelled rectangles use the existing editable, persisted canvas text geometry. */
     fun insertTextBox(bounds: Rect) {
+        if (!document.layers.writable) return
         commitText()
         document.items.asReversed().filterIsInstance<ShapeItem>().firstOrNull {
             it.label != null && it.strokeRgba.a == 0 && it.box.contains(bounds.topLeft) && !it.locked
@@ -749,13 +763,13 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     }
 
     fun copyScreenshotAsImage() {
-        val bmp = interaction.captureRect?.let { renderRegionBitmap(it, document.items.filter { item -> item.paintBounds().intersects(it) }.forExport()) }
+        val bmp = interaction.captureRect?.let { renderRegionBitmap(it, document.layers.ordered(document.items).filter { item -> item.paintBounds().intersects(it) }.forExport()) }
         val ok = bmp != null && com.xnotes.platform.SystemClipboard.putImage(appContext, bmp, "xnotes capture")
         onMessage?.invoke(appContext.getString(if (ok) R.string.image_copied else R.string.err_copy_image), null)
         if (ok) interaction.clearCapture()
     }
     fun screenshotImageForShare(): java.io.File? {
-        val file = interaction.captureRect?.let { renderRegionBitmap(it, document.items.filter { item -> item.paintBounds().intersects(it) }.forExport()) }
+        val file = interaction.captureRect?.let { renderRegionBitmap(it, document.layers.ordered(document.items).filter { item -> item.paintBounds().intersects(it) }.forExport()) }
             ?.let { com.xnotes.platform.ShareFiles.png(appContext, it, document.title) }
         if (file != null) interaction.clearCapture()
         else onMessage?.invoke(appContext.getString(R.string.err_share_image), null)
@@ -1168,7 +1182,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     }
 
     override fun setAllTapePeeled(peeled: Boolean) {
-        val turned = document.items.filter { it is TapeItem && it.peeled != peeled }
+        val turned = document.editableItems.filter { it is TapeItem && it.peeled != peeled }
         if (turned.isEmpty()) return
         for (t in turned) (t as TapeItem).peeled = peeled
         // Peeling is a look, not an edit: the meshes change, the history and the file do not.
@@ -1216,7 +1230,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
             val seen = viewport.visibleContentRect()
             val window = seen.outset(maxOf(seen.w, seen.h) * DROP_MARGIN)
             dropWindow = window
-            dropItems = document.itemsIn(window)
+            dropItems = document.itemsIn(window).filter(document.layers::editable)
         }
 
         override fun spotAt(view: Pt): DropSpot? {
@@ -1482,7 +1496,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
         pad.lightBlackInk = view.lightBlackInk
         frontDecided = true
         // Turned off for this device, so there is no pad to consult and nothing to time against it.
-        if (!pad.frontBuffering) return
+        if (!pad.frontBuffering || document.layers.entries.size > 1) return
         if (parts.isEmpty() || parts.any { it.pass != InkPass.OPAQUE }) return
         if (joinFrontInk()) return
         // Nothing joined, so the pad has to be wiped for this stroke, and whatever it was showing
@@ -1625,6 +1639,8 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
      * marquee a drag is sweeping out. It goes through the same transient buffer the wet stroke
      * uses, since inking and selecting can never happen at once.
      */
+    private var layeredShapePreview = false
+
     private fun publishOverlay() {
         hasSelection = !selection.isEmpty
         refreshSelectionMenu()
@@ -1639,9 +1655,18 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
         // A shape or connector being drawn sits under the chrome, in the same buffer.
         pendingItem?.let { item ->
             ItemMesher.mesh(item)?.let { m ->
-                parts += m.parts
-                bounds = m.bounds
+                if (document.layers.entries.size > 1) {
+                    scene.setWetParts(m.parts, m.bounds)
+                    layeredShapePreview = true
+                } else {
+                    parts += m.parts
+                    bounds = m.bounds
+                }
             }
+        }
+        if (pendingItem == null && layeredShapePreview) {
+            scene.setWetParts(emptyList(), Rect(0.0, 0.0, 0.0, 0.0))
+            layeredShapePreview = false
         }
         if (interaction.marking) {
             val marks = interaction.connectionMarks()
@@ -1787,6 +1812,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
      * holds their pixels: each is decoded when drawn, at the size the screen can show.
      */
     fun insertImage(bytes: ByteArray, atContent: com.xnotes.core.geometry.Pt? = null): Boolean {
+        if (!document.layers.writable) { onMessage?.invoke(appContext.getString(R.string.layers_not_writable), null); return false }
         val dir = imageDir ?: return false
         val file = runCatching {
             java.io.File.createTempFile("img", null, dir).apply { writeBytes(bytes) }
@@ -1813,7 +1839,8 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     }
 
     /** Place [audio] as a pill in the middle of the view, sized for this zoom, selected so it can be dragged at once. */
-    fun placeAudio(audio: com.xnotes.core.model.AudioData, name: String, rid: Int? = null): com.xnotes.core.model.AudioItem {
+    fun placeAudio(audio: com.xnotes.core.model.AudioData, name: String, rid: Int? = null): com.xnotes.core.model.AudioItem? {
+        if (!document.layers.writable) { onMessage?.invoke(appContext.getString(R.string.layers_not_writable), null); return null }
         val box = com.xnotes.core.model.AudioItem.boxAt(viewport.centerContent, document.dpi, viewport.zoom)
         // A recording keeps its own id, so the ink written during it stays tied, unless a pill took it meanwhile.
         val taken = rid != null && document.items.any { it is com.xnotes.core.model.AudioItem && it.rid == rid }
@@ -1882,7 +1909,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
      */
     fun tapAudio(at: Pt): Boolean {
         val reach = INK_TAP_DP * devicePxPerDp / viewport.zoom
-        val near = document.itemsIn(Rect(at.x - reach, at.y - reach, 2 * reach, 2 * reach))
+        val near = document.itemsIn(Rect(at.x - reach, at.y - reach, 2 * reach, 2 * reach)).filter(document.layers::visible)
         val item = near.lastOrNull { it is com.xnotes.core.model.AudioItem && it.contains(at) } as? com.xnotes.core.model.AudioItem
         if (item != null) {
             AudioPlayback.tap(this, item, at)
@@ -2282,7 +2309,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     /** Select everything unlocked on the canvas, which on an unbounded one means most of it. */
     fun selectAll() {
         if (document.isEmpty) return
-        selection.select(document.items.filter { !it.locked })
+        selection.select(document.editableItems)
         armTool(Tool.SELECT)
         publishOverlay()
     }
@@ -2439,6 +2466,27 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
         view.paperColor = background.paperColor ?: view.paperColor
         toolbarLightBlackInk = view.lightBlackInk
         markDirty()
+    }
+
+    fun editLayers(change: () -> Unit): Boolean {
+        if (interaction.mode != CanvasPointerMode.IDLE) return false
+        commitText()
+        settleHeld()
+        val handoff = handoffGen
+        view.publishThen { if (handoff == handoffGen) pad.release() }
+        val command = com.xnotes.core.history.EditLayers.capture(document.layers, { document.items }, document::replaceAll, change)
+        history.push(command)
+        interaction.clearSelection()
+        rebuildScene()
+        markDirty()
+        refresh()
+        view.publish()
+        return true
+    }
+
+    fun moveSelectionToLayer(id: String) = editLayers {
+        require(document.layers.entries.any { it.id == id && it.visible && !it.locked })
+        selection.items.forEach { it.layerId = id }
     }
 
     // --- history ---
