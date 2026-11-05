@@ -746,7 +746,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     private val proPenInput by lazy {
         com.xnotes.pen.ProPenInput(
             { preferences.penShortcuts }, { tool }, ::selectTool, ::dispatchTapGesture,
-            { toolbarTool = it },
+            { toolbarTool = it }, { preferences.penDoublePressMs.toLong() },
         )
     }
 
@@ -766,6 +766,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         get() = infiniteOrNull ?: InfiniteEditor(appContext).also {
             infiniteOrNull = it
             it.penShortcuts = { preferences.penShortcuts }
+            it.penDoublePressMs = { preferences.penDoublePressMs.toLong() }
             it.otherPenInContact = { sibling?.stylusInContact == true }
             it.beforePenInput = ::focusForPenInput
             it.applyPalette(palette)
@@ -2913,6 +2914,16 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             other.prefsVersion++
         }
         return true
+    }
+
+    /** The double-press window for recorded buttons; both panes read it at the next press. */
+    fun setPenDoublePressMs(ms: Int) {
+        val value = ms.coerceIn(com.xnotes.pen.PenBinding.DOUBLE_PRESS_RANGE)
+        if (value == preferences.penDoublePressMs) return
+        settings = settings.copy(prefs = preferences.copy(penDoublePressMs = value))
+        sibling?.let { other -> other.settings = other.settings.copy(prefs = other.preferences.copy(penDoublePressMs = value)) }
+        saveSettingsSoon()
+        prefsVersion++
     }
 
     /**

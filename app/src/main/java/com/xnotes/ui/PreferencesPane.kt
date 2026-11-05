@@ -260,7 +260,8 @@ fun PreferencesPane(
                 Chip(stringResource(R.string.pan_none), prefs.zoomLockPan == "none") { update(prefs.copy(zoomLockPan = "none")) }
             }
             CheckRow(stringResource(R.string.pref_detect_shapes), prefs.detectShapes) { update(prefs.copy(detectShapes = it)) }
-            PenShortcutSettings(prefs.penShortcuts) {
+            PenShortcutSettings(prefs.penShortcuts, prefs.penDoublePressMs,
+                { editor.setPenDoublePressMs(it); prefs = editor.preferences }) {
                 editor.setPenShortcuts(it).also { saved -> if (saved) prefs = editor.preferences }
             }
             val tapOptions = tapGestureOptions.map { (id, res) -> id to stringResource(res) }

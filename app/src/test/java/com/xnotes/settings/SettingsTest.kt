@@ -143,6 +143,15 @@ class SettingsTest {
         assertEquals("redo", back.threeFingerTap)
     }
 
+    @Test fun penDoublePressIntervalRoundTripsAndStaysInRange() {
+        assertEquals(450, Settings.fromJson(Settings(prefs = Preferences(penDoublePressMs = 450)).toJson()).prefs.penDoublePressMs)
+        val json = Settings().toJson()
+        json.getJSONObject("prefs").remove("pen_double_press_ms")
+        assertEquals(com.xnotes.pen.PenBinding.DEFAULT_DOUBLE_PRESS_MS, Settings.fromJson(json).prefs.penDoublePressMs)
+        json.getJSONObject("prefs").put("pen_double_press_ms", 5)
+        assertEquals(com.xnotes.pen.PenBinding.DOUBLE_PRESS_RANGE.first, Settings.fromJson(json).prefs.penDoublePressMs)
+    }
+
     @Test fun retiredStylusTapSettingsAreIgnoredOnLoad() {
         // Settings saved before recorded pen mappings replaced them still load, and are not written back.
         val json = Settings(prefs = Preferences(twoFingerTap = "undo")).toJson()
