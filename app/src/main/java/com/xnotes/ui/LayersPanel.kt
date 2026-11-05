@@ -1,124 +1,230 @@
 package com.xnotes.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LocalPinnableContainer
+import androidx.compose.ui.layout.PinnableContainer
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.zIndex
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.R
 import com.xnotes.core.model.DrawingLayers
-import com.xnotes.core.model.Page
 import com.xnotes.ui.theme.MinTouchTarget
 import com.xnotes.ui.theme.Space
 import com.xnotes.ui.theme.TextSize
+import kotlinx.coroutines.delay
 
 @Composable
 fun LayersButton(editor: Editor) {
-    var page by remember(editor) { mutableStateOf<Page?>(null) }
-    ToolbarIcon(XnotesIcons.sidebar, stringResource(R.string.layers_title)) {
-        page = editor.state.document.pages.getOrNull(editor.pageIndex)
-    }
-    page?.let { target ->
-        LayersPanel(target.layers, { edit -> editor.editLayers(target, edit) },
-            { id -> target.items.removeAll { it.layerId == id }; target.layers.delete(id) },
-            { id -> editor.moveSelectionToLayer(target, id) },
-            editor.controller.layerSelection(target).isNotEmpty(), { page = null })
-    }
+    ToolbarIcon(XnotesIcons.layers, stringResource(R.string.layers_title),
+        active = editor.sidebarVisible && editor.sidePanelTab == SidePanelTab.LAYERS) { editor.toggleLayersSidebar() }
 }
 
 @Composable
 fun LayersButton(editor: InfiniteEditor) {
-    var open by remember(editor) { mutableStateOf(false) }
-    ToolbarIcon(XnotesIcons.sidebar, stringResource(R.string.layers_title)) { open = true }
-    if (open) LayersPanel(editor.document.layers, editor::editLayers,
-        { id -> editor.document.removeAll(editor.document.items.filter { it.layerId == id }); editor.document.layers.delete(id) },
-        editor::moveSelectionToLayer, !editor.selection.isEmpty, { open = false })
+    ToolbarIcon(XnotesIcons.layers, stringResource(R.string.layers_title), active = editor.layersSidebarVisible) {
+        editor.layersSidebarVisible = !editor.layersSidebarVisible
+    }
 }
 
 @Composable
+fun LayersSidebar(editor: Editor) {
+    val page = editor.state.document.pages.getOrNull(editor.pageIndex) ?: return
+    key(page) {
+        LayersPanel(page.layers, editor.contentVersion, { editor.selectLayer(page, it) }, { edit -> editor.editLayers(page, edit) },
+            { id -> page.items.removeAll { it.layerId == id }; page.layers.delete(id) },
+            { id -> editor.moveSelectionToLayer(page, id) },
+            editor.hasSelection && editor.controller.layerSelection(page).isNotEmpty(), { editor.sidebarVisible = false })
+    }
+}
+
+@Composable
+fun LayersSidebar(editor: InfiniteEditor) {
+    key(editor.document) {
+        LayersPanel(editor.document.layers, editor.layerContentVersion, editor::selectLayer, editor::editLayers,
+            { id -> editor.document.removeAll(editor.document.items.filter { it.layerId == id }); editor.document.layers.delete(id) },
+            editor::moveSelectionToLayer, editor.hasSelection, { editor.layersSidebarVisible = false })
+    }
+}
+
+/** Docked, nonmodal layer stack. Dragging previews a destination; only dropping edits the model. */
+@Composable
 private fun LayersPanel(
     layers: DrawingLayers,
+    version: Int,
+    select: (String) -> Boolean,
     edit: (() -> Unit) -> Boolean,
     delete: (String) -> Unit,
     moveSelection: (String) -> Boolean,
     hasSelection: Boolean,
     dismiss: () -> Unit,
 ) {
-    var revision by remember { mutableIntStateOf(0) }
     var rename by remember { mutableStateOf<String?>(null) }
     var name by remember { mutableStateOf("") }
     var deleting by remember { mutableStateOf<String?>(null) }
-    fun change(action: () -> Unit) { if (edit(action)) revision++ }
-    val entries = remember(revision) { layers.entries.asReversed() }
-    AlertDialog(
-        onDismissRequest = dismiss,
-        title = { Text(stringResource(R.string.layers_title), fontSize = TextSize.heading) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-                Text(stringResource(R.string.layers_scope), fontSize = TextSize.body)
-                LazyColumn(Modifier.weight(1f, fill = false)) {
-                    itemsIndexed(entries, key = { _, layer -> layer.id }) { index, layer ->
-                        val selected = layers.activeId == layer.id
-                        val fg = if (selected) MaterialTheme.colorScheme.inverseOnSurface else MaterialTheme.colorScheme.onSurface
-                        val bg = if (selected) MaterialTheme.colorScheme.inverseSurface else MaterialTheme.colorScheme.surface
-                        Column(Modifier.fillMaxWidth().background(bg).padding(Space.s4)) {
-                            Text(layer.name.ifEmpty { stringResource(R.string.layers_default, entries.size - index) },
-                                color = fg, fontSize = TextSize.bodyLarge,
-                                modifier = Modifier.fillMaxWidth().heightIn(min = MinTouchTarget)
-                                    .clickable { change { layers.select(layer.id) } }.padding(Space.s12))
-                            Row {
-                                TextButton(onClick = { change { layers.update(layer.id) { it.copy(visible = !it.visible) } } }) {
-                                    Text(stringResource(if (layer.visible) R.string.layers_hide else R.string.layers_show), color = fg, fontSize = TextSize.label)
+    var menu by remember { mutableStateOf<String?>(null) }
+    val applyEdit by rememberUpdatedState(edit)
+    fun change(action: () -> Unit) { applyEdit(action) }
+    val entries = layers.entries.asReversed()
+    val ids = entries.map { it.id }
+    val list = rememberLazyListState()
+    var dragging by remember { mutableStateOf<String?>(null) }
+    var startIds by remember { mutableStateOf(emptyList<String>()) }
+    var pointerY by remember { mutableFloatStateOf(0f) }
+    var grabY by remember { mutableFloatStateOf(0f) }
+    var beforeId by remember { mutableStateOf<String?>(null) }
+    fun updateTarget() {
+        val rows = list.layoutInfo.visibleItemsInfo.filter { it.key is String && it.key in ids && it.key != dragging }
+        beforeId = rows.firstOrNull { pointerY < it.offset + it.size / 2f }?.key as? String
+        // At an off-screen lower edge, insert after the last visible row, not at document end.
+        if (beforeId == null && rows.isNotEmpty()) {
+            val last = ids.indexOf(rows.last().key)
+            beforeId = ids.drop(last + 1).firstOrNull { it != dragging }
+        }
+    }
+    LaunchedEffect(version) { dragging = null }
+    LaunchedEffect(dragging) {
+        while (dragging != null) {
+            val info = list.layoutInfo
+            val edge = info.visibleItemsInfo.firstOrNull()?.size?.toFloat() ?: 0f
+            val scroll = when {
+                pointerY < info.viewportStartOffset + edge -> -edge / 6f
+                pointerY > info.viewportEndOffset - edge -> edge / 6f
+                else -> 0f
+            }
+            if (scroll != 0f) { list.scrollBy(scroll); updateTarget() }
+            delay(16)
+        }
+    }
+    val colors = MaterialTheme.colorScheme
+    Column(Modifier.fillMaxSize().background(colors.surface)) {
+        Row(Modifier.fillMaxWidth().padding(start = Space.s12), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.layers_title), Modifier.weight(1f), fontSize = TextSize.title)
+            IconButton(onClick = dismiss, modifier = Modifier.size(MinTouchTarget)) {
+                Icon(XnotesIcons.close, stringResource(R.string.layers_close))
+            }
+        }
+        Text(stringResource(R.string.layers_drag_hint), Modifier.padding(horizontal = Space.s12, vertical = Space.s4),
+            fontSize = TextSize.caption, color = colors.onSurfaceVariant)
+        LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = list, userScrollEnabled = dragging == null) {
+            itemsIndexed(entries, key = { _, layer -> layer.id }) { index, layer ->
+                val pinnable = LocalPinnableContainer.current
+                var pinned by remember { mutableStateOf<PinnableContainer.PinnedHandle?>(null) }
+                DisposableEffect(Unit) { onDispose { pinned?.release() } }
+                LaunchedEffect(dragging) {
+                    if (dragging != layer.id) { pinned?.release(); pinned = null }
+                }
+                val selected = layers.activeId == layer.id
+                val fg = if (selected) colors.inverseOnSurface else colors.onSurface
+                val bg = if (selected) colors.inverseSurface else colors.surface
+                val offset = if (dragging == layer.id) {
+                    val first = list.layoutInfo.visibleItemsInfo.firstOrNull()
+                    val rowOffset = list.layoutInfo.visibleItemsInfo.firstOrNull { it.key == layer.id }?.offset
+                        ?: first?.let { it.offset + (index - it.index) * it.size } ?: 0
+                    pointerY - grabY - rowOffset
+                } else 0f
+                Row(Modifier.fillMaxWidth().zIndex(if (dragging == layer.id) 1f else 0f)
+                    .graphicsLayer { translationY = offset }
+                    .drawWithContent {
+                        drawContent()
+                        if (dragging != null && beforeId == layer.id)
+                            drawLine(colors.onSurface, Offset.Zero, Offset(size.width, 0f), Space.s2.toPx())
+                    }
+                    .background(bg).selectable(selected, enabled = dragging == null) {
+                        if (!selected) select(layer.id)
+                    }, verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(MinTouchTarget).pointerInput(layer.id, ids) {
+                        detectDragGestures(
+                            onDragStart = { at ->
+                                val row = list.layoutInfo.visibleItemsInfo.firstOrNull { it.key == layer.id }
+                                if (row != null) {
+                                    // Keep the source row alive while edge scrolling moves it off screen.
+                                    pinned?.release()
+                                    pinned = pinnable?.pin()
+                                    startIds = ids
+                                    dragging = layer.id
+                                    grabY = at.y
+                                    pointerY = row.offset + at.y
+                                    updateTarget()
                                 }
-                                TextButton(onClick = { change { layers.update(layer.id) { it.copy(locked = !it.locked) } } }) {
-                                    Text(stringResource(if (layer.locked) R.string.layers_unlock else R.string.layers_lock), color = fg, fontSize = TextSize.label)
-                                }
-                                TextButton(onClick = { rename = layer.id; name = layer.name }) {
-                                    Text(stringResource(R.string.layers_rename), color = fg, fontSize = TextSize.label)
-                                }
-                            }
-                            Row {
-                                TextButton(enabled = index > 0, onClick = { change { layers.move(layer.id, 1) } }) {
-                                    Text(stringResource(R.string.layers_up), color = fg, fontSize = TextSize.label)
-                                }
-                                TextButton(enabled = index < entries.lastIndex, onClick = { change { layers.move(layer.id, -1) } }) {
-                                    Text(stringResource(R.string.layers_down), color = fg, fontSize = TextSize.label)
-                                }
-                                TextButton(enabled = entries.size > 1, onClick = { deleting = layer.id }) {
-                                    Text(stringResource(R.string.layers_delete), color = fg, fontSize = TextSize.label)
-                                }
-                            }
-                            if (hasSelection) TextButton(enabled = layer.visible && !layer.locked,
-                                onClick = { if (moveSelection(layer.id)) { revision++; dismiss() } }) {
-                                Text(stringResource(R.string.layers_move_selection), color = fg, fontSize = TextSize.label)
-                            }
+                            },
+                            onDrag = { change, amount -> change.consume(); pointerY += amount.y; updateTarget() },
+                            onDragCancel = { dragging = null },
+                            onDragEnd = {
+                                val id = dragging
+                                val target = beforeId
+                                dragging = null
+                                if (id != null && layers.entries.asReversed().map { it.id } == startIds &&
+                                    layers.copy().moveBefore(id, target)) change { layers.moveBefore(id, target) }
+                            },
+                        )
+                    }, contentAlignment = Alignment.Center) {
+                        Icon(XnotesIcons.grip, stringResource(R.string.layers_drag), tint = fg)
+                    }
+                    Text(layer.name.ifEmpty { stringResource(R.string.layers_default, entries.size - index) },
+                        Modifier.weight(1f), color = fg, fontSize = TextSize.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    IconButton(enabled = dragging == null, onClick = { change { layers.update(layer.id) { it.copy(visible = !it.visible) } } },
+                        modifier = Modifier.size(MinTouchTarget)) {
+                        Icon(if (layer.visible) XnotesIcons.layerVisible else XnotesIcons.layerHidden,
+                            stringResource(if (layer.visible) R.string.layers_hide else R.string.layers_show), tint = fg)
+                    }
+                    IconButton(enabled = dragging == null, onClick = { change { layers.update(layer.id) { it.copy(locked = !it.locked) } } },
+                        modifier = Modifier.size(MinTouchTarget)) {
+                        Icon(if (layer.locked) XnotesIcons.lock else XnotesIcons.unlock,
+                            stringResource(if (layer.locked) R.string.layers_unlock else R.string.layers_lock), tint = fg)
+                    }
+                    Box {
+                        IconButton(enabled = dragging == null, onClick = { menu = layer.id }, modifier = Modifier.size(MinTouchTarget)) {
+                            Icon(XnotesIcons.more, stringResource(R.string.layers_actions), tint = fg)
+                        }
+                        DropdownMenu(expanded = menu == layer.id, onDismissRequest = { menu = null }) {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.layers_rename), fontSize = TextSize.body) },
+                                onClick = { menu = null; rename = layer.id; name = layer.name })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.layers_up), fontSize = TextSize.body) }, enabled = index > 0,
+                                onClick = { menu = null; change { layers.move(layer.id, 1) } })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.layers_down), fontSize = TextSize.body) }, enabled = index < entries.lastIndex,
+                                onClick = { menu = null; change { layers.move(layer.id, -1) } })
+                            if (hasSelection) DropdownMenuItem(text = { Text(stringResource(R.string.layers_move_selection), fontSize = TextSize.body) },
+                                enabled = layer.visible && !layer.locked, onClick = { menu = null; moveSelection(layer.id) })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.layers_delete), fontSize = TextSize.body) }, enabled = entries.size > 1,
+                                onClick = { menu = null; deleting = layer.id })
                         }
                     }
                 }
-                TextButton(onClick = { change { layers.create("") } }) {
-                    Text(stringResource(R.string.layers_add), fontSize = TextSize.body)
-                }
             }
-        },
-        confirmButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.layers_close), fontSize = TextSize.body) } },
-    )
+        }
+        HorizontalDivider(thickness = if (dragging != null && beforeId == null) Space.s2 else androidx.compose.ui.unit.Dp.Hairline)
+        TextButton(enabled = dragging == null, onClick = { change { layers.create("") } }, modifier = Modifier.fillMaxWidth().heightIn(min = MinTouchTarget)) {
+            Text(stringResource(R.string.layers_add), fontSize = TextSize.body)
+        }
+    }
     rename?.let { id ->
         AlertDialog(onDismissRequest = { rename = null }, title = { Text(stringResource(R.string.layers_rename), fontSize = TextSize.heading) },
             text = { OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true,
                 textStyle = androidx.compose.ui.text.TextStyle(fontSize = TextSize.body)) },
-            confirmButton = { TextButton(onClick = { change { layers.update(id) { it.copy(name = name.trim()) } }; rename = null }) {
+            confirmButton = { TextButton(onClick = { if (layers.entries.any { it.id == id }) change { layers.update(id) { it.copy(name = name.trim()) } }; rename = null }) {
                 Text(stringResource(R.string.layers_save), fontSize = TextSize.body)
             } }, dismissButton = { TextButton(onClick = { rename = null }) { Text(stringResource(R.string.layers_cancel), fontSize = TextSize.body) } })
     }
     deleting?.let { id ->
         AlertDialog(onDismissRequest = { deleting = null }, title = { Text(stringResource(R.string.layers_delete), fontSize = TextSize.heading) },
             text = { Text(stringResource(R.string.layers_delete_confirm), fontSize = TextSize.body) },
-            confirmButton = { TextButton(onClick = { change { delete(id) }; deleting = null }) { Text(stringResource(R.string.layers_delete), fontSize = TextSize.body) } },
+            confirmButton = { TextButton(onClick = { if (layers.entries.size > 1 && layers.entries.any { it.id == id }) change { delete(id) }; deleting = null }) { Text(stringResource(R.string.layers_delete), fontSize = TextSize.body) } },
             dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.layers_cancel), fontSize = TextSize.body) } })
     }
 }

@@ -1943,27 +1943,34 @@ private fun EditorPane(
                 val canvas = editor.infinite
                 val bar: @Composable () -> Unit = { EditorToolbar(editor, app, actions) }
                 PaneToolbarAround(!closable, bar, onCover = canvas::setToolbarCover) { floatingBar ->
-                    Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
-                        AndroidView(
-                            factory = { detached(canvas.surfaces) },
-                            modifier = Modifier.fillMaxSize(),
-                            update = { canvas.view.publish() },
-                        )
-                        canvas.editingField?.let { field ->
-                            com.xnotes.ui.TextEditorOverlay(canvas, field)
+                    Row(Modifier.fillMaxSize()) {
+                        if (canvas.layersSidebarVisible) {
+                            Box(Modifier.width(com.xnotes.ui.theme.LayerSidebarWidth).fillMaxHeight()) {
+                                com.xnotes.ui.LayersSidebar(canvas)
+                            }
                         }
-                        floatingBar()
-                        com.xnotes.ui.SelectionMenu(
-                            canvas,
-                            onSaveAudio = { actions.onSaveAudio(editor, it) },
-                            onShareAudio = { actions.onShareAudio(editor, it) },
-                            onShareImage = actions.onShareImage,
-                        )
-                        com.xnotes.ui.ScreenshotMenu(canvas, onShare = actions.onShareImage)
-                        com.xnotes.ui.CropOverlay(canvas)
-                        com.xnotes.ui.TextStyleBar(canvas)
-                        com.xnotes.ui.LongPressMenu(canvas, onInsertImageAt = { c -> actions.onInsertCanvasImage(editor, c) })
-                        com.xnotes.ui.CanvasDebugOverlay(canvas)
+                        Box(modifier = Modifier.weight(1f).fillMaxHeight().clipToBounds()) {
+                            AndroidView(
+                                factory = { detached(canvas.surfaces) },
+                                modifier = Modifier.fillMaxSize(),
+                                update = { canvas.view.publish() },
+                            )
+                            canvas.editingField?.let { field ->
+                                com.xnotes.ui.TextEditorOverlay(canvas, field)
+                            }
+                            floatingBar()
+                            com.xnotes.ui.SelectionMenu(
+                                canvas,
+                                onSaveAudio = { actions.onSaveAudio(editor, it) },
+                                onShareAudio = { actions.onShareAudio(editor, it) },
+                                onShareImage = actions.onShareImage,
+                            )
+                            com.xnotes.ui.ScreenshotMenu(canvas, onShare = actions.onShareImage)
+                            com.xnotes.ui.CropOverlay(canvas)
+                            com.xnotes.ui.TextStyleBar(canvas)
+                            com.xnotes.ui.LongPressMenu(canvas, onInsertImageAt = { c -> actions.onInsertCanvasImage(editor, c) })
+                            com.xnotes.ui.CanvasDebugOverlay(canvas)
+                        }
                     }
                 }
             } else {

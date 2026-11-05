@@ -106,4 +106,32 @@ class DrawingLayersTest {
         assertEquals(listOf(ink), doc.itemsIn(Rect(0.0, 0.0, 20.0, 20.0)))
         assertEquals(layer.id, doc.layers.activeId)
     }
+
+    @Test fun sidebarDropUsesTopFirstOrderAndOneUndoStep() {
+        val page = Page(100.0, 100.0)
+        val middle = page.layers.create("Middle")
+        val top = page.layers.create("Top")
+        val original = page.layers.entries
+        val history = History()
+        history.push(EditLayers.capture(page.layers, page.items) {
+            page.layers.moveBefore(DrawingLayers.DEFAULT, top.id)
+        })
+        assertEquals(listOf(DrawingLayers.DEFAULT, top.id, middle.id), page.layers.entries.asReversed().map { it.id })
+        assertEquals(top.id, page.layers.activeId)
+        history.undo()
+        assertEquals(original, page.layers.entries)
+        history.redo()
+        assertEquals(DrawingLayers.DEFAULT, page.layers.entries.last().id)
+    }
+
+    @Test fun sidebarDropAtBottomAndStaleTargetAreSafe() {
+        val layers = DrawingLayers()
+        val top = layers.create("Top")
+        assertTrue(layers.moveBefore(top.id, null))
+        assertEquals(top.id, layers.entries.first().id)
+        val before = layers.entries
+        assertFalse(layers.moveBefore(top.id, "deleted"))
+        assertFalse(layers.moveBefore(top.id, top.id))
+        assertEquals(before, layers.entries)
+    }
 }

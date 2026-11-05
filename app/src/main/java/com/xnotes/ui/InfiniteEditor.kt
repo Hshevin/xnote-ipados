@@ -2468,14 +2468,25 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
         markDirty()
     }
 
-    fun editLayers(change: () -> Unit): Boolean {
+    var layersSidebarVisible by mutableStateOf(false)
+    var layerContentVersion by mutableStateOf(0)
+        private set
+
+    fun editLayers(change: () -> Unit): Boolean = changeLayers(true, change)
+
+    fun selectLayer(id: String): Boolean {
+        if (document.layers.activeId == id || document.layers.entries.none { it.id == id }) return false
+        return changeLayers(false) { document.layers.select(id) }
+    }
+
+    private fun changeLayers(recordHistory: Boolean, change: () -> Unit): Boolean {
         if (interaction.mode != CanvasPointerMode.IDLE) return false
         commitText()
         settleHeld()
         val handoff = handoffGen
         view.publishThen { if (handoff == handoffGen) pad.release() }
-        val command = com.xnotes.core.history.EditLayers.capture(document.layers, { document.items }, document::replaceAll, change)
-        history.push(command)
+        if (recordHistory) history.push(com.xnotes.core.history.EditLayers.capture(document.layers, { document.items }, document::replaceAll, change))
+        else change()
         interaction.clearSelection()
         rebuildScene()
         markDirty()
@@ -2531,6 +2542,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     }
 
     private fun refresh() {
+        layerContentVersion++
         title = document.title
         canUndo = history.canUndo
         canRedo = history.canRedo

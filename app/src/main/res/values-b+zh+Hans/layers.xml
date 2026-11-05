@@ -18,4 +18,7 @@
     <string name="layers_cancel">取消</string>
     <string name="layers_delete_confirm">删除此图层及其中的内容？可以通过撤销恢复。</string>
     <string name="layers_not_writable">请选择显示且未锁定的图层进行编辑。</string>
+    <string name="layers_drag">拖动图层排序</string>
+    <string name="layers_drag_hint">拖动把手调整顺序，点击图层进行选择。</string>
+    <string name="layers_actions">图层操作</string>
 </resources>

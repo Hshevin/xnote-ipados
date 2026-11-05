@@ -65,6 +65,20 @@ class SplitEditorTest {
         assertTrue(page.items.isEmpty())
     }
 
+    @Test fun layersSidebarTogglesAndSelectionDoesNotConsumeUndo() = onMain { editor ->
+        editor.sidebarVisible = false
+        editor.toggleLayersSidebar()
+        assertTrue(editor.sidebarVisible)
+        assertEquals(com.xnotes.ui.SidePanelTab.LAYERS, editor.sidePanelTab)
+        editor.toggleLayersSidebar()
+        assertFalse(editor.sidebarVisible)
+        val page = editor.state.document.pages.first()
+        editor.editLayers(page) { page.layers.create("Second") }
+        editor.selectLayer(page, com.xnotes.core.model.DrawingLayers.DEFAULT)
+        editor.undo()
+        assertEquals(1, page.layers.entries.size)
+    }
+
     private fun onMain(test: (Editor) -> Unit) {
         val runner = PenTestRunner.instance
         var error: Throwable? = null

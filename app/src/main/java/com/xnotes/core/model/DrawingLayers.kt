@@ -32,6 +32,21 @@ class DrawingLayers {
         next.add((at + delta).coerceIn(0, next.lastIndex), next.removeAt(at))
         entries = next
     }
+    /** Drop before a row in the top-first sidebar; null means below every row. */
+    fun moveBefore(id: String, beforeId: String?): Boolean {
+        if (id == beforeId || entries.none { it.id == id } ||
+            beforeId != null && entries.none { it.id == beforeId }) return false
+        val topFirst = entries.asReversed().toMutableList()
+        val moving = topFirst.first { it.id == id }
+        topFirst.remove(moving)
+        val at = beforeId?.let { target -> topFirst.indexOfFirst { it.id == target } } ?: topFirst.size
+        topFirst.add(at, moving)
+        val next = topFirst.asReversed().toList()
+        if (next == entries) return false
+        entries = next
+        return true
+    }
+
     fun delete(id: String) {
         require(entries.size > 1 && entries.any { it.id == id })
         entries = entries.filterNot { it.id == id }

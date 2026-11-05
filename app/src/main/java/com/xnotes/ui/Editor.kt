@@ -6858,12 +6858,19 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     val recentColors: List<Rgba> get() = settings.recentColors
 
-    fun editLayers(page: Page, change: () -> Unit): Boolean {
+    fun editLayers(page: Page, change: () -> Unit): Boolean = changeLayers(page, true, change)
+
+    fun selectLayer(page: Page, id: String): Boolean {
+        if (page.layers.activeId == id || page.layers.entries.none { it.id == id }) return false
+        return changeLayers(page, false) { page.layers.select(id) }
+    }
+
+    private fun changeLayers(page: Page, recordHistory: Boolean, change: () -> Unit): Boolean {
         if (!controller.layerGestureIdle || sharedPeer()?.controller?.layerGestureIdle == false || state.document.pages.none { it === page }) return false
         controller.commitTextEdit()
         flowText.flushBurst()
-        val command = com.xnotes.core.history.EditLayers.capture(page.layers, page.items, change)
-        history.push(command)
+        if (recordHistory) history.push(com.xnotes.core.history.EditLayers.capture(page.layers, page.items, change))
+        else change()
         controller.frontInk?.layersChanged()
         sharedPeer()?.controller?.let { it.clearSelection(); it.frontInk?.layersChanged() }
         afterHistory(state.document.pages.toList(), null, null)
@@ -7817,6 +7824,11 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             editingTable != null -> endTableEdit()
             else -> controller.escape()
         }
+    }
+
+    fun toggleLayersSidebar() {
+        sidebarVisible = !(sidebarVisible && sidePanelTab == SidePanelTab.LAYERS)
+        sidePanelTab = SidePanelTab.LAYERS
     }
 
     fun toggleSidebar() {
