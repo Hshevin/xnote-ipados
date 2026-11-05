@@ -3,7 +3,7 @@ import SwiftUI
 @main
 struct XNotesApp: App {
     var body: some Scene {
-        WindowGroup { InputProbeScreen() }
+        WindowGroup { ProbeRootScreen() }
     }
 }
 
@@ -68,5 +68,19 @@ struct CaptureSurface: UIViewRepresentable {
     }
     static func dismantleUIView(_ view: PencilCaptureView, coordinator: ()) {
         view.invalidate(); view.receive = nil
+    }
+}
+
+struct ProbeRootScreen: View {
+    @State private var pdf = false
+    @Environment(\.colorScheme) private var scheme
+    var body: some View {
+        VStack(spacing: Space.none) {
+            HStack(spacing: Space.s16) {
+                Button("probe.inputTab") { pdf = false }.buttonStyle(ProbeButtonStyle(selected: !pdf))
+                Button("probe.pdfTab") { pdf = true }.buttonStyle(ProbeButtonStyle(selected: pdf))
+            }
+            if pdf { PDFPreviewScreen() } else { InputProbeScreen() }
+        }.background(scheme == .dark ? Color.black : Color.white)
     }
 }

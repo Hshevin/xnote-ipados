@@ -6,6 +6,7 @@ enum TextSize {
     static let heading: CGFloat = 18
 }
 enum Space {
+    static let none: CGFloat = 0
     static let s8: CGFloat = 8
     static let s16: CGFloat = 16
 }
