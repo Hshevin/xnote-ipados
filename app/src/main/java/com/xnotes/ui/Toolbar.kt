@@ -314,7 +314,7 @@ private fun ToolButton(
     setConfigForTool: (Tool?) -> Unit,
 ) {
     if (icon == null) return
-    val armed = editor.toolbarTool == tool
+    val armed = LocalToolbarFocused.current && editor.toolbarTool == tool
     val configurable = tool.isStroke || tool == Tool.SHAPE || tool == Tool.ERASER || tool == Tool.SELECT || tool == Tool.TEXT || tool == Tool.MARKUP || tool == Tool.TAPE
     Box {
         ToolbarIcon(

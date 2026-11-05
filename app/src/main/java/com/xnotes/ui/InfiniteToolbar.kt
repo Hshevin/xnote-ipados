@@ -125,7 +125,7 @@ fun InfiniteToolbar(
                         if (icon != null) {
                             Box {
                                 // Tapping the armed tool again opens its settings, as the paged bar does.
-                                val armed = editor.toolbarTool == tool
+                                val armed = LocalToolbarFocused.current && editor.toolbarTool == tool
                                 val configurable = tool.isStroke || tool == Tool.ERASER || tool == Tool.SHAPE || tool == Tool.SELECT || tool == Tool.TAPE
                                 ToolbarIcon(
                                     icon,
@@ -135,11 +135,11 @@ fun InfiniteToolbar(
                                     hint = if (armed && configurable) stringResource(R.string.tip_tap_for_settings) else null,
                                 ) {
                                     when {
-                                        tool == Tool.ERASER && editor.toolbarTool == tool -> eraserOpen = true
-                                        tool == Tool.SHAPE && editor.toolbarTool == tool -> shapeOpen = true
-                                        tool == Tool.SELECT && editor.toolbarTool == tool -> selectOpen = true
-                                        tool == Tool.TAPE && editor.toolbarTool == tool -> tapeOpen = true
-                                        tool.isStroke && editor.toolbarTool == tool -> penOpen = tool
+                                        tool == Tool.ERASER && armed -> eraserOpen = true
+                                        tool == Tool.SHAPE && armed -> shapeOpen = true
+                                        tool == Tool.SELECT && armed -> selectOpen = true
+                                        tool == Tool.TAPE && armed -> tapeOpen = true
+                                        tool.isStroke && armed -> penOpen = tool
                                         else -> editor.armTool(tool)
                                     }
                                 }

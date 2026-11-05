@@ -1936,7 +1936,8 @@ private fun EditorPane(
                         val layout = com.xnotes.core.tools.documentToolbarLayout(
                             com.xnotes.core.tools.workspaceToolbarLayout(app.toolbarLayout, app.canvasToolbarLayout), editor.canvasOpen, editor.hasPdf, app.toolbarDocuments())
                         CompositionLocalProvider(com.xnotes.ui.LocalToolbarLook provides look.copy(position = com.xnotes.settings.ToolbarPosition.TOP, floating = false),
-                            com.xnotes.ui.LocalWorkspaceToolbarLayout provides layout) {
+                            com.xnotes.ui.LocalWorkspaceToolbarLayout provides layout,
+                            com.xnotes.ui.LocalToolbarFocused provides focused) {
                             com.xnotes.ui.ToolbarFrame(armed = if (editor.canvasOpen) editor.infinite.toolbarTool else editor.toolbarTool) {
                                 CompositionLocalProvider(com.xnotes.ui.LocalEmbeddedToolbar provides true) {
                                     EditorToolbar(editor, app, actions, shared = true)
