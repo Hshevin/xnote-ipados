@@ -23,7 +23,7 @@
 
 iPadOS 第一版已进入规划阶段，目标是在保留现有功能、黑白 UI 语义和 `.xnote` Android 双向兼容的基础上，使用 SwiftUI / UIKit / Metal 实现原生 iPad 版本。计划参考 OwlLuna、Signotes、Saber 和 Linwood Butterfly；首版不移植自定义快捷键录入，改为 Apple Pencil 的系统接触、悬停、双击、挤压和笔杆旋转行为。
 
-已开始 P0 输入状态探针，Swift 单元测试 3 项通过，见 [起步记录](docs/movinkpad/ipados-input-probe-2026-11-05.md)。已建立最低支持 iPadOS 15.6 的 Xcode 输入探针工程，无签名模拟器构建通过；尚无可日常使用的 iPad 笔记应用，见 [P0 环境与工程记录](docs/movinkpad/ipados-p0-environment-2026-11-05.md)。范围、架构、实施阶段和验收门槛见 [iPadOS 第一版移植计划](docs/movinkpad/ipados-port-plan-2026-11-05.md)。
+已开始 P0 输入状态探针，Swift 单元测试 3 项通过，见 [起步记录](docs/movinkpad/ipados-input-probe-2026-11-05.md)。已建立最低支持 iPadOS 15.6 的 Xcode 输入探针工程，无签名模拟器构建及启动通过，Swift/Kotlin 采样模型修改与编解码已在 iOS 模拟器执行验证；尚无可日常使用的 iPad 笔记应用，见 [P0 环境与工程记录](docs/movinkpad/ipados-p0-environment-2026-11-05.md)。范围、架构、实施阶段和验收门槛见 [iPadOS 第一版移植计划](docs/movinkpad/ipados-port-plan-2026-11-05.md)。
 
 ## PDF 保存与备份
 

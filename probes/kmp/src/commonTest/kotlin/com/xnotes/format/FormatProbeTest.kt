@@ -4,6 +4,15 @@ import com.xnotes.probe.SampleCodecProbe
 import kotlin.test.*
 
 class FormatProbeTest {
+    @Test fun modelTranslationPreservesPressureAndTime() {
+        val codec = SampleCodecProbe()
+        val source = "[[1.25,-2.5,0.125,12],[3,4,1,15]]"
+        val moved = codec.translate(source, 10.0, -5.0)
+        assertEquals("[[11.25,-7.5,0.125,12],[13,-1,1,15]]", moved)
+        assertEquals(source, codec.translate(moved, -10.0, 5.0))
+        assertFails { codec.translate(source, Double.NaN, 0.0) }
+    }
+
     @Test fun samplesPreserveRoundedValuesAndTime() {
         val codec = SampleCodecProbe()
         val fixture = "[[1.25,-2.5,0.125,12],[3,4,1,15]]"

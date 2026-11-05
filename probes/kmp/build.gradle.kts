@@ -5,6 +5,7 @@ val prepareFormatProbe by tasks.registering(Exec::class) {
     commandLine("ruby", "../../scripts/ipados/prepare-format-probe.rb")
     inputs.files(fileTree("../../app/src/main/java/com/xnotes/format") { include("JsonPull.kt", "JsonWrite.kt", "RawSamples.kt") })
     inputs.file("../../scripts/ipados/prepare-format-probe.rb")
+    inputs.file("../../app/src/main/java/com/xnotes/core/stroke/StrokeGeometry.kt")
     outputs.dir("../../tmp/kmp-format-probe")
     outputs.dir("../../tmp/kmp-format-oracle")
 }
@@ -20,7 +21,7 @@ kotlin {
         commonMain {
             kotlin.srcDir("../../app/src/main/java/com/xnotes/core/geometry")
             kotlin.srcDir("../../tmp/kmp-format-probe")
-            kotlin.include("Pt.kt", "com/xnotes/probe/**", "com/xnotes/format/JsonPull.kt", "com/xnotes/format/JsonWrite.kt", "com/xnotes/format/RawSamples.kt", "com/xnotes/format/ProbeStreams.kt")
+            kotlin.include("Pt.kt", "Affine.kt", "Rect.kt", "Geometry.kt", "Obb.kt", "Flip.kt", "com/xnotes/core/stroke/StrokeGeometry.kt", "com/xnotes/probe/**", "com/xnotes/format/JsonPull.kt", "com/xnotes/format/JsonWrite.kt", "com/xnotes/format/RawSamples.kt", "com/xnotes/format/ProbeStreams.kt")
         }
         jvmTest { kotlin.srcDir("../../tmp/kmp-format-oracle") }
         commonTest.dependencies { implementation(kotlin("test")) }

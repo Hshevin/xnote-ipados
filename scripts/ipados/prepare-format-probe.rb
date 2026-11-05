@@ -29,3 +29,7 @@ FileUtils.mkdir_p(oracle)
   source = File.read(File.join(root, "app/src/main/java/com/xnotes/format/#{name}.kt"))
   File.write(File.join(oracle, "#{name}.kt"), source.sub('package com.xnotes.format', 'package com.xnotes.original'))
 end
+geometry_dir = File.join(root, 'tmp/kmp-format-probe/com/xnotes/core/stroke')
+FileUtils.mkdir_p(geometry_dir)
+geometry = File.read(File.join(root, 'app/src/main/java/com/xnotes/core/stroke/StrokeGeometry.kt'))
+File.write(File.join(geometry_dir, 'StrokeGeometry.kt'), geometry.sub('import com.xnotes.core.geometry.Pt', "import com.xnotes.core.geometry.Pt\nimport kotlin.concurrent.Volatile"))
