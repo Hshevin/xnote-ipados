@@ -129,7 +129,7 @@ fun Toolbar(
     var switcherIndex by remember(editor) { mutableStateOf<Int?>(null) }
     var renaming by remember(editor) { mutableStateOf(false) }
     // Pinned outside the scrolling strip so closing a split pane is always one tap away.
-    ToolbarFrame(armed = editor.tool, trailing = {
+    ToolbarFrame(armed = editor.toolbarTool, trailing = {
         onSplitDocument?.let { action ->
             ToolbarIcon(XnotesIcons.split, stringResource(R.string.split_current_document), onClick = action)
         }
@@ -314,7 +314,7 @@ private fun ToolButton(
     setConfigForTool: (Tool?) -> Unit,
 ) {
     if (icon == null) return
-    val armed = editor.tool == tool
+    val armed = editor.toolbarTool == tool
     val configurable = tool.isStroke || tool == Tool.SHAPE || tool == Tool.ERASER || tool == Tool.SELECT || tool == Tool.TEXT || tool == Tool.MARKUP || tool == Tool.TAPE
     Box {
         ToolbarIcon(

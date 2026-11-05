@@ -156,8 +156,11 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     /** Per-tool style, with the toolbar's active ink colour folded in at draw time. */
     private val toolConfigs = HashMap<Tool, ToolConfig>()
 
-    /** The armed tool, mirrored into Compose so the toolbar can show which one it is. */
+    /** The effective tool used for drawing, including temporary HOLD overrides. */
     var tool by mutableStateOf(Tool.PEN)
+        private set
+    /** Formal selection shown in chrome; HOLD shortcuts only change the effective tool. */
+    var toolbarTool by mutableStateOf(Tool.PEN)
         private set
 
     /** The active ink colour, used by any tool without a colour override of its own. */
@@ -420,7 +423,10 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     /** Shared preferences supplied by the owning paged editor. */
     var penShortcuts: () -> List<com.xnotes.pen.PenShortcut> = { emptyList() }
     private val proPenInput by lazy {
-        com.xnotes.pen.ProPenInput({ penShortcuts() }, { tool }, ::armTool, ::dispatchTapGesture)
+        com.xnotes.pen.ProPenInput(
+            { penShortcuts() }, { tool }, ::armTool, ::dispatchTapGesture,
+            { toolbarTool = it },
+        )
     }
     var otherPenInContact: () -> Boolean = { false }
     val stylusInContact: Boolean get() = proPenInput.stylusInContact

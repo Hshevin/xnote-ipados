@@ -1626,7 +1626,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions, homes: Set<com.xnote
                 position = com.xnotes.settings.ToolbarPosition.TOP, floating = false,
             )) {
                 val layout = com.xnotes.core.tools.workspaceToolbarLayout(editor.toolbarLayout, editor.canvasToolbarLayout)
-                com.xnotes.ui.ToolbarFrame(armed = if (editor.active.canvasOpen) editor.active.infinite.tool else editor.active.tool, leading = {
+                com.xnotes.ui.ToolbarFrame(armed = if (editor.active.canvasOpen) editor.active.infinite.toolbarTool else editor.active.toolbarTool, leading = {
                     com.xnotes.ui.ToolbarIcon(XnotesIcons.prev, stringResource(R.string.toolbar_home), onClick = actions.onMainMenu)
                 }, trailing = {
                     com.xnotes.ui.ToolbarIcon(XnotesIcons.save, stringResource(R.string.split_save), onClick = actions.onSaveSplit)
@@ -1937,7 +1937,7 @@ private fun EditorPane(
                             com.xnotes.core.tools.workspaceToolbarLayout(app.toolbarLayout, app.canvasToolbarLayout), editor.canvasOpen, editor.hasPdf, app.toolbarDocuments())
                         CompositionLocalProvider(com.xnotes.ui.LocalToolbarLook provides look.copy(position = com.xnotes.settings.ToolbarPosition.TOP, floating = false),
                             com.xnotes.ui.LocalWorkspaceToolbarLayout provides layout) {
-                            com.xnotes.ui.ToolbarFrame(armed = if (editor.canvasOpen) editor.infinite.tool else editor.tool) {
+                            com.xnotes.ui.ToolbarFrame(armed = if (editor.canvasOpen) editor.infinite.toolbarTool else editor.toolbarTool) {
                                 CompositionLocalProvider(com.xnotes.ui.LocalEmbeddedToolbar provides true) {
                                     EditorToolbar(editor, app, actions, shared = true)
                                 }

@@ -38,6 +38,9 @@ class ProPenButtons(initialTool: String) {
         return PenButtonResult(holds.values.lastOrNull() ?: baseTool, commands)
     }
 
+    /** Explicit selection, excluding any borrowed HOLD tool. */
+    val selectedTool: String get() = baseTool
+
     val observedButtons: Int get() = previousMask
     val activeHoldButtons: List<Int> get() = holds.keys.toList()
 

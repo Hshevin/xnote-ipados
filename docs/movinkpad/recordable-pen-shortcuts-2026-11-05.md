@@ -55,3 +55,9 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 - 新增标题切焦与共享文档拥有者关闭的真实编辑器仪器用例；本轮只完成其编译，未执行设备仪器测试。
 
 两轮独立源码复查未发现剩余明确阻塞项。`AGENTS.md` 已补充稳定的交接、取消和录入约定；检查 `README.md` 后确认现有用户说明和开发记录链接仍准确，无需重复改写。未生成 APK。
+
+## 临时按住不改变工具栏选择
+
+用户反馈悬浮按住时工具栏高亮来回滑动。现在将实际输入工具与正式选择分离：`ProPenButtons.selectedTool` 提供基础选择，`ProPenInput` 分别通知有效工具和正式选择；分页、无限画布和分屏共用工具栏统一读取 `toolbarTool`。HOLD 生效和释放不移动工具栏选中状态，SELECT 与手动选择仍正常更新。手动选中当前临时借用的工具会将它设为正式选择，松开按键后保留。
+
+新增 3 项共享 Android 事件契约，覆盖悬浮/落笔/释放期间选择稳定、笔画结束才提交 SELECT，以及手动选中临时工具。JDK 21 下完整主机测试 **2641 项通过，0 失败、0 错误、0 跳过**，其中 Robolectric 事件契约 38 项；`:app:compileDebugAndroidTestKotlin` 与 `git diff --check` 通过。README 和 AGENTS.md 已同步。未打包 APK，未执行设备仪器或真机动画验收。

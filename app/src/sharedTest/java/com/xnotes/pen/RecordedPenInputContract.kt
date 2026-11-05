@@ -374,6 +374,50 @@ abstract class RecordedPenInputContract {
         capture.key(key(KeyEvent.ACTION_UP))
         assertNull(capture.recording.finish())
     }
+    @Test fun temporaryHoldKeepsToolbarSelectionThroughHoverContactAndRelease() {
+        bindMotion(32, "eraser")
+        val selections = mutableListOf<Tool>()
+        val adapter = ProPenInput({ shortcuts }, { tool }, { tool = it }, {}, { selections.add(it) })
+        fun send(action: Int, mask: Int, contact: Boolean = false) {
+            val e = event(action, mask)
+            try { if (contact) adapter.touch(e) { true } else adapter.motion(e) } finally { e.recycle() }
+        }
+        send(MotionEvent.ACTION_HOVER_MOVE, 32)
+        assertEquals(Tool.ERASER, tool)
+        send(MotionEvent.ACTION_HOVER_EXIT, 0)
+        send(MotionEvent.ACTION_DOWN, 32, true)
+        assertEquals(Tool.ERASER, tool)
+        send(MotionEvent.ACTION_UP, 32, true)
+        send(MotionEvent.ACTION_HOVER_MOVE, 0)
+        assertEquals(Tool.PEN, tool)
+        assertTrue(selections.isNotEmpty())
+        assertTrue(selections.all { it == Tool.PEN })
+    }
+    @Test fun permanentButtonSelectionUpdatesToolbarOnlyAfterStroke() {
+        bindMotion(32, "highlighter", PenBindingMode.SELECT)
+        var selection = Tool.PEN
+        val adapter = ProPenInput({ shortcuts }, { tool }, { tool = it }, {}, { selection = it })
+        for ((action, mask) in listOf(MotionEvent.ACTION_DOWN to 0, MotionEvent.ACTION_MOVE to 32)) {
+            val e = event(action, mask)
+            try { adapter.touch(e) { true } } finally { e.recycle() }
+        }
+        assertEquals(Tool.PEN, selection)
+        val up = event(MotionEvent.ACTION_UP, 32)
+        try { adapter.touch(up) { assertEquals(Tool.PEN, selection); true } } finally { up.recycle() }
+        assertEquals(Tool.HIGHLIGHTER, selection)
+        assertEquals(Tool.HIGHLIGHTER, tool)
+    }
+    @Test fun explicitlySelectingTheBorrowedToolMakesItPermanentInToolbar() {
+        bindKey("eraser")
+        var selection = Tool.PEN
+        val adapter = ProPenInput({ shortcuts }, { tool }, { tool = it }, {}, { selection = it })
+        adapter.key(key(KeyEvent.ACTION_DOWN))
+        assertEquals(Tool.PEN, selection)
+        adapter.selected(Tool.ERASER) // toolbar tap, even though the effective tool is already eraser
+        adapter.key(key(KeyEvent.ACTION_UP))
+        assertEquals(Tool.ERASER, selection)
+        assertEquals(Tool.ERASER, tool)
+    }
     @Test fun tipFingerAndMouseDoNotRecordPenButtons() {
         for ((type, mask) in listOf(MotionEvent.TOOL_TYPE_STYLUS to 0,
                 MotionEvent.TOOL_TYPE_FINGER to 32, MotionEvent.TOOL_TYPE_MOUSE to 32)) {

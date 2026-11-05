@@ -553,6 +553,9 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     var tool by mutableStateOf(Tool.DEFAULT)
         private set
+    /** Formal selection shown in chrome; HOLD shortcuts only change the effective tool. */
+    var toolbarTool by mutableStateOf(Tool.DEFAULT)
+        private set
     var palette by mutableStateOf(state.palette)
         private set
     /** How round the chrome is, [Preferences.cornerStyle]. */
@@ -740,7 +743,10 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         private set
 
     private val proPenInput by lazy {
-        com.xnotes.pen.ProPenInput({ preferences.penShortcuts }, { tool }, ::selectTool, ::dispatchTapGesture)
+        com.xnotes.pen.ProPenInput(
+            { preferences.penShortcuts }, { tool }, ::selectTool, ::dispatchTapGesture,
+            { toolbarTool = it },
+        )
     }
 
     val stylusInContact: Boolean get() = if (canvasOpen) infinite.stylusInContact else proPenInput.stylusInContact

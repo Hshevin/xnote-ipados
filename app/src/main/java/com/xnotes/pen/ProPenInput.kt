@@ -10,6 +10,7 @@ class ProPenInput(
     private val currentTool: () -> Tool,
     private val armTool: (Tool) -> Unit,
     private val command: (String) -> Unit,
+    private val selectionChanged: (Tool) -> Unit = {},
 ) {
     private val buttons by lazy { ProPenButtons(currentTool().id) }
     private val signals = PenShortcutState()
@@ -25,6 +26,7 @@ class ProPenInput(
     fun selected(tool: Tool) {
         if (!applying) {
             buttons.select(tool.id)
+            selectionChanged(tool)
             // A later explicit selection supersedes queued tools, but not queued commands.
             deferred.forEach { it.bindings = it.bindings.filterValues { b -> b.action in PenBinding.commands } }
         }
@@ -157,6 +159,7 @@ class ProPenInput(
     private fun apply(result: PenButtonResult) {
         applying = true
         try {
+            Tool.fromId(buttons.selectedTool)?.let(selectionChanged)
             Tool.fromId(result.tool)?.let { if (it != currentTool()) armTool(it) }
             result.commands.forEach(command)
         } finally { applying = false }
