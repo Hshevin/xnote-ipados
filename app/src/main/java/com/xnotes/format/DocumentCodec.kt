@@ -82,6 +82,9 @@ class DocumentCodec(
     private val pdfGeometry: (Document, Int) -> PdfPageGeometry? = { _, _ -> null },
 ) {
 
+    /** Resolves only validated content IDs in the application-owned PDF store. */
+    var resolvePdf: ((String) -> File)? = null
+
     /** Thrown out of [write] when [isCancelled] turns true mid-copy, so the caller can discard the partial file. */
     class WriteCancelled : Exception()
 
@@ -163,8 +166,10 @@ class DocumentCodec(
         doc: Document,
         out: OutputStream,
         timing: WriteTiming? = null,
+        embedPdf: Boolean = true,
         isCancelled: () -> Boolean = { false },
     ) {
+        require(embedPdf || doc.pdfFile == null || doc.identity.pdfResource != null)
         val started = System.nanoTime()
         // Named up front by the same walk the manifest makes, so the entries can go in before it.
         val assets = imageAssets(doc)
@@ -184,9 +189,11 @@ class DocumentCodec(
             // Each image, packaged template and the source PDF streams straight from its file, never
             // as a byte[], so a note full of large assets doesn't materialize them in the heap on
             // every save. [isCancelled] lets a long copy abort (e.g. import cancel).
-            for ((name, file) in storedEntries(doc, assets, audio)) zos.putStored(name, file, isCancelled)
+            for ((name, file) in storedEntries(doc, assets, audio)) {
+                if (embedPdf || name != "assets/source.pdf") zos.putStored(name, file, isCancelled)
+            }
             val assetsDone = System.nanoTime()
-            writeTail(zos, doc, assets, timing, audio)
+            writeTail(zos, doc, assets, timing, audio, externalPdf = !embedPdf && doc.pdfFile != null)
             timing?.assetsMs = (assetsDone - started) / 1_000_000L
             timing?.manifestMs = (System.nanoTime() - assetsDone) / 1_000_000L
         }
@@ -203,8 +210,9 @@ class DocumentCodec(
         assets: List<Pair<String, File>>,
         timing: WriteTiming? = null,
         audio: List<Pair<String, File>> = audioAssets(doc),
+        externalPdf: Boolean = false,
     ) {
-        doc.identity.write(zos)
+        doc.identity.copy(externalPdf = externalPdf).write(zos)
         // The flow lives in its own ODF entry, written only when non-empty (or carrying
         // custom defaults) so untouched notes stay byte-identical to old readers.
         if (!doc.flow.isEmpty || !com.xnotes.core.text.FlowDefaults.of(doc.flow).isEmpty) {
@@ -852,7 +860,12 @@ class DocumentCodec(
         doc.margins = m.margins
         doc.newPageSize = m.newPageSize
 
+        require(identity?.externalPdf != true || m.hasPdf) { com.xnotes.storage.StorageText.t(com.xnotes.storage.StorageMsg.PDF_RESOURCE_CORRUPT) }
         if (m.hasPdf) {
+            if (identity?.externalPdf == true && pdfFile == null && pdfDir != null) {
+                val id = requireNotNull(identity?.pdfResource)
+                pdfFile = requireNotNull(resolvePdf) { com.xnotes.storage.StorageText.t(com.xnotes.storage.StorageMsg.PDF_RESOURCE_CORRUPT) }(id)
+            }
             doc.pdfFile = pdfFile
         } else {
             if (pdfStore == null) pdfFile?.delete() // a stray PDF with no manifest flag: don't leak the temp file

@@ -932,15 +932,23 @@ private fun EditorScreen(
                 render = { o, prog, cancel -> editor.exportFileToPdf(uriStr, o, prog, cancel) },
                 onReady = { temp -> runCatching { launchShare(temp, stem, "application/pdf") }.onFailure { editor.message = context.getString(R.string.err_share_note) } })
         } else {
-            // Sharing the bundle itself is just a fast byte copy — no render, no dialog needed. It
-            // keeps the source's own extension, so a canvas is shared as a canvas.
-            runCatching {
-                val dir = java.io.File(context.cacheDir, "share").apply { mkdirs() }
-                dir.listFiles()?.forEach { it.delete() } // keep only the file we're about to share
-                val file = java.io.File(dir, "$stem${kindOf(uriStr).suffix}")
-                java.io.FileOutputStream(file).use { o -> editor.copyFileTo(uriStr, o) }
-                launchShare(file, stem, "application/octet-stream")
-            }.onFailure { editor.message = context.getString(R.string.err_share_note) }
+            // A portable bundle can embed a large shared PDF. Keep packaging off the UI thread.
+            scope.launch {
+                val file = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    runCatching {
+                        val dir = java.io.File(context.cacheDir, "share").apply { mkdirs() }
+                        dir.listFiles()?.forEach { it.delete() }
+                        val target = java.io.File(dir, "$stem${kindOf(uriStr).suffix}")
+                        try {
+                            java.io.FileOutputStream(target).use { editor.copyFileTo(uriStr, it) }
+                            target
+                        } catch (e: Exception) { target.delete(); throw e }
+                    }.getOrNull()
+                }
+                if (file == null) editor.message = context.getString(R.string.err_share_note)
+                else runCatching { launchShare(file, stem, "application/octet-stream") }
+                    .onFailure { editor.message = context.getString(R.string.err_share_note) }
+            }
         }
     }
 
