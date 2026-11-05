@@ -10,3 +10,8 @@ func verifyGeometryInterop() -> Bool {
     return probe.distance(x0: 0, y0: 0, x1: 3, y1: 4) == 5
         && probe.pathLength(coordinates: batch) == 10
 }
+
+func verifySampleCodecInterop() -> Bool {
+    let input = "[[1.25,-2.5,0.125,12],[3,4,1,15]]"
+    return (try? SampleCodecProbe().roundTrip(json: input)) == input
+}
