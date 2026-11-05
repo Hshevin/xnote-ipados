@@ -19,6 +19,9 @@
     <string name="layers_delete_confirm">Delete this layer and its contents? You can undo this change.</string>
     <string name="layers_not_writable">Select a visible, unlocked layer to edit.</string>
     <string name="layers_drag">Drag to reorder layers</string>
-    <string name="layers_drag_hint">Drag the handle to reorder. Tap a layer to select it.</string>
+    <string name="layers_drag_hint">Drag a preview to reorder; double-tap a name to rename.</string>
     <string name="layers_actions">Layer actions</string>
+    <string name="layers_small_previews">Smaller previews</string>
+    <string name="layers_large_previews">Larger previews</string>
+    <string name="layers_preview_failed">Preview unavailable</string>
 </resources>

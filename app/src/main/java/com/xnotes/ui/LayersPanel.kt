@@ -1,6 +1,8 @@
 package com.xnotes.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
@@ -19,11 +21,16 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LocalPinnableContainer
 import androidx.compose.ui.layout.PinnableContainer
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.zIndex
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.R
 import com.xnotes.core.model.DrawingLayers
+import com.xnotes.core.model.LayerPreview
+import com.xnotes.ui.theme.LayerThumbnailSize
+import com.xnotes.ui.theme.LayerThumbnailLargeSize
 import com.xnotes.ui.theme.MinTouchTarget
 import com.xnotes.ui.theme.Space
 import com.xnotes.ui.theme.TextSize
@@ -46,7 +53,8 @@ fun LayersButton(editor: InfiniteEditor) {
 fun LayersSidebar(editor: Editor) {
     val page = editor.state.document.pages.getOrNull(editor.pageIndex) ?: return
     key(page) {
-        LayersPanel(page.layers, editor.contentVersion, { editor.selectLayer(page, it) }, { edit -> editor.editLayers(page, edit) },
+        val preview = remember(editor.contentVersion) { LayerPreview(page.items, editor.state.footprint(page)) }
+        LayersPanel(page.layers, preview, editor.contentVersion, { editor.selectLayer(page, it) }, { edit -> editor.editLayers(page, edit) },
             { id -> page.items.removeAll { it.layerId == id }; page.layers.delete(id) },
             { id -> editor.moveSelectionToLayer(page, id) },
             editor.hasSelection && editor.controller.layerSelection(page).isNotEmpty(), { editor.sidebarVisible = false })
@@ -56,7 +64,8 @@ fun LayersSidebar(editor: Editor) {
 @Composable
 fun LayersSidebar(editor: InfiniteEditor) {
     key(editor.document) {
-        LayersPanel(editor.document.layers, editor.layerContentVersion, editor::selectLayer, editor::editLayers,
+        val preview = remember(editor.layerContentVersion) { LayerPreview(editor.document.items) }
+        LayersPanel(editor.document.layers, preview, editor.layerContentVersion, editor::selectLayer, editor::editLayers,
             { id -> editor.document.removeAll(editor.document.items.filter { it.layerId == id }); editor.document.layers.delete(id) },
             editor::moveSelectionToLayer, editor.hasSelection, { editor.layersSidebarVisible = false })
     }
@@ -66,6 +75,7 @@ fun LayersSidebar(editor: InfiniteEditor) {
 @Composable
 private fun LayersPanel(
     layers: DrawingLayers,
+    preview: LayerPreview,
     version: Int,
     select: (String) -> Boolean,
     edit: (() -> Unit) -> Boolean,
@@ -74,6 +84,9 @@ private fun LayersPanel(
     hasSelection: Boolean,
     dismiss: () -> Unit,
 ) {
+    val thumbnails = remember(preview) { LayerThumbnailCache() }
+    var largeThumbnails by remember { mutableStateOf(false) }
+    val thumbnailSize = if (largeThumbnails) LayerThumbnailLargeSize else LayerThumbnailSize
     var rename by remember { mutableStateOf<String?>(null) }
     var name by remember { mutableStateOf("") }
     var deleting by remember { mutableStateOf<String?>(null) }
@@ -111,6 +124,7 @@ private fun LayersPanel(
             delay(16)
         }
     }
+    val dragDescription = stringResource(R.string.layers_drag)
     val colors = MaterialTheme.colorScheme
     Column(Modifier.fillMaxSize().background(colors.surface)) {
         Row(Modifier.fillMaxWidth().padding(start = Space.s12), verticalAlignment = Alignment.CenterVertically) {
@@ -138,6 +152,26 @@ private fun LayersPanel(
                         ?: first?.let { it.offset + (index - it.index) * it.size } ?: 0
                     pointerY - grabY - rowOffset
                 } else 0f
+                val startDrag: (Offset) -> Unit = { at ->
+                    val row = list.layoutInfo.visibleItemsInfo.firstOrNull { it.key == layer.id }
+                    if (row != null) {
+                        // Keep the source row alive while edge scrolling moves it off screen.
+                        pinned?.release()
+                        pinned = pinnable?.pin()
+                        startIds = ids
+                        dragging = layer.id
+                        grabY = at.y
+                        pointerY = row.offset + at.y
+                        updateTarget()
+                    }
+                }
+                val endDrag: () -> Unit = {
+                    val id = dragging
+                    val target = beforeId
+                    dragging = null
+                    if (id != null && layers.entries.asReversed().map { it.id } == startIds &&
+                        layers.copy().moveBefore(id, target)) change { layers.moveBefore(id, target) }
+                }
                 Row(Modifier.fillMaxWidth().zIndex(if (dragging == layer.id) 1f else 0f)
                     .graphicsLayer { translationY = offset }
                     .drawWithContent {
@@ -148,41 +182,28 @@ private fun LayersPanel(
                     .background(bg).selectable(selected, enabled = dragging == null) {
                         if (!selected) select(layer.id)
                     }, verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(MinTouchTarget).pointerInput(layer.id, ids) {
-                        detectDragGestures(
-                            onDragStart = { at ->
-                                val row = list.layoutInfo.visibleItemsInfo.firstOrNull { it.key == layer.id }
-                                if (row != null) {
-                                    // Keep the source row alive while edge scrolling moves it off screen.
-                                    pinned?.release()
-                                    pinned = pinnable?.pin()
-                                    startIds = ids
-                                    dragging = layer.id
-                                    grabY = at.y
-                                    pointerY = row.offset + at.y
-                                    updateTarget()
-                                }
-                            },
-                            onDrag = { change, amount -> change.consume(); pointerY += amount.y; updateTarget() },
-                            onDragCancel = { dragging = null },
-                            onDragEnd = {
-                                val id = dragging
-                                val target = beforeId
-                                dragging = null
-                                if (id != null && layers.entries.asReversed().map { it.id } == startIds &&
-                                    layers.copy().moveBefore(id, target)) change { layers.moveBefore(id, target) }
-                            },
-                        )
-                    }, contentAlignment = Alignment.Center) {
-                        Icon(XnotesIcons.grip, stringResource(R.string.layers_drag), tint = fg)
-                    }
-                    Text(layer.name.ifEmpty { stringResource(R.string.layers_default, entries.size - index) },
-                        Modifier.weight(1f), color = fg, fontSize = TextSize.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     IconButton(enabled = dragging == null, onClick = { change { layers.update(layer.id) { it.copy(visible = !it.visible) } } },
                         modifier = Modifier.size(MinTouchTarget)) {
                         Icon(if (layer.visible) XnotesIcons.layerVisible else XnotesIcons.layerHidden,
                             stringResource(if (layer.visible) R.string.layers_hide else R.string.layers_show), tint = fg)
                     }
+                    Box(Modifier.size(thumbnailSize + Space.s16).semantics { contentDescription = dragDescription }.pointerInput(layer.id, ids) {
+                        detectDragGestures(onDragStart = startDrag, onDragEnd = endDrag,
+                            onDragCancel = { dragging = null },
+                            onDrag = { event, amount -> event.consume(); pointerY += amount.y; updateTarget() })
+                    }, contentAlignment = Alignment.Center) {
+                        LayerThumbnail(preview, layer.id, thumbnails, Modifier.size(thumbnailSize))
+                    }
+                    Text(layer.name.ifEmpty { stringResource(R.string.layers_default, entries.size - index) },
+                        Modifier.weight(1f).height(thumbnailSize + Space.s16)
+                            .combinedClickable(enabled = dragging == null, onClick = { if (!selected) select(layer.id) },
+                                onDoubleClick = { rename = layer.id; name = layer.name })
+                            .pointerInput(layer.id, ids) {
+                                detectDragGesturesAfterLongPress(onDragStart = startDrag, onDragEnd = endDrag,
+                                    onDragCancel = { dragging = null },
+                                    onDrag = { event, amount -> event.consume(); pointerY += amount.y; updateTarget() })
+                            }.wrapContentHeight(Alignment.CenterVertically),
+                        color = fg, fontSize = TextSize.body, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     IconButton(enabled = dragging == null, onClick = { change { layers.update(layer.id) { it.copy(locked = !it.locked) } } },
                         modifier = Modifier.size(MinTouchTarget)) {
                         Icon(if (layer.locked) XnotesIcons.lock else XnotesIcons.unlock,
@@ -201,7 +222,7 @@ private fun LayersPanel(
                                 onClick = { menu = null; change { layers.move(layer.id, -1) } })
                             if (hasSelection) DropdownMenuItem(text = { Text(stringResource(R.string.layers_move_selection), fontSize = TextSize.body) },
                                 enabled = layer.visible && !layer.locked, onClick = { menu = null; moveSelection(layer.id) })
-                            DropdownMenuItem(text = { Text(stringResource(R.string.layers_delete), fontSize = TextSize.body) }, enabled = entries.size > 1,
+                            DropdownMenuItem(text = { Text(stringResource(R.string.layers_delete), fontSize = TextSize.body) }, enabled = entries.size > 1 && !layer.locked && layer.visible,
                                 onClick = { menu = null; deleting = layer.id })
                         }
                     }
@@ -209,8 +230,27 @@ private fun LayersPanel(
             }
         }
         HorizontalDivider(thickness = if (dragging != null && beforeId == null) Space.s2 else androidx.compose.ui.unit.Dp.Hairline)
-        TextButton(enabled = dragging == null, onClick = { change { layers.create("") } }, modifier = Modifier.fillMaxWidth().heightIn(min = MinTouchTarget)) {
-            Text(stringResource(R.string.layers_add), fontSize = TextSize.body)
+        val active = layers.entries.first { it.id == layers.activeId }
+        val activeIndex = layers.entries.indexOf(active)
+        Row(Modifier.fillMaxWidth()) {
+            IconButton(enabled = dragging == null, onClick = { change { layers.create("") } }, modifier = Modifier.weight(1f).height(MinTouchTarget)) {
+                Icon(XnotesIcons.plus, stringResource(R.string.layers_add))
+            }
+            IconButton(enabled = dragging == null && activeIndex < layers.entries.lastIndex,
+                onClick = { change { layers.move(active.id, 1) } }, modifier = Modifier.weight(1f).height(MinTouchTarget)) {
+                Icon(XnotesIcons.arrowUp, stringResource(R.string.layers_up))
+            }
+            IconButton(enabled = dragging == null && activeIndex > 0,
+                onClick = { change { layers.move(active.id, -1) } }, modifier = Modifier.weight(1f).height(MinTouchTarget)) {
+                Icon(XnotesIcons.arrowDown, stringResource(R.string.layers_down))
+            }
+            IconButton(enabled = dragging == null, onClick = { largeThumbnails = !largeThumbnails }, modifier = Modifier.weight(1f).height(MinTouchTarget)) {
+                Icon(XnotesIcons.layers, stringResource(if (largeThumbnails) R.string.layers_small_previews else R.string.layers_large_previews))
+            }
+            IconButton(enabled = dragging == null && entries.size > 1 && !active.locked && active.visible,
+                onClick = { deleting = active.id }, modifier = Modifier.weight(1f).height(MinTouchTarget)) {
+                Icon(XnotesIcons.trash, stringResource(R.string.layers_delete))
+            }
         }
     }
     rename?.let { id ->
@@ -224,7 +264,7 @@ private fun LayersPanel(
     deleting?.let { id ->
         AlertDialog(onDismissRequest = { deleting = null }, title = { Text(stringResource(R.string.layers_delete), fontSize = TextSize.heading) },
             text = { Text(stringResource(R.string.layers_delete_confirm), fontSize = TextSize.body) },
-            confirmButton = { TextButton(onClick = { if (layers.entries.size > 1 && layers.entries.any { it.id == id }) change { delete(id) }; deleting = null }) { Text(stringResource(R.string.layers_delete), fontSize = TextSize.body) } },
+            confirmButton = { TextButton(onClick = { if (layers.entries.size > 1 && layers.entries.any { it.id == id && it.visible && !it.locked }) change { delete(id) }; deleting = null }) { Text(stringResource(R.string.layers_delete), fontSize = TextSize.body) } },
             dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.layers_cancel), fontSize = TextSize.body) } })
     }
 }
