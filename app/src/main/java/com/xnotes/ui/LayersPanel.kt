@@ -24,6 +24,15 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.zIndex
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import com.xnotes.ui.theme.LocalPalette
+import com.xnotes.ui.theme.toComposeColor
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.R
 import com.xnotes.core.model.DrawingLayers
@@ -90,7 +99,7 @@ private fun LayersPanel(
     }
     var previewMenu by remember { mutableStateOf(false) }
     val thumbnailSize = LayerThumbnailSize
-    val rowHeight = if (previewMode == LayerPreviewMode.NONE) MinTouchTarget else thumbnailSize + Space.s16
+    val rowHeight = if (previewMode == LayerPreviewMode.NONE) MinTouchTarget else thumbnailSize + Space.s8
     var rename by remember { mutableStateOf<String?>(null) }
     var name by remember { mutableStateOf("") }
     var deleting by remember { mutableStateOf<String?>(null) }
@@ -129,17 +138,43 @@ private fun LayersPanel(
         }
     }
     val dragDescription = stringResource(R.string.layers_drag)
-    val colors = MaterialTheme.colorScheme
-    Column(Modifier.fillMaxSize().background(colors.surface)) {
-        Row(Modifier.fillMaxWidth().padding(start = Space.s12), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.layers_title), Modifier.weight(1f), fontSize = TextSize.title)
-            IconButton(onClick = dismiss, modifier = Modifier.size(MinTouchTarget)) {
-                Icon(XnotesIcons.close, stringResource(R.string.layers_close))
+    val palette = LocalPalette.current
+    val text = palette.text.toComposeColor()
+    val dim = palette.textDim.toComposeColor()
+    val off = palette.disabled.toComposeColor()
+    Column(Modifier.fillMaxSize().background(palette.panel.toComposeColor())) {
+        Row(Modifier.fillMaxWidth().height(MinTouchTarget).padding(start = Space.s16, end = Space.s4), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.layers_title), Modifier.weight(1f), color = text, fontSize = TextSize.title, fontWeight = FontWeight.Bold)
+            Box {
+                Tooltip(stringResource(R.string.layers_preview_mode)) {
+                    IconButton(enabled = dragging == null, onClick = { previewMenu = true }, modifier = Modifier.size(MinTouchTarget)) {
+                        Icon(XnotesIcons.thumbnails, stringResource(R.string.layers_preview_mode), tint = dim, modifier = Modifier.size(20.dp))
+                    }
+                }
+                DropdownMenu(expanded = previewMenu, onDismissRequest = { previewMenu = false }) {
+                    for (mode in preview.modes) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(when (mode) {
+                                LayerPreviewMode.NONE -> R.string.layers_preview_none
+                                LayerPreviewMode.CONTENT -> R.string.layers_preview_content
+                                LayerPreviewMode.PAGE -> R.string.layers_preview_page
+                            }), fontSize = TextSize.body) },
+                            leadingIcon = { RadioButton(selected = mode == previewMode, onClick = null) },
+                            onClick = { previewMenu = false; onPreviewMode(mode) },
+                        )
+                    }
+                }
+            }
+            Tooltip(stringResource(R.string.layers_close)) {
+                IconButton(onClick = dismiss, modifier = Modifier.size(MinTouchTarget)) {
+                    Icon(XnotesIcons.close, stringResource(R.string.layers_close), tint = dim, modifier = Modifier.size(20.dp))
+                }
             }
         }
-        Text(stringResource(R.string.layers_drag_hint), Modifier.padding(horizontal = Space.s12, vertical = Space.s4),
-            fontSize = TextSize.caption, color = colors.onSurfaceVariant)
-        LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = list, userScrollEnabled = dragging == null) {
+        Text(stringResource(R.string.layers_drag_hint), Modifier.padding(start = Space.s16, end = Space.s16, bottom = Space.s8),
+            fontSize = TextSize.caption, color = dim)
+        LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = list, userScrollEnabled = dragging == null,
+            contentPadding = PaddingValues(horizontal = Space.s8)) {
             itemsIndexed(entries, key = { _, layer -> layer.id }) { index, layer ->
                 val pinnable = LocalPinnableContainer.current
                 var pinned by remember { mutableStateOf<PinnableContainer.PinnedHandle?>(null) }
@@ -148,8 +183,10 @@ private fun LayersPanel(
                     if (dragging != layer.id) { pinned?.release(); pinned = null }
                 }
                 val selected = layers.activeId == layer.id
-                val fg = if (selected) colors.inverseOnSurface else colors.onSurface
-                val bg = if (selected) colors.inverseSurface else colors.surface
+                // Selection is a full inversion; resting states (visible, unlocked) step back to grey.
+                val fg = if (selected) palette.selectionForeground.toComposeColor() else text
+                val quiet = if (selected) fg.copy(alpha = 0.6f) else dim
+                val shape = MaterialTheme.shapes.small
                 val offset = if (dragging == layer.id) {
                     val first = list.layoutInfo.visibleItemsInfo.firstOrNull()
                     val rowOffset = list.layoutInfo.visibleItemsInfo.firstOrNull { it.key == layer.id }?.offset
@@ -181,22 +218,28 @@ private fun LayersPanel(
                     .drawWithContent {
                         drawContent()
                         if (dragging != null && beforeId == layer.id)
-                            drawLine(colors.onSurface, Offset.Zero, Offset(size.width, 0f), Space.s2.toPx())
+                            drawLine(text, Offset.Zero, Offset(size.width, 0f), Space.s2.toPx())
                     }
-                    .background(bg).selectable(selected, enabled = dragging == null) {
+                    .padding(vertical = Space.s2).clip(shape)
+                    .background(if (selected) palette.selectionBackground.toComposeColor() else palette.panel.toComposeColor())
+                    .then(if (dragging == layer.id && !selected) Modifier.border(1.dp, palette.border.toComposeColor(), shape) else Modifier)
+                    .selectable(selected, enabled = dragging == null) {
                         if (!selected) select(layer.id)
                     }, verticalAlignment = Alignment.CenterVertically) {
                     IconButton(enabled = dragging == null, onClick = { change { layers.update(layer.id) { it.copy(visible = !it.visible) } } },
                         modifier = Modifier.size(MinTouchTarget)) {
                         Icon(if (layer.visible) XnotesIcons.layerVisible else XnotesIcons.layerHidden,
-                            stringResource(if (layer.visible) R.string.layers_hide else R.string.layers_show), tint = fg)
+                            stringResource(if (layer.visible) R.string.layers_hide else R.string.layers_show),
+                            tint = if (layer.visible) quiet else fg, modifier = Modifier.size(20.dp))
                     }
+                    // A hidden layer recedes; its controls keep full contrast so it can be shown again.
+                    val content = Modifier.alpha(if (layer.visible) 1f else 0.4f)
                     if (thumbnails != null) Box(Modifier.size(rowHeight).semantics { contentDescription = dragDescription }.pointerInput(layer.id, ids) {
                         detectDragGestures(onDragStart = startDrag, onDragEnd = endDrag,
                             onDragCancel = { dragging = null },
                             onDrag = { event, amount -> event.consume(); pointerY += amount.y; updateTarget() })
                     }, contentAlignment = Alignment.Center) {
-                        key(previewMode) { LayerThumbnail(preview, layer.id, previewMode, thumbnails, Modifier.size(thumbnailSize)) }
+                        key(previewMode) { LayerThumbnail(preview, layer.id, previewMode, thumbnails, content.size(thumbnailSize)) }
                     }
                     Text(layer.name.ifEmpty { stringResource(R.string.layers_default, entries.size - index) },
                         Modifier.weight(1f).height(rowHeight)
@@ -206,16 +249,17 @@ private fun LayersPanel(
                                 detectDragGestures(onDragStart = startDrag, onDragEnd = endDrag,
                                     onDragCancel = { dragging = null },
                                     onDrag = { event, amount -> event.consume(); pointerY += amount.y; updateTarget() })
-                            }.wrapContentHeight(Alignment.CenterVertically),
-                        color = fg, fontSize = TextSize.body, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            }.then(content).padding(start = Space.s8).wrapContentHeight(Alignment.CenterVertically),
+                        color = fg, fontSize = TextSize.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     IconButton(enabled = dragging == null, onClick = { change { layers.update(layer.id) { it.copy(locked = !it.locked) } } },
                         modifier = Modifier.size(MinTouchTarget)) {
                         Icon(if (layer.locked) XnotesIcons.lock else XnotesIcons.unlock,
-                            stringResource(if (layer.locked) R.string.layers_unlock else R.string.layers_lock), tint = fg)
+                            stringResource(if (layer.locked) R.string.layers_unlock else R.string.layers_lock),
+                            tint = if (layer.locked) fg else quiet, modifier = Modifier.size(20.dp))
                     }
                     Box {
                         IconButton(enabled = dragging == null, onClick = { menu = layer.id }, modifier = Modifier.size(MinTouchTarget)) {
-                            Icon(XnotesIcons.more, stringResource(R.string.layers_actions), tint = fg)
+                            Icon(XnotesIcons.more, stringResource(R.string.layers_actions), tint = quiet, modifier = Modifier.size(20.dp))
                         }
                         DropdownMenu(expanded = menu == layer.id, onDismissRequest = { menu = null }) {
                             DropdownMenuItem(text = { Text(stringResource(R.string.layers_rename), fontSize = TextSize.body) },
@@ -233,43 +277,16 @@ private fun LayersPanel(
                 }
             }
         }
-        HorizontalDivider(thickness = if (dragging != null && beforeId == null) Space.s2 else androidx.compose.ui.unit.Dp.Hairline)
+        val dropAtEnd = dragging != null && beforeId == null
+        HorizontalDivider(thickness = if (dropAtEnd) Space.s2 else Dp.Hairline, color = if (dropAtEnd) text else palette.border.toComposeColor())
         val active = layers.entries.first { it.id == layers.activeId }
         val activeIndex = layers.entries.indexOf(active)
-        Row(Modifier.fillMaxWidth()) {
-            IconButton(enabled = dragging == null, onClick = { change { layers.create("") } }, modifier = Modifier.weight(1f).height(MinTouchTarget)) {
-                Icon(XnotesIcons.plus, stringResource(R.string.layers_add))
-            }
-            IconButton(enabled = dragging == null && activeIndex < layers.entries.lastIndex,
-                onClick = { change { layers.move(active.id, 1) } }, modifier = Modifier.weight(1f).height(MinTouchTarget)) {
-                Icon(XnotesIcons.arrowUp, stringResource(R.string.layers_up))
-            }
-            IconButton(enabled = dragging == null && activeIndex > 0,
-                onClick = { change { layers.move(active.id, -1) } }, modifier = Modifier.weight(1f).height(MinTouchTarget)) {
-                Icon(XnotesIcons.arrowDown, stringResource(R.string.layers_down))
-            }
-            Box(Modifier.weight(1f)) {
-                IconButton(enabled = dragging == null, onClick = { previewMenu = true }, modifier = Modifier.fillMaxWidth().height(MinTouchTarget)) {
-                    Icon(XnotesIcons.layers, stringResource(R.string.layers_preview_mode))
-                }
-                DropdownMenu(expanded = previewMenu, onDismissRequest = { previewMenu = false }) {
-                    for (mode in preview.modes) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(when (mode) {
-                                LayerPreviewMode.NONE -> R.string.layers_preview_none
-                                LayerPreviewMode.CONTENT -> R.string.layers_preview_content
-                                LayerPreviewMode.PAGE -> R.string.layers_preview_page
-                            }), fontSize = TextSize.body) },
-                            leadingIcon = { RadioButton(selected = mode == previewMode, onClick = null) },
-                            onClick = { previewMenu = false; onPreviewMode(mode) },
-                        )
-                    }
-                }
-            }
-            IconButton(enabled = dragging == null && entries.size > 1 && !active.locked && active.visible,
-                onClick = { deleting = active.id }, modifier = Modifier.weight(1f).height(MinTouchTarget)) {
-                Icon(XnotesIcons.trash, stringResource(R.string.layers_delete))
-            }
+        Row(Modifier.fillMaxWidth().padding(horizontal = Space.s8, vertical = Space.s4), verticalAlignment = Alignment.CenterVertically) {
+            LayerBarButton(XnotesIcons.plus, stringResource(R.string.layers_add), dragging == null) { change { layers.create("") } }
+            LayerBarButton(XnotesIcons.arrowUp, stringResource(R.string.layers_up), dragging == null && activeIndex < layers.entries.lastIndex) { change { layers.move(active.id, 1) } }
+            LayerBarButton(XnotesIcons.arrowDown, stringResource(R.string.layers_down), dragging == null && activeIndex > 0) { change { layers.move(active.id, -1) } }
+            Spacer(Modifier.weight(1f))
+            LayerBarButton(XnotesIcons.trash, stringResource(R.string.layers_delete), dragging == null && entries.size > 1 && !active.locked && active.visible) { deleting = active.id }
         }
     }
     rename?.let { id ->
@@ -285,5 +302,15 @@ private fun LayersPanel(
             text = { Text(stringResource(R.string.layers_delete_confirm), fontSize = TextSize.body) },
             confirmButton = { TextButton(onClick = { if (layers.entries.size > 1 && layers.entries.any { it.id == id && it.visible && !it.locked }) change { delete(id) }; deleting = null }) { Text(stringResource(R.string.layers_delete), fontSize = TextSize.body) } },
             dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.layers_cancel), fontSize = TextSize.body) } })
+    }
+}
+
+@Composable
+private fun LayerBarButton(icon: ImageVector, label: String, enabled: Boolean, onClick: () -> Unit) {
+    val palette = LocalPalette.current
+    Tooltip(label) {
+        IconButton(enabled = enabled, onClick = onClick, modifier = Modifier.size(MinTouchTarget)) {
+            Icon(icon, label, tint = (if (enabled) palette.text else palette.disabled).toComposeColor(), modifier = Modifier.size(20.dp))
+        }
     }
 }

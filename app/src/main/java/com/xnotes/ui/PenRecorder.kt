@@ -9,7 +9,10 @@ import android.view.View
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -62,9 +65,13 @@ internal fun PenRecorder(onRecorded: (List<PenTrigger>) -> Unit, onFailed: (PenR
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-        Text(stringResource(R.string.pen_record_help), fontSize = TextSize.body)
-        Box(Modifier.fillMaxWidth().height(MinTouchTarget * 3)
-            .background(palette.surface.toComposeColor()).border(1.dp, palette.border.toComposeColor())) {
+        Text(stringResource(R.string.pen_record_help), color = palette.textDim.toComposeColor(), fontSize = TextSize.label)
+        val shape = MaterialTheme.shapes.medium
+        Box(Modifier.fillMaxWidth().height(MinTouchTarget * 3).clip(shape)
+            .background(palette.surfaceHi.toComposeColor()).border(1.dp, palette.border.toComposeColor(), shape),
+            contentAlignment = Alignment.Center) {
+            // The label sits under the transparent recording view, so it never takes the pen's events.
+            Text(stringResource(R.string.pen_record_area), color = palette.textDim.toComposeColor(), fontSize = TextSize.body)
             AndroidView(modifier = Modifier.fillMaxSize(), factory = { context ->
                 object : View(context) {
                     override fun onTouchEvent(event: MotionEvent) = record { input.motion(event) }
@@ -73,7 +80,6 @@ internal fun PenRecorder(onRecorded: (List<PenTrigger>) -> Unit, onFailed: (PenR
                 }.apply { contentDescription = context.getString(R.string.pen_record_area) }
             })
         }
-        Text(stringResource(R.string.pen_record_area), fontSize = TextSize.label)
     }
 }
 

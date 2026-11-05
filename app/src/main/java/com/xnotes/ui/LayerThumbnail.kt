@@ -7,6 +7,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.draw.clip
+import com.xnotes.ui.theme.LocalPalette
+import com.xnotes.ui.theme.toComposeColor
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
 import com.xnotes.R
@@ -64,11 +68,13 @@ internal fun LayerThumbnail(preview: LayerPreview, id: String, mode: LayerPrevie
             failed = true
         }
     }
-    Box(modifier.border(Dp.Hairline, Color.Gray), contentAlignment = Alignment.Center) {
+    val shape = MaterialTheme.shapes.extraSmall
+    Box(modifier.clip(shape).border(Dp.Hairline, LocalPalette.current.border.toComposeColor(), shape), contentAlignment = Alignment.Center) {
+        // Transparency checkerboard: a faint grey step so it reads as backdrop, not content.
         Canvas(Modifier.fillMaxSize()) {
             val cell = size.minDimension / 8f
             for (y in 0..7) for (x in 0..7) {
-                drawRect(if ((x + y) % 2 == 0) Color.White else Color.LightGray,
+                drawRect(if ((x + y) % 2 == 0) Color.White else CheckerGrey,
                     Offset(x * cell, y * cell), Size(cell, cell))
             }
         }
@@ -76,3 +82,5 @@ internal fun LayerThumbnail(preview: LayerPreview, id: String, mode: LayerPrevie
         if (failed) Icon(XnotesIcons.close, stringResource(R.string.layers_preview_failed), tint = Color.Black)
     }
 }
+
+private val CheckerGrey = Color(0xFFEBEBEB)
