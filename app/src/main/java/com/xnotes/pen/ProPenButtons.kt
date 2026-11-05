@@ -47,7 +47,8 @@ class ProPenButtons(initialTool: String) {
     }
 
     /** Losing focus cancels holds, retaining edges so a still-held command cannot fire twice. */
-    fun reset(): PenButtonResult {
+    fun reset(releasedButtons: Int = 0): PenButtonResult {
+        previousMask = previousMask and releasedButtons.inv()
         holds.clear()
         return PenButtonResult(baseTool)
     }

@@ -22,6 +22,10 @@ val keystoreProperties = Properties().apply {
 
 android {
     namespace = "com.xnotes"
+    sourceSets {
+        getByName("test").java.srcDir("src/sharedTest/java")
+        getByName("androidTest").java.srcDir("src/sharedTest/java")
+    }
     compileSdk = 36
     // Pinned toolchain for the vendored native builds (F-Droid reproducibility).
     ndkVersion = "27.0.12077973"
@@ -154,5 +158,11 @@ dependencies {
 
     androidTestImplementation(libs.junit)
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
     testImplementation(libs.json)
+}
+
+// Robolectric resolves its Android runtime separately from Gradle dependencies.
+tasks.withType<Test>().configureEach {
+    systemProperty("robolectric.dependency.repo.url", "https://repo.maven.apache.org/maven2")
 }

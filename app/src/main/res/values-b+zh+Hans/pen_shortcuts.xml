@@ -14,4 +14,5 @@
     <string name="pen_shortcut_delete">删除映射</string>
     <string name="pen_shortcuts_limit">最多可录入 32 个按键。请先删除已有映射。</string>
     <string name="pen_shortcuts_invalid">无法保存：映射中有重复或无效按键，或已超过数量上限。</string>
+    <string name="pen_shortcut_near_screen">此映射需要笔靠近屏幕。若需远离屏幕使用遥控按键，请在远处重新录入。</string>
 </resources>

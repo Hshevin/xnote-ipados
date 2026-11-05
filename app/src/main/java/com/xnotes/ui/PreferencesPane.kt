@@ -883,17 +883,18 @@ private fun MillimetreField(label: String, value: Double, onChange: (Double) -> 
 }
 
 @Composable
-internal fun OptionDropdown(options: List<Pair<String, String>>, selectedId: String, onSelect: (String) -> Unit) {
+internal fun OptionDropdown(options: List<Pair<String, String>>, selectedId: String, modifier: Modifier = Modifier, onSelect: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     val palette = LocalPalette.current
     val label = options.firstOrNull { it.first == selectedId }?.second ?: options.first().second
     Box {
         Box(
-            Modifier
+            modifier
                 .clip(MaterialTheme.shapes.small)
                 .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.small)
                 .clickable { expanded = true }
                 .padding(horizontal = Space.s12, vertical = Space.s6),
+            contentAlignment = Alignment.CenterStart,
         ) {
             Text(label, color = palette.text.toComposeColor(), fontSize = TextSize.bodyLarge)
         }

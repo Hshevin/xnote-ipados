@@ -30,6 +30,9 @@ fun PenShortcutSettings(shortcuts: List<PenShortcut>, onChange: (List<PenShortcu
         shortcuts.forEachIndexed { index, shortcut ->
             Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
                 FieldLabel(shortcut.name)
+                if (shortcut.primary.kind == PenTrigger.Kind.MOTION) {
+                    Text(stringResource(R.string.pen_shortcut_near_screen), fontSize = TextSize.label)
+                }
                 BindingFields(actions, shortcut.binding) { next ->
                     onChange(shortcuts.toMutableList().apply { set(index, shortcut.copy(binding = next)) })
                 }
@@ -50,6 +53,9 @@ fun PenShortcutSettings(shortcuts: List<PenShortcut>, onChange: (List<PenShortcu
             }
         } else if (pending != null) {
             Text(stringResource(R.string.pen_record_success), fontSize = TextSize.body)
+            if (pending!!.any { it.kind == PenTrigger.Kind.MOTION }) {
+                Text(stringResource(R.string.pen_shortcut_near_screen), fontSize = TextSize.label)
+            }
             OutlinedTextField(value = name, onValueChange = { if (it.length <= 80) name = it },
                 label = { Text(stringResource(R.string.pen_shortcut_name), fontSize = TextSize.label) },
                 textStyle = androidx.compose.ui.text.TextStyle(fontSize = TextSize.body), modifier = Modifier.fillMaxWidth())
@@ -73,12 +79,12 @@ fun PenShortcutSettings(shortcuts: List<PenShortcut>, onChange: (List<PenShortcu
 
 @Composable
 private fun BindingFields(actions: List<Pair<String, String>>, binding: PenBinding, onChange: (PenBinding) -> Unit) {
-    OptionDropdown(actions, binding.action) { action ->
+    OptionDropdown(actions, binding.action, Modifier.sizeIn(minWidth = MinTouchTarget, minHeight = MinTouchTarget)) { action ->
         onChange(binding.copy(action = action,
             mode = if (action in PenBinding.commands) PenBindingMode.SELECT else binding.mode))
     }
     if (binding.action in PenBinding.tools) {
-        OptionDropdown(listOf("HOLD" to stringResource(R.string.pro_pen_hold), "SELECT" to stringResource(R.string.pro_pen_select)), binding.mode.name) {
+        OptionDropdown(listOf("HOLD" to stringResource(R.string.pro_pen_hold), "SELECT" to stringResource(R.string.pro_pen_select)), binding.mode.name, Modifier.sizeIn(minWidth = MinTouchTarget, minHeight = MinTouchTarget)) {
             onChange(binding.copy(mode = PenBindingMode.valueOf(it)))
         }
     } else if (binding.action in PenBinding.commands) {

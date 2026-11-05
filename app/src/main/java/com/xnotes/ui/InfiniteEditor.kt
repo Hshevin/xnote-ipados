@@ -430,6 +430,8 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     fun resetPenButtons() = proPenInput.reset()
 
     fun onRecordedPenKey(e: android.view.KeyEvent): Boolean = proPenInput.key(e)
+    val heldPenKeys: Set<com.xnotes.pen.PenTrigger> get() = proPenInput.heldKeys
+    fun inheritPenKeys(keys: Set<com.xnotes.pen.PenTrigger>) = proPenInput.inheritKeys(keys)
 
     /** The single tool armed before this one, for tap-gesture toggles. */
     private var previousTool: Tool? = null

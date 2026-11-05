@@ -9949,6 +9949,13 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         target.goHome()
     }
 
+    private val heldPenKeys: Set<com.xnotes.pen.PenTrigger>
+        get() = if (canvasOpen) infinite.heldPenKeys else proPenInput.heldKeys
+
+    private fun inheritPenKeys(keys: Set<com.xnotes.pen.PenTrigger>) {
+        if (canvasOpen) infinite.inheritPenKeys(keys) else proPenInput.inheritKeys(keys)
+    }
+
     private val hoverButtons: Int get() = if (canvasOpen) infinite.hoverButtons else proPenInput.lastButtons
 
     /** Handoff at hover entry, before dispatching the sample to the new pane's controller. */
@@ -9971,9 +9978,11 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             previous.flowText.endSession()
             previous.controller.clearSelection()
             if (previous.canvasOpen) previous.infinite.clearHover() else previous.controller.clearHover()
+            val heldKeys = previous.heldPenKeys
             previous.resetPenButtons()
             val next = if (pane == Pane.SECONDARY) secondary else this
             next?.copyToolSettingsFrom(previous)
+            next?.inheritPenKeys(heldKeys)
             focusedPane = pane
         }
     }

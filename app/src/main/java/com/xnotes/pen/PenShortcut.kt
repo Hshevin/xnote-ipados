@@ -17,6 +17,9 @@ data class PenShortcut(
     val triggers: List<PenTrigger>,
     val binding: PenBinding = PenBinding(),
 ) {
+    // A deterministic primary prevents delayed, non-overlapping aliases from double-firing.
+    // Recording away from the display yields a key-only mapping when remote use is desired.
+    val primary: PenTrigger get() = triggers.firstOrNull { it.kind == PenTrigger.Kind.MOTION } ?: triggers.first()
     companion object {
         const val MAX_SHORTCUTS = 32
         const val MAX_SIGNALS = 8
@@ -58,11 +61,16 @@ class PenShortcutState {
         held.removeAll { it.kind == PenTrigger.Kind.MOTION }
         held.addAll(triggers)
     }
+    val keys: Set<PenTrigger> get() = held.filter { it.kind == PenTrigger.Kind.KEY }.toSet()
+    fun replaceKeys(keys: Set<PenTrigger>) {
+        held.removeAll { it.kind == PenTrigger.Kind.KEY }
+        held.addAll(keys.filter { it.kind == PenTrigger.Kind.KEY })
+    }
     fun clear() = held.clear()
     fun mask(shortcuts: List<PenShortcut>, motionOverride: Set<PenTrigger>? = null): Int {
         val signals = if (motionOverride == null) held else held.filter { it.kind == PenTrigger.Kind.KEY }.toSet() + motionOverride
         return shortcuts.foldIndexed(0) { index, mask, shortcut ->
-            if (shortcut.triggers.any { it in signals }) mask or (1 shl index) else mask
+            if (shortcut.primary in signals) mask or (1 shl index) else mask
         }
     }
     fun bindings(shortcuts: List<PenShortcut>): Map<Int, PenBinding> =

@@ -1,7 +1,6 @@
 package com.xnotes.pen
 
 import android.view.KeyEvent
-import android.view.InputDevice
 import android.view.MotionEvent
 import com.xnotes.core.tools.Tool
 
@@ -35,12 +34,24 @@ class ProPenInput(
         signals.clear()
         pendingCommands.clear()
         pendingTool = null
-        apply(buttons.reset())
+        val keySlots = bindings().foldIndexed(0) { index, mask, shortcut ->
+            if (shortcut.primary.kind == PenTrigger.Kind.KEY) mask or (1 shl index) else mask
+        }
+        apply(buttons.reset(releasedButtons = keySlots))
+    }
+
+    val heldKeys: Set<PenTrigger> get() = signals.keys
+
+    /** Transfer physical key holds across panes without repeating commands. */
+    fun inheritKeys(keys: Set<PenTrigger>) {
+        signals.replaceKeys(keys)
+        val shortcuts = bindings()
+        val mask = signals.mask(shortcuts)
+        apply(buttons.update(mask, signals.bindings(shortcuts), inheritedButtons = mask))
     }
 
     private fun stylusIndex(e: MotionEvent): Int =
-        if (!e.isFromSource(InputDevice.SOURCE_STYLUS)) -1
-        else (0 until e.pointerCount).firstOrNull {
+        (0 until e.pointerCount).firstOrNull {
             e.getToolType(it) == MotionEvent.TOOL_TYPE_STYLUS ||
                 e.getToolType(it) == MotionEvent.TOOL_TYPE_ERASER
         } ?: -1
@@ -98,6 +109,8 @@ class ProPenInput(
         val trigger = PenSignals.key(e) ?: return false
         val shortcuts = bindings()
         if (shortcuts.none { trigger in it.triggers }) return false
+        // Auxiliary key notifications must not reapply a suspended motion HOLD or cancel it.
+        if (shortcuts.none { it.primary == trigger }) return true
         if (e.action == KeyEvent.ACTION_DOWN && e.repeatCount != 0) return true
         signals.keyOrButton(trigger, e.action == KeyEvent.ACTION_DOWN)
         if (e.isCanceled) {

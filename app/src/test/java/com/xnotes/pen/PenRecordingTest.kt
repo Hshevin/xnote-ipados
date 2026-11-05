@@ -36,7 +36,7 @@ class PenRecordingTest {
         assertNull(recorder.finish())
     }
 
-    @Test fun aliasesRunOneCommandAndKeepHoldUntilBothRoutesRelease() {
+    @Test fun aliasesUsePrimaryRouteAndDoNotRepeatCommands() {
         val shortcut = PenShortcut("one", listOf(motion, key), PenBinding("undo", PenBindingMode.SELECT))
         val input = PenShortcutState()
         val buttons = ProPenButtons("pen")
@@ -48,7 +48,8 @@ class PenRecordingTest {
         assertTrue(send(key, true).commands.isEmpty())
         send(motion, false)
         assertTrue(send(key, false).commands.isEmpty())
-        assertEquals(listOf("undo"), send(key, true).commands)
+        assertTrue(send(key, true).commands.isEmpty())
+        assertEquals(listOf("undo"), send(motion, true).commands)
     }
 
     @Test fun deviceAndScanCodeKeepIdenticalKeyCodesSeparate() {
