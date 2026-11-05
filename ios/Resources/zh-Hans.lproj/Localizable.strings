@@ -1,0 +1,7 @@
+"probe.title" = "XNotes · 输入探针";
+"probe.description" = "在下方区域使用 Apple Pencil 检查输入事件。本开发探针不保存笔记。";
+"probe.actual" = "正式采样";
+"probe.predicted" = "预测采样";
+"probe.corrections" = "估计值修正";
+"probe.cancellations" = "取消事件";
+"probe.surface" = "Apple Pencil 输入区域";

@@ -1,0 +1,7 @@
+"probe.title" = "XNotes · Input probe";
+"probe.description" = "Use Apple Pencil in the area below to inspect input delivery. This development probe does not save notes.";
+"probe.actual" = "Actual samples";
+"probe.predicted" = "Predicted samples";
+"probe.corrections" = "Corrections";
+"probe.cancellations" = "Cancellations";
+"probe.surface" = "Apple Pencil input area";
