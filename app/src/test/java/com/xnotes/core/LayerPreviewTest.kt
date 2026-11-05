@@ -27,6 +27,37 @@ class LayerPreviewTest {
         assertEquals(Rect(-30.0, -20.0, 110.0, 110.0), preview.frame)
     }
 
+    @Test fun contentModeFitsOnlyThisLayerWhilePageModeKeepsPageCoordinates() {
+        val first = item("a", Rect(12.0, 34.0, 10.0, 20.0))
+        val second = item("b", Rect(80.0, 90.0, 5.0, 5.0))
+        val page = Rect(0.0, 0.0, 100.0, 200.0)
+        val preview = LayerPreview(listOf(first, second), page)
+        assertEquals(first.paintBounds(), preview.frameFor("a", LayerPreviewMode.CONTENT))
+        assertEquals(second.paintBounds(), preview.frameFor("b", LayerPreviewMode.CONTENT))
+        assertEquals(LayerPreviewMode.entries.toList(), preview.modes)
+        assertEquals(page, preview.frameFor("a", LayerPreviewMode.PAGE))
+        assertNull(preview.frameFor("a", LayerPreviewMode.NONE))
+    }
+
+    @Test fun canvasOffersOnlyHiddenAndPerLayerContentModes() {
+        val a = item("a", Rect(-40.0, -30.0, 10.0, 20.0))
+        val b = item("b", Rect(40.0, 30.0, 10.0, 20.0))
+        val preview = LayerPreview(listOf(a, b))
+        assertEquals(listOf(LayerPreviewMode.NONE, LayerPreviewMode.CONTENT), preview.modes)
+        assertNull(preview.frameFor("a", LayerPreviewMode.PAGE))
+        assertEquals(a.paintBounds(), preview.frameFor("a", LayerPreviewMode.CONTENT))
+        assertEquals(Rect(0.0, 0.0, 1.0, 1.0), preview.frameFor("empty", LayerPreviewMode.CONTENT))
+    }
+
+    @Test fun hiddenModeDoesNotMeasureContent() {
+        val base = item("a", Rect(0.0, 0.0, 10.0, 10.0))
+        val neverMeasure = object : CanvasItem by base {
+            override fun paintBounds(): Rect = error("Hidden preview must not measure geometry")
+        }
+        val preview = LayerPreview(listOf(neverMeasure))
+        assertNull(preview.frameFor("a", LayerPreviewMode.NONE))
+    }
+
     @Test fun invalidBoundsCannotPoisonTheCanvasFrame() {
         val valid = item("a", Rect(5.0, 6.0, 10.0, 20.0))
         val invalid = item("b", Rect(Double.NaN, 0.0, 1.0, 1.0))

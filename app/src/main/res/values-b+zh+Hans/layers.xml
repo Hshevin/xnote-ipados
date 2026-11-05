@@ -21,7 +21,9 @@
     <string name="layers_drag">拖动图层排序</string>
     <string name="layers_drag_hint">拖动缩略图或名称排序，双击名称重命名。</string>
     <string name="layers_actions">图层操作</string>
-    <string name="layers_small_previews">缩小缩略图</string>
-    <string name="layers_large_previews">放大缩略图</string>
     <string name="layers_preview_failed">缩略图暂不可用</string>
+    <string name="layers_preview_mode">缩略图显示</string>
+    <string name="layers_preview_none">不显示</string>
+    <string name="layers_preview_content">已有笔记区域</string>
+    <string name="layers_preview_page">整页笔记</string>
 </resources>

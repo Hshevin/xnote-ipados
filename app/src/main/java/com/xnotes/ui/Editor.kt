@@ -598,6 +598,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     var renderScale by mutableStateOf(1.0)
         private set
     var sidebarVisible by mutableStateOf(false)
+    var layerPreviewMode by mutableStateOf(com.xnotes.core.model.LayerPreviewMode.PAGE)
     /** Granted explorer root (a SAF tree URI), or null until the user picks a folder. */
     var browseRoot by mutableStateOf(settings.browseRoot)
         private set

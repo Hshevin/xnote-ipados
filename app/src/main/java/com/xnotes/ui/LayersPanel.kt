@@ -29,7 +29,7 @@ import com.xnotes.R
 import com.xnotes.core.model.DrawingLayers
 import com.xnotes.core.model.LayerPreview
 import com.xnotes.ui.theme.LayerThumbnailSize
-import com.xnotes.ui.theme.LayerThumbnailLargeSize
+import com.xnotes.core.model.LayerPreviewMode
 import com.xnotes.ui.theme.MinTouchTarget
 import com.xnotes.ui.theme.Space
 import com.xnotes.ui.theme.TextSize
@@ -53,7 +53,7 @@ fun LayersSidebar(editor: Editor) {
     val page = editor.state.document.pages.getOrNull(editor.pageIndex) ?: return
     key(page) {
         val preview = remember(editor.contentVersion) { LayerPreview(page.items, editor.state.footprint(page)) }
-        LayersPanel(page.layers, preview, editor.contentVersion, { editor.selectLayer(page, it) }, { edit -> editor.editLayers(page, edit) },
+        LayersPanel(page.layers, preview, editor.layerPreviewMode, { editor.layerPreviewMode = it }, editor.contentVersion, { editor.selectLayer(page, it) }, { edit -> editor.editLayers(page, edit) },
             { id -> page.items.removeAll { it.layerId == id }; page.layers.delete(id) },
             { id -> editor.moveSelectionToLayer(page, id) },
             editor.hasSelection && editor.controller.layerSelection(page).isNotEmpty(), { editor.sidebarVisible = false })
@@ -64,7 +64,7 @@ fun LayersSidebar(editor: Editor) {
 fun LayersSidebar(editor: InfiniteEditor) {
     key(editor.document) {
         val preview = remember(editor.layerContentVersion) { LayerPreview(editor.document.items) }
-        LayersPanel(editor.document.layers, preview, editor.layerContentVersion, editor::selectLayer, editor::editLayers,
+        LayersPanel(editor.document.layers, preview, editor.layerPreviewMode, { editor.layerPreviewMode = it }, editor.layerContentVersion, editor::selectLayer, editor::editLayers,
             { id -> editor.document.removeAll(editor.document.items.filter { it.layerId == id }); editor.document.layers.delete(id) },
             editor::moveSelectionToLayer, editor.hasSelection, { editor.layersSidebarVisible = false })
     }
@@ -75,6 +75,8 @@ fun LayersSidebar(editor: InfiniteEditor) {
 private fun LayersPanel(
     layers: DrawingLayers,
     preview: LayerPreview,
+    previewMode: LayerPreviewMode,
+    onPreviewMode: (LayerPreviewMode) -> Unit,
     version: Int,
     select: (String) -> Boolean,
     edit: (() -> Unit) -> Boolean,
@@ -83,9 +85,12 @@ private fun LayersPanel(
     hasSelection: Boolean,
     dismiss: () -> Unit,
 ) {
-    val thumbnails = remember(preview) { LayerThumbnailCache() }
-    var largeThumbnails by remember { mutableStateOf(false) }
-    val thumbnailSize = if (largeThumbnails) LayerThumbnailLargeSize else LayerThumbnailSize
+    val thumbnails = remember(preview, previewMode) {
+        if (previewMode == LayerPreviewMode.NONE) null else LayerThumbnailCache()
+    }
+    var previewMenu by remember { mutableStateOf(false) }
+    val thumbnailSize = LayerThumbnailSize
+    val rowHeight = if (previewMode == LayerPreviewMode.NONE) MinTouchTarget else thumbnailSize + Space.s16
     var rename by remember { mutableStateOf<String?>(null) }
     var name by remember { mutableStateOf("") }
     var deleting by remember { mutableStateOf<String?>(null) }
@@ -186,15 +191,15 @@ private fun LayersPanel(
                         Icon(if (layer.visible) XnotesIcons.layerVisible else XnotesIcons.layerHidden,
                             stringResource(if (layer.visible) R.string.layers_hide else R.string.layers_show), tint = fg)
                     }
-                    Box(Modifier.size(thumbnailSize + Space.s16).semantics { contentDescription = dragDescription }.pointerInput(layer.id, ids) {
+                    if (thumbnails != null) Box(Modifier.size(rowHeight).semantics { contentDescription = dragDescription }.pointerInput(layer.id, ids) {
                         detectDragGestures(onDragStart = startDrag, onDragEnd = endDrag,
                             onDragCancel = { dragging = null },
                             onDrag = { event, amount -> event.consume(); pointerY += amount.y; updateTarget() })
                     }, contentAlignment = Alignment.Center) {
-                        LayerThumbnail(preview, layer.id, thumbnails, Modifier.size(thumbnailSize))
+                        key(previewMode) { LayerThumbnail(preview, layer.id, previewMode, thumbnails, Modifier.size(thumbnailSize)) }
                     }
                     Text(layer.name.ifEmpty { stringResource(R.string.layers_default, entries.size - index) },
-                        Modifier.weight(1f).height(thumbnailSize + Space.s16)
+                        Modifier.weight(1f).height(rowHeight)
                             .combinedClickable(enabled = dragging == null, onClick = { if (!selected) select(layer.id) },
                                 onDoubleClick = { rename = layer.id; name = layer.name })
                             .pointerInput(layer.id, ids) {
@@ -243,8 +248,23 @@ private fun LayersPanel(
                 onClick = { change { layers.move(active.id, -1) } }, modifier = Modifier.weight(1f).height(MinTouchTarget)) {
                 Icon(XnotesIcons.arrowDown, stringResource(R.string.layers_down))
             }
-            IconButton(enabled = dragging == null, onClick = { largeThumbnails = !largeThumbnails }, modifier = Modifier.weight(1f).height(MinTouchTarget)) {
-                Icon(XnotesIcons.layers, stringResource(if (largeThumbnails) R.string.layers_small_previews else R.string.layers_large_previews))
+            Box(Modifier.weight(1f)) {
+                IconButton(enabled = dragging == null, onClick = { previewMenu = true }, modifier = Modifier.fillMaxWidth().height(MinTouchTarget)) {
+                    Icon(XnotesIcons.layers, stringResource(R.string.layers_preview_mode))
+                }
+                DropdownMenu(expanded = previewMenu, onDismissRequest = { previewMenu = false }) {
+                    for (mode in preview.modes) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(when (mode) {
+                                LayerPreviewMode.NONE -> R.string.layers_preview_none
+                                LayerPreviewMode.CONTENT -> R.string.layers_preview_content
+                                LayerPreviewMode.PAGE -> R.string.layers_preview_page
+                            }), fontSize = TextSize.body) },
+                            leadingIcon = { RadioButton(selected = mode == previewMode, onClick = null) },
+                            onClick = { previewMenu = false; onPreviewMode(mode) },
+                        )
+                    }
+                }
             }
             IconButton(enabled = dragging == null && entries.size > 1 && !active.locked && active.visible,
                 onClick = { deleting = active.id }, modifier = Modifier.weight(1f).height(MinTouchTarget)) {

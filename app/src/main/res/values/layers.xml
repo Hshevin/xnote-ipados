@@ -21,7 +21,9 @@
     <string name="layers_drag">Drag to reorder layers</string>
     <string name="layers_drag_hint">Drag a preview or name to reorder; double-tap a name to rename.</string>
     <string name="layers_actions">Layer actions</string>
-    <string name="layers_small_previews">Smaller previews</string>
-    <string name="layers_large_previews">Larger previews</string>
     <string name="layers_preview_failed">Preview unavailable</string>
+    <string name="layers_preview_mode">Thumbnail display</string>
+    <string name="layers_preview_none">Do not show</string>
+    <string name="layers_preview_content">Note content area</string>
+    <string name="layers_preview_page">Entire page</string>
 </resources>

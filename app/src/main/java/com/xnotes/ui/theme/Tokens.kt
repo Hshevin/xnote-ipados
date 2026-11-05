@@ -47,4 +47,3 @@ val MinTouchTarget = 48.dp
 /** Docked sidebar with a content preview and 48 dp layer controls. */
 val LayerSidebarWidth = 320.dp
 val LayerThumbnailSize = 48.dp
-val LayerThumbnailLargeSize = 64.dp

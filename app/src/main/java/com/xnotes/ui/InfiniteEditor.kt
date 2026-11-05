@@ -2469,6 +2469,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     }
 
     var layersSidebarVisible by mutableStateOf(false)
+    var layerPreviewMode by mutableStateOf(com.xnotes.core.model.LayerPreviewMode.CONTENT)
     var layerContentVersion by mutableStateOf(0)
         private set
 

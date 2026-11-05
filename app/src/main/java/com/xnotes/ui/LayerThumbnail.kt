@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.Dp
 import com.xnotes.core.model.LayerPreview
+import com.xnotes.core.model.LayerPreviewMode
 import com.xnotes.core.model.deepCopyAll
 import com.xnotes.platform.AndroidTextMeasurer
 import com.xnotes.platform.LayerThumbnailRenderer
@@ -38,9 +39,10 @@ internal class LayerThumbnailCache {
 }
 
 @Composable
-internal fun LayerThumbnail(preview: LayerPreview, id: String, cache: LayerThumbnailCache, modifier: Modifier = Modifier) {
-    var failed by remember(preview, id) { mutableStateOf(false) }
-    val bitmap by produceState<ImageBitmap?>(cache.images.get(id), preview, id, cache) {
+internal fun LayerThumbnail(preview: LayerPreview, id: String, mode: LayerPreviewMode, cache: LayerThumbnailCache, modifier: Modifier = Modifier) {
+    val frame = remember(preview, id, mode) { preview.frameFor(id, mode) } ?: return
+    var failed by remember(preview, id, mode) { mutableStateOf(false) }
+    val bitmap by produceState<ImageBitmap?>(cache.images.get(id), preview, id, mode, cache) {
         cache.images.get(id)?.let { value = it; return@produceState }
         // Coalesce successive pen-up/content notifications; never rasterize in composition.
         delay(150)
@@ -49,7 +51,7 @@ internal fun LayerThumbnail(preview: LayerPreview, id: String, cache: LayerThumb
                 // Snapshot mutable geometry on the main thread before the worker reads it.
                 val items = preview.itemsFor(id).deepCopyAll(cache.measurer)
                 val rendered = withContext(Dispatchers.Default) {
-                    LayerThumbnailRenderer.render(items, preview.frame, active = { isActive })?.asImageBitmap()
+                    LayerThumbnailRenderer.render(items, frame, active = { isActive })?.asImageBitmap()
                 }
                 if (isActive && rendered != null) {
                     cache.images.put(id, rendered)
